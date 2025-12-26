@@ -1,0 +1,21 @@
+services:
+  tak-user-management:
+    build: .
+    container_name: tak-user-management
+    restart: unless-stopped
+
+    # Load environment from your .env file in the repo root
+    env_file:
+      - .env
+
+    # Expose the web UI. If WEB_UI_PORT isn't set, default to 3000.
+    ports:
+      - "${WEB_UI_PORT:-3000}:${WEB_UI_PORT:-3000}"
+
+    # Persist the /data folder where mutual-aid.json and other data live
+    volumes:
+      - tak_user_mgmt_data:/usr/src/app/data
+
+volumes:
+  tak_user_mgmt_data:
+    # Named volume so data survives container rebuilds & 'docker compose down'

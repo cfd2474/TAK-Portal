@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Always work from the directory where this script lives
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+COMPOSE_CMD="docker compose"
+SERVICE_NAME="tak-user-management"
+
+usage() {
+  cat <<EOF
+Usage: $0 {setup|start|stop|restart|update|logs|status}
+
+Commands:
+  setup    Create/edit .env and make this script executable
+  start    Build (if needed) and start the stack in the background
+  stop     Stop the stack and keep data volume
+  restart  Restart containers (rebuild if needed)
+  update   git pull (if repo) + rebuild & restart containers
+  logs     Follow logs from the container
+  status   Show container status
+EOF
+}
+
+ensure_env() {
+  if [[ -f .env ]]; then
+    echo ".env already exists, opening it in nano..."
+    nano .env
+  else
+    if [[ -f .env.example ]]; then
+      echo "Creating .env from .env.example..."
+      cp .env.example .env
+      echo "Opening .env in nano for editing..."
+      nano .env
+    else
+      echo "ERROR: Neither .env nor .env.example exists in $SCRIPT_DIR"
+      echo "Create a .env or provide a .env.example file first."
+      exit 1
+    fi
+  fi
+}
+
+ensure_self_executable() {
+  # Use BASH_SOURCE so it works even if invoked via 'bash takusermanage.sh setup'
+  local script_path="${BASH_SOURCE[0]}"
+  if [[ ! -x "$script_path" ]]; then
+    echo "Making $(basename "$script_path") executable..."
+    chmod +x "$script_path"
+  fi
+}
+
+CMD="${1:-}"
+
+case "$CMD" in
+  setup)
+    echo "Running setup..."
+    ensure_env
+    ensure_self_executable
+    echo
+    echo "Setup complete."
+    echo "You can now run: ./$(basename "${BASH_SOURCE[0]}") start"
+    ;;
+
+  start)
+    if [[ ! -f .env ]]; then
+      echo "ERROR: .env file not found. Run:"
+      echo "  ./$(basename "${BASH_SOURCE[0]}") setup"
+      exit 1
+    fi
+    echo "Starting TAK User Management Portal..."
+    $COMPOSE_CMD up -d --build
+    ;;
+
+  stop)
+    echo "Stopping TAK User Management Portal (containers only, data volume preserved)..."
+    $COMPOSE_CMD down
+    ;;
+
+  restart)
+    echo "Restarting TAK User Management Portal..."
+    $COMPOSE_CMD down
+    $COMPOSE_CMD up -d --build
+    ;;
+
+  update)
+    echo "Updating repository and containers..."
+
+    if [[ -d .git ]]; then
+      echo "Running git pull..."
+      git pull --rebase --autostash || git pull
+    else
+      echo "No .git directory found; skipping git pull."
+    fi
+
+    echo "Rebuilding and recreating containers..."
+    $COMPOSE_CMD up -d --build
+    ;;
+
+  logs)
+    echo "Tailing logs (Ctrl+C to stop)..."
+    $COMPOSE_CMD logs -f "$SERVICE_NAME"
+    ;;
+
+  status)
+    echo "Container status:"
+    $COMPOSE_CMD ps
+    ;;
+
+  *)
+    usage
+    exit 1
+    ;;
+esac
