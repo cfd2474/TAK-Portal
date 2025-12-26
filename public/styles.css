@@ -1,0 +1,399 @@
+:root {
+    --bg: #0b1220;
+    --panel: #111a2e;
+    --card: #0f1930;
+    --text: #e8eefc;
+    --muted: #a8b3cf;
+    --line: #1f2a44;
+    --btn: #2b6cff;
+    --danger: #ff3b3b;
+    --success: #18b35a;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+}
+
+.app {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* ======================
+   SIDEBAR
+   ====================== */
+
+.sidebar {
+    width: 240px;
+    padding: 18px;
+    background: var(--panel);
+    border-right: 1px solid var(--line);
+}
+
+.brand {
+    font-weight: 800;
+    letter-spacing: .5px;
+    margin-bottom: 18px;
+}
+
+.sidebar a {
+    display: block;
+    padding: 10px;
+    margin: 6px 0;
+    color: var(--text);
+    text-decoration: none;
+    border-radius: 10px;
+}
+
+    .sidebar a:hover {
+        background: rgba(255,255,255,.06);
+    }
+
+/* ======================
+   MAIN CONTENT
+   ====================== */
+
+.main {
+    flex: 1;
+    padding: 26px;
+}
+
+h1 {
+    margin: 0 0 14px 0;
+}
+
+h2 {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    color: var(--muted);
+}
+
+/* ======================
+   CARDS / LAYOUT
+   ====================== */
+
+.card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    margin: 14px 0;
+    box-shadow: 0 10px 30px rgba(0,0,0,.25);
+}
+
+.row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.col {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.grid2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+
+.grid3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 14px;
+}
+
+@media (max-width: 900px) {
+    .grid2 {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ======================
+   FORMS
+   ====================== */
+
+label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+input, select {
+    background: #0b1430;
+    border: 1px solid var(--line);
+    color: var(--text);
+    padding: 10px;
+    border-radius: 10px;
+    outline: none;
+}
+
+    input:focus,
+    select:focus {
+        border-color: rgba(43,108,255,.8);
+    }
+
+.btn {
+    background: var(--btn);
+    border: none;
+    color: white;
+    padding: 10px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+    .btn:hover {
+        filter: brightness(1.05);
+    }
+
+    .btn.danger {
+        background: var(--danger);
+    }
+
+    .btn.success {
+        background: var(--success);
+    }
+
+/* Special button color for Mutual Aid QR */
+.btn.qr {
+    background: #7c3aed;
+}
+
+/* ======================
+   SEGMENTED CONTROL
+   ====================== */
+
+.segmented{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+}
+
+.segBtn{
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--text);
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.segBtn:hover{
+    filter: brightness(1.03);
+}
+
+.segBtn.active{
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+
+/* Ensure good contrast in modal segmented controls */
+.modal .segBtn{
+    color: var(--text);
+}
+
+/* ======================
+   TABLES
+   ====================== */
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+    .table th,
+    .table td {
+        border-top: 1px solid var(--line);
+        padding: 10px;
+        text-align: left;
+    }
+
+    .table thead th {
+        border-top: none;
+        color: var(--muted);
+        font-size: 12px;
+    }
+
+/* ======================
+   CHECKLIST BOX (reused)
+   ====================== */
+
+.groupsBox{
+    margin-top: 10px;
+    border: 1px solid var(--line);
+    background: #0b1430;
+    border-radius: 12px;
+    padding: 10px;
+    max-height: 360px;
+    overflow: auto;
+}
+
+.groupItem{
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 10px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.groupItem:hover{
+    background: rgba(255,255,255,.06);
+}
+
+.groupItem input{
+    margin: 0;
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+}
+
+.groupItem span{
+    display: inline-block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ======================
+   MESSAGES
+   ====================== */
+
+.msg {
+    margin-left: 10px;
+}
+
+    .msg.ok {
+        color: #5bff8a;
+    }
+
+    .msg.bad {
+        color: #ff7a7a;
+    }
+
+/* ======================
+   MODALS
+   ====================== */
+
+.modalOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    z-index: 1000;
+}
+
+.modal {
+    width: min(1100px, 96vw);
+    max-height: 92vh;
+    overflow: auto;
+    border: 1px solid var(--line);
+    background: #0b1430;
+    border-radius: 16px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.45);
+}
+
+.modalHeader {
+    position: sticky;
+    top: 0;
+    background: #0b1430;
+    border-bottom: 1px solid var(--line);
+    padding: 14px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.modalBody {
+    padding: 14px;
+}
+
+.noScroll {
+    overflow: hidden;
+}
+
+/* =========================================================
+   MOBILE SIDEBAR TOGGLE (FINAL + BULLETPROOF)
+   ========================================================= */
+
+.sidebarToggle {
+    display: none;
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 1101;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: #0b1430;
+    color: var(--text);
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.sidebarOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.55);
+    z-index: 1100;
+}
+
+@media (max-width: 900px) {
+
+    .sidebarToggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .sidebarOverlay {
+        display: block;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .2s ease;
+    }
+
+    .sidebar {
+        display: block !important;
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        width: 240px;
+        transform: translateX(-105%);
+        transition: transform .2s ease;
+        z-index: 1102;
+    }
+
+    body.sidebar-open .sidebar {
+        transform: translateX(0);
+    }
+
+    body.sidebar-open .sidebarOverlay {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .main {
+        padding-top: 64px;
+    }
+}

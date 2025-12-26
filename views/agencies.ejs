@@ -1,0 +1,279 @@
+<%- include("partials/header") %>
+<%- include("partials/sidebar") %>
+
+<main class="main">
+  <h1>Manage Agencies</h1>
+
+  <div class="card">
+    <h2>Add Agency</h2>
+    <form id="addForm" class="row">
+      <!-- 1) Agency name -->
+      <label>Agency Full Name
+        <input name="name" placeholder="Agency Full Name" required style="flex: 2;" />
+      </label>
+
+      <!-- 2) Group prefix -->
+      <label>Agency Abbreviation
+        <input name="groupPrefix" placeholder="(ex. HCSO, HCOEM, etc...)" required
+               oninput="this.value = this.value.toUpperCase()" />
+      </label>
+
+      <!-- 3) Username suffix -->
+      <label>Username Suffix
+        <input name="suffix" placeholder="(ex. hs, hcoem, etc...)" required
+               oninput="this.value = this.value.toLowerCase()" />
+      </label>
+
+      <!-- 4) County dropdown (Hamilton only for now, prefilled) -->
+      <label>County
+        <select name="county" required>
+          <option value="Hamilton" selected>Hamilton County</option>
+        </select>
+      </label>
+
+      <!-- 5) Type dropdown -->
+      <label>Agency Type
+        <select name="type" required>
+          <option value="" disabled selected>Agency Type</option>
+          <option value="Law Enforcement">Law Enforcement</option>
+          <option value="Fire">Fire</option>
+          <option value="EMS">EMS</option>
+          <option value="State Defense">State Defense</option>
+          <option value="Military">Military</option>
+          <option value="TWRA / NPS / Forestry">TWRA / NPS / Forestry</option>
+          <option value="CBRNE / HAZMAT">CBRNE / HAZMAT</option>
+          <option value="SAR / Technical">SAR / Technical</option>
+          <option value="Emergency Management">Emergency Management</option>
+          <option value="Volunteer">Volunteer</option>
+          <option value="Other">Other</option>
+        </select>
+      </label>
+      <label> <br>
+      <button class="btn">Create Agency</button></label>
+    </form>
+    <div id="msg" class="msg"></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content: space-between;">
+      <h2 style="margin:0;">Current Agencies</h2>
+      <button class="btn" id="refreshBtn" type="button">Reload</button>
+    </div>
+
+    <table class="table" id="agencyTable">
+      <thead>
+        <tr>
+          <th data-sort="name" role="button" tabindex="0" title="Sort by Agency">Agency</th>
+          <th data-sort="groupPrefix" role="button" tabindex="0" title="Sort by Abbreviation">Abbreviation</th>
+          <th data-sort="suffix" role="button" tabindex="0" title="Sort by Username Suffix">Username Suffix</th>
+          <th data-sort="county" role="button" tabindex="0" title="Sort by County">County</th>
+          <th data-sort="type" role="button" tabindex="0" title="Sort by Type">Type</th>
+          <th data-sort="userCount" data-type="number" role="button" tabindex="0" title="Sort by Total Users">Total Users</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</main>
+
+<script>
+const msg = document.getElementById("msg");
+const tbody = document.getElementById("tbody");
+const addForm = document.getElementById("addForm");
+const refreshBtn = document.getElementById("refreshBtn");
+const agencyTable = document.getElementById("agencyTable");
+
+let agencies = [];
+let sortState = { key: "name", dir: 1 }; // default: Agency asc
+
+
+function setMsg(text, ok=true){
+  msg.textContent = text || "";
+  msg.className = "msg " + (ok ? "ok" : "bad");
+}
+
+function esc(s){
+  return String(s ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;");
+}
+
+function normalizeVal(v){
+  if (v === null || v === undefined) return "";
+  return String(v).toLowerCase().trim();
+}
+
+function renderAgencies(){
+  // apply sort (copy to avoid mutating original order if you later want it)
+  const rows = [...agencies];
+
+  if (sortState.key){
+    const key = sortState.key;
+    const dir = sortState.dir;
+    const th = agencyTable.querySelector(`thead th[data-sort="${CSS.escape(key)}"]`);
+    const type = th?.dataset.type || "text";
+
+    rows.sort((a,b) => {
+      if (type === "number"){
+        const av = Number(a[key] ?? 0);
+        const bv = Number(b[key] ?? 0);
+        return (av - bv) * dir;
+      } else {
+        const av = normalizeVal(a[key]);
+        const bv = normalizeVal(b[key]);
+        return av.localeCompare(bv) * dir;
+      }
+    });
+  }
+
+  // update header indicators
+  agencyTable.querySelectorAll("thead th[data-sort]").forEach(th => {
+    th.classList.remove("sorted-asc","sorted-desc");
+    if (th.dataset.sort === sortState.key){
+      th.classList.add(sortState.dir === 1 ? "sorted-asc" : "sorted-desc");
+    }
+  });
+
+  tbody.innerHTML = rows.map((a)=>`
+    <tr>
+      <td>${esc(a.name)}</td>
+      <td>${esc(a.groupPrefix)}</td>
+      <td>${esc(a.suffix)}</td>
+      <td>${esc(a.county)}</td>
+      <td>${esc(a.type)}</td>
+      <td>${Number(a.userCount || 0)}</td>
+      <td>
+        <button class="btn danger" onclick="delAgency('${esc(a._id ?? a.id ?? "")}')">Delete</button>
+      </td>
+    </tr>
+  `).join("");
+}
+
+async function loadAgenciesWithCounts(){
+  const res = await fetch("/api/agencies/with-counts");
+  const data = await res.json();
+
+  if(!res.ok){
+    setMsg(data.error || "Failed to load agencies", false);
+    return;
+  }
+
+  // Expecting each agency to include an id (recommended). We'll still render even if missing.
+  agencies = Array.isArray(data) ? data : [];
+  renderAgencies();
+}
+
+// Prefer deleting by real id.
+// If your API currently deletes by index, update the backend route to delete by id.
+window.delAgency = async (id) => {
+  if(!confirm("Delete this agency?")) return;
+
+  if(!id){
+    setMsg("Missing agency id (API should return _id/id).", false);
+    return;
+  }
+
+  const res = await fetch("/api/agencies/" + encodeURIComponent(id), { method:"DELETE" });
+  const out = await res.json();
+
+  if(!res.ok){
+    setMsg(out.error || "Delete failed", false);
+    return;
+  }
+
+  setMsg("Agency deleted", true);
+  loadAgenciesWithCounts();
+};
+
+addForm.onsubmit = async (e) => {
+  e.preventDefault();
+  setMsg("");
+
+  const body = Object.fromEntries(new FormData(addForm));
+
+  const res = await fetch("/api/agencies", {
+    method:"POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(body)
+  });
+
+  const out = await res.json();
+  if(!res.ok){
+    setMsg(out.error || "Add failed", false);
+    return;
+  }
+
+  addForm.reset();
+  addForm.elements.county.value = "Hamilton";
+
+  setMsg("Agency added", true);
+  loadAgenciesWithCounts();
+};
+
+refreshBtn.onclick = () => loadAgenciesWithCounts();
+
+// click-to-sort + keyboard support (Enter/Space)
+agencyTable.querySelectorAll("thead th[data-sort]").forEach(th => {
+  th.addEventListener("click", () => {
+    const key = th.dataset.sort;
+    if (sortState.key === key){
+      sortState.dir *= -1; // toggle direction
+    } else {
+      sortState.key = key;
+      sortState.dir = 1;
+    }
+    renderAgencies();
+  });
+
+  th.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " "){
+      e.preventDefault();
+      th.click();
+    }
+  });
+});
+
+loadAgenciesWithCounts();
+</script>
+
+<style>
+/* Hide Agency Prefix column on small screens */
+@media (max-width: 640px){
+  .table th:nth-child(2),
+  .table td:nth-child(2){
+    display: none;
+  }
+}
+@media (max-width: 640px){
+  .table th:nth-child(5),
+  .table td:nth-child(5){
+    display: none;
+  }
+}
+
+/* Make sortable headers look clickable */
+.table thead th[data-sort]{
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  padding-right: 1.25rem;
+}
+
+/* Sort indicator */
+.table thead th[data-sort].sorted-asc::after{
+  content: "▲";
+  position: absolute;
+  right: 0.5rem;
+  opacity: 0.7;
+}
+.table thead th[data-sort].sorted-desc::after{
+  content: "▼";
+  position: absolute;
+  right: 0.5rem;
+  opacity: 0.7;
+}
+</style>
+
+</div></body></html>

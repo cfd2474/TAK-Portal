@@ -1,0 +1,774 @@
+const api = require("./authentik");
+const agenciesStore = require("./agencies.service");
+const templatesStore = require("./templates.service");
+const tak = require("./tak.service");
+
+// ---------------- Action-lock helpers ----------------
+// If a username starts with any prefix in USERS_ACTIONS_HIDDEN_PREFIXES,
+// the UI hides action buttons AND the API will reject mutating operations.
+function getUserActionLockPrefixes() {
+  return String(process.env.USERS_ACTIONS_HIDDEN_PREFIXES || "")
+    .split(",")
+    .map(p => String(p || "").trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isUserActionLocked(username) {
+  const u = String(username || "").trim().toLowerCase();
+  if (!u) return false;
+  const prefixes = getUserActionLockPrefixes();
+  if (!prefixes.length) return false;
+  return prefixes.some(p => u.startsWith(p));
+}
+
+async function assertUserNotActionLocked(userId, { ignoreLocks } = {}) {
+  const user = await getUserById(userId);
+  if (!ignoreLocks && isUserActionLocked(user?.username)) {
+    throw new Error(`Actions are locked for user ${user?.username || userId}`);
+  }
+  return user;
+}
+
+const emailSvc = require("./email.service");
+const { renderTemplate, htmlToText } = require("./emailTemplates.service");
+const { getBool } = require("./env");
+
+// Helpers
+function normalizePath(p) {
+  // Remove leading/trailing slashes
+  return String(p || "").replace(/^\/+|\/+$/g, "");
+}
+
+function validateBadgeNumber(badge) {
+  return /^\d+$/.test(String(badge || ""))
+    ? null
+    : "Badge Number must contain numbers only.";
+}
+
+function validatePassword(password) {
+  const p = String(password || "");
+  if (p.length < 12) return "Password must be at least 12 characters.";
+  if (!/[a-z]/.test(p)) return "Password must contain a lowercase letter.";
+  if (!/[A-Z]/.test(p)) return "Password must contain an uppercase letter.";
+  if (!/[0-9]/.test(p)) return "Password must contain a number.";
+  if (!/[!@#$%^&*()_+\-=[\]{};':\"\\|,.<>/?]/.test(p))
+    return "Password must contain a symbol.";
+  return null;
+}
+
+async function resolveGroupNames(groupIds) {
+  const ids = Array.isArray(groupIds)
+    ? groupIds.map(x => String(x).trim()).filter(Boolean)
+    : [];
+  if (!ids.length) return [];
+
+  const all = await getAllGroups();
+  const byPk = new Map(all.map(g => [String(g.pk), String(g.name || "").trim()]));
+  return ids
+    .map(id => byPk.get(String(id)) || String(id))
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function safeMailTo(user) {
+  const to = String(user?.email || "").trim();
+  return to || null;
+}
+
+async function emailUserCreated({ user, groups }) {
+  const to = safeMailTo(user);
+  if (!to) return;
+
+  const groupNames = Array.isArray(groups)
+    ? groups
+        .map(g => String(g?.name || "").trim())
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b))
+    : [];
+
+  const subject = "Account created";
+  const displayName = String(user?.name || "").trim() || "there";
+  const groupsCsv = groupNames.length ? groupNames.join(", ") : "(none)";
+  const html = renderTemplate("user_created.html", {
+    displayName,
+    username: String(user?.username || ""),
+    groupsCsv,
+  });
+  const text = htmlToText(html);
+
+  await emailSvc.sendMail({ to, subject, text, html });
+}
+
+async function emailPasswordChanged(user) {
+  const to = safeMailTo(user);
+  if (!to) return;
+
+  const subject = "Password changed";
+  const displayName = String(user?.name || "").trim() || "there";
+  const html = renderTemplate("password_changed.html", {
+    displayName,
+    username: String(user?.username || ""),
+  });
+  const text = htmlToText(html);
+
+  await emailSvc.sendMail({ to, subject, text, html });
+}
+
+async function emailGroupsUpdated({ user, beforeIds, afterIds }) {
+  const to = safeMailTo(user);
+  if (!to) return;
+
+  const [beforeNames, afterNames] = await Promise.all([
+    resolveGroupNames(beforeIds),
+    resolveGroupNames(afterIds),
+  ]);
+
+  const subject = "Groups updated";
+  const displayName = String(user?.name || "").trim() || "there";
+  const beforeGroupsCsv = beforeNames.length ? beforeNames.join(", ") : "(none)";
+  const afterGroupsCsv = afterNames.length ? afterNames.join(", ") : "(none)";
+  const html = renderTemplate("groups_updated.html", {
+    displayName,
+    username: String(user?.username || ""),
+    beforeGroupsCsv,
+    afterGroupsCsv,
+  });
+  const text = htmlToText(html);
+
+  await emailSvc.sendMail({ to, subject, text, html });
+}
+
+// Get templates available for a given agency suffix.
+// Templates are agency-specific; must match the given suffix.
+// Returned templates are used AFTER the "Manual Group Selection" option in the UI.
+function getTemplatesForAgency(agencySuffix) {
+  const all = templatesStore.load();
+  const sfx = String(agencySuffix || "").trim().toLowerCase();
+  const filtered = all.filter(t => {
+    const tSfx = String(t.agencySuffix || "").trim().toLowerCase();
+    return tSfx === sfx;
+  });
+  return filtered.map(t => ({
+    name: String(t.name || "").trim(),
+    agencySuffix: String(t.agencySuffix || "").trim().toLowerCase(),
+    groups: Array.isArray(t.groups)
+      ? t.groups.map(g => String(g).trim()).filter(Boolean)
+      : [],
+    isDefault: !!t.isDefault,
+  }));
+}
+
+// Authentik API helpers (groups)
+async function getAllGroups() {
+  let groups = [];
+  let url = "/core/groups/";
+  while (url) {
+    const res = await api.get(url);
+    groups = groups.concat(res.data.results);
+    url = res.data.next
+      ? res.data.next.replace(`${process.env.AUTHENTIK_URL}/api/v3`, "")
+      : null;
+  }
+
+  // Hide internal Authentik groups from this portal UI
+  groups = groups.filter(g => {
+    const name = String(g?.name || "").trim().toLowerCase();
+    return !name.startsWith("authentik");
+  });
+
+  return groups;
+}
+
+// Fetch all users, then:
+// - page using Authentik's `pagination` object (no hard cap on total)
+// - hide service/system users by username prefix (USERS_HIDDEN_PREFIXES)
+// - optionally filter by AUTHENTIK_USER_PATH if set
+async function getAllUsers() {
+  let users = [];
+  const pageSize = 200; // per-page size; total is unlimited
+  let page = 1;
+  let hasNext = true;
+
+  while (hasNext) {
+    const url = `${process.env.AUTHENTIK_URL}/api/v3/core/users/?page=${page}&page_size=${pageSize}`;
+    const res = await api.get(url);
+    const data = res?.data || {};
+    const results = Array.isArray(data.results) ? data.results : [];
+    const pagination = data.pagination || {};
+
+    users = users.concat(results);
+
+    if (pagination && pagination.next) {
+      page = pagination.next;
+      hasNext = true;
+    } else {
+      hasNext = false;
+    }
+  }
+
+  // --- prefix filter ---
+  const HIDDEN_PREFIXES = String(process.env.USERS_HIDDEN_PREFIXES || "")
+    .split(",")
+    .map(p => String(p || "").trim().toLowerCase())
+    .filter(Boolean);
+
+  if (HIDDEN_PREFIXES.length) {
+    users = users.filter(u => {
+      const username = String(u?.username || "").trim().toLowerCase();
+      return !HIDDEN_PREFIXES.some(p => username.startsWith(p));
+    });
+  }
+
+  // --- path filter ---
+  const folderRaw = String(process.env.AUTHENTIK_USER_PATH || "").trim();
+  if (!folderRaw) {
+    return users;
+  }
+
+  const target = normalizePath(folderRaw);
+
+  return users.filter(u => {
+    const up = normalizePath(u.path);
+    return up === target || up.startsWith(target + "/");
+  });
+}
+
+async function userExists(username) {
+  const res = await api.get("/core/users/", { params: { username } });
+  return res.data.results.length > 0;
+}
+
+// Main: Create user
+async function createUser(
+  {
+    badge,
+    agencySuffix,
+    email,
+    firstName,
+    lastName,
+    password,
+    templateIndex,
+    manualGroupIds,
+    // Optional optimization: pass preloaded Authentik groups to avoid refetching for each user
+    allGroups,
+  },
+  opts = {}
+) {
+  const { skipExistenceCheck = false } = opts;
+  const badgeErr = validateBadgeNumber(badge);
+  if (badgeErr) throw new Error(badgeErr);
+
+  const agencies = agenciesStore.load();
+  const agency = agencies.find(
+    a =>
+      a.suffix.toLowerCase() === String(agencySuffix || "").toLowerCase()
+  );
+  if (!agency) throw new Error("Invalid agency");
+
+  const username = `${badge}${agency.suffix}`;
+  if (!skipExistenceCheck && await userExists(username)) {
+    throw new Error("Username already exists");
+  }
+
+  const first = String(firstName || "").trim();
+  const last = String(lastName || "").trim();
+  const mail = String(email || "").trim();
+
+  if (!mail) throw new Error("Email required");
+  if (!first) throw new Error("First name required");
+  if (!last) throw new Error("Last name required");
+
+  const name = `${last}, ${first}`;
+
+  // Fetch all groups once (or reuse caller-provided cache)
+  const allGroupsLocal = Array.isArray(allGroups) && allGroups.length
+    ? allGroups
+    : await getAllGroups();
+
+  // Build fast lookup maps
+  const byPk = new Map(allGroupsLocal.map(g => [String(g.pk), g]));
+  const byNameLower = new Map(
+    allGroupsLocal.map(g => [String(g.name || "").trim().toLowerCase(), g])
+  );
+
+  // Determine selected groups from template/manual
+  let selectedGroups = [];
+  const tIdx = Number(templateIndex);
+
+  // Index 0 = Manual Group Selection
+  if (Number.isInteger(tIdx) && tIdx === 0) {
+    const raw = Array.isArray(manualGroupIds) ? manualGroupIds : [];
+
+    // Allow UI to send either PKs or names
+    selectedGroups = raw
+      .map(x => String(x).trim())
+      .filter(Boolean)
+      .map(v => {
+        // try pk match first
+        const g1 = byPk.get(v);
+        if (g1) return g1;
+
+        // then try numeric-string pk match
+        const g2 = byPk.get(String(Number(v)));
+        if (g2) return g2;
+
+        // then try name match
+        return byNameLower.get(v.toLowerCase()) || null;
+      })
+      .filter(Boolean);
+
+    if (!selectedGroups.length) {
+      throw new Error(
+        "Manual group selection did not match any Authentik groups."
+      );
+    }
+  } else {
+    // Dynamic templates start at index 1 in the UI
+    const dynTemplates = getTemplatesForAgency(agency.suffix);
+    const selectedTemplate = dynTemplates[tIdx - 1]; // subtract 1 because index 0 is manual
+
+    if (selectedTemplate) {
+      selectedGroups = (selectedTemplate.groups || [])
+        .map(n =>
+          byNameLower.get(String(n).trim().toLowerCase())
+        )
+        .filter(Boolean);
+    }
+  }
+
+  // Merge + dedupe by PK (selected groups only)
+  const finalGroups = [
+    ...new Map(selectedGroups.map(g => [g.pk, g])).values(),
+  ];
+
+  // Build payload
+  const payload = {
+    username,
+    email: mail,
+    name,
+    is_active: true,
+    attributes: {
+      agency: agency.suffix,
+      agency_name: agency.name,
+    },
+  };
+
+  // Ensure created users land in the correct "folder" (path)
+  const folderRaw = String(process.env.AUTHENTIK_USER_PATH || "").trim();
+  if (folderRaw) payload.path = normalizePath(folderRaw);
+
+  // Optional password
+  if (password) payload.password = password;
+
+  // Create user
+  const res = await api.post("/core/users/", payload);
+  const user = res.data;
+
+  // Apply groups
+  if (finalGroups.length) {
+    await api.patch(`/core/users/${user.pk}/`, {
+      groups: finalGroups.map(g => g.pk),
+    });
+  }
+
+  // Email notification (never includes the password)
+  try {
+    await emailUserCreated({ user, groups: finalGroups });
+  } catch (e) {
+    // Don't fail user creation if email fails
+    console.error("[EMAIL] user creation notice failed:", e?.message || e);
+  }
+
+  return { user, groups: finalGroups };
+}
+
+// Bulk CSV import
+// This CSV format is intentionally minimal and strict:
+// REQUIRED columns (case-insensitive):
+//   badge
+//   agency   (suffix or prefix)
+//   firstName
+//   lastName
+//   email
+//   password (may be blank)
+//   template (name must exist for the agency)
+// Any validation failure (except existing users) = ALL rows fail and NO users are created.
+// Existing users are *skipped* but reported back.
+async function importUsersFromCsvBuffer(buffer) {
+  if (!buffer) throw new Error("No file uploaded");
+
+  const rawText = buffer.toString("utf8");
+  if (!rawText.trim()) throw new Error("CSV file is empty");
+
+  const lines = rawText
+    .split(/\r?\n/)
+    .map(l => String(l || "").trim())
+    .filter(Boolean);
+
+  if (lines.length < 2)
+    throw new Error("CSV must include header + at least one data row");
+
+  // ----------- Columns -----------
+  const header = lines[0].split(",").map(h => h.trim().toLowerCase());
+  const required = [
+    "badge",
+    "agency",
+    "firstname",
+    "lastname",
+    "email",
+    "password",
+    "template",
+  ];
+
+  for (const req of required) {
+    if (!header.includes(req)) {
+      throw new Error(`Missing required column: ${req}`);
+    }
+  }
+
+  function get(parts, name) {
+    const idx = header.indexOf(name);
+    return idx >= 0 ? String(parts[idx] ?? "").trim() : "";
+  }
+
+  const agencies = agenciesStore.load();
+  const rows = [];
+  const errors = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const parts = lines[i].split(",");
+    const lineNum = i + 1;
+
+    const badge = get(parts, "badge");
+    const agencyRaw = get(parts, "agency");
+    const firstName = get(parts, "firstname");
+    const lastName = get(parts, "lastname");
+    const email = get(parts, "email");
+    const password = get(parts, "password");
+    const templateName = get(parts, "template");
+
+    if (!badge) errors.push({ line: lineNum, message: "Missing badge" });
+    if (!agencyRaw) errors.push({ line: lineNum, message: "Missing agency" });
+    if (!firstName) errors.push({ line: lineNum, message: "Missing first name" });
+    if (!lastName) errors.push({ line: lineNum, message: "Missing last name" });
+    if (!email) errors.push({ line: lineNum, message: "Missing email" });
+    if (!templateName) errors.push({ line: lineNum, message: "Missing template" });
+
+    // Badge must be numerics only (same rule as UI)
+    const badgeErr = validateBadgeNumber(badge);
+    if (badgeErr) {
+      errors.push({ line: lineNum, message: badgeErr });
+    }
+
+    // Password: blank allowed. If non-blank, must pass validatePassword.
+    if (password) {
+      const pwdErr = validatePassword(password);
+      if (pwdErr) {
+        errors.push({ line: lineNum, message: pwdErr });
+      }
+    }
+
+    // Resolve agency (suffix or prefix / groupPrefix)
+    let agency = null;
+    let agencySuffix = "";
+    if (agencyRaw) {
+      const lower = agencyRaw.toLowerCase();
+      agency =
+        agencies.find(a => String(a.suffix || "").toLowerCase() === lower) ||
+        agencies.find(a => String(a.groupPrefix || "").toLowerCase() === lower);
+
+      if (!agency) {
+        errors.push({ line: lineNum, message: `Unknown agency "${agencyRaw}"` });
+      } else {
+        agencySuffix = String(agency.suffix || "").trim();
+      }
+    }
+
+    // Template must exist for the resolved agency
+    if (templateName && agencySuffix) {
+      const dyn = getTemplatesForAgency(agencySuffix);
+      const found = dyn.find(
+        t =>
+          String(t.name || "").trim().toLowerCase() ===
+          String(templateName).trim().toLowerCase()
+      );
+      if (!found) {
+        errors.push({
+          line: lineNum,
+          message: `Template "${templateName}" not found for agency "${agencySuffix}"`,
+        });
+      }
+    }
+
+    rows.push({
+      lineNum,
+      badge,
+      agencySuffix,
+      firstName,
+      lastName,
+      email,
+      password,
+      templateName,
+    });
+  }
+
+  if (errors.length) {
+    const msg =
+      "CSV validation failed: " +
+      errors.map(e => `Row ${e.line}: ${e.message}`).join("; ");
+    throw new Error(msg);
+  }
+
+
+  async function runWithConcurrencyLimit(items, limit, worker) {
+    let index = 0;
+    const workers = [];
+
+    for (let i = 0; i < limit; i++) {
+      workers.push(
+        (async () => {
+          while (true) {
+            const current = index++;
+            if (current >= items.length) break;
+            await worker(items[current], current);
+          }
+        })()
+      );
+    }
+
+    await Promise.all(workers);
+  }
+
+  const created = [];
+  const skipped = [];
+
+  // Preload Authentik groups once for all rows to avoid repeated API calls
+  const allGroups = await getAllGroups();
+
+  // Use a modest concurrency to balance speed vs load on Authentik
+  await runWithConcurrencyLimit(rows, 5, async row => {
+    const dyn = getTemplatesForAgency(row.agencySuffix);
+    const idx = dyn.findIndex(
+      t =>
+        String(t.name || "").trim().toLowerCase() ===
+        String(row.templateName || "").trim().toLowerCase()
+    );
+    if (idx < 0) {
+      // Should not happen due to earlier validation, but keep defensive.
+      throw new Error(
+        `Template "${row.templateName}" not found during creation`
+      );
+    }
+
+    const username = `${row.badge}${row.agencySuffix}`;
+
+    // Option B behavior: if user already exists, skip but record it.
+    if (await userExists(username)) {
+      skipped.push({
+        line: row.lineNum,
+        username,
+        reason: "Username already exists",
+      });
+      return;
+    }
+
+    // Dynamic templates are offset by +1 (0 = Manual Group Selection)
+    const templateIndex = 1 + idx;
+
+    const result = await createUser(
+      {
+        badge: row.badge,
+        agencySuffix: row.agencySuffix,
+        email: row.email,
+        firstName: row.firstName,
+        lastName: row.lastName,
+        password: row.password || undefined,
+        templateIndex,
+        manualGroupIds: [],
+        allGroups,
+      },
+      { skipExistenceCheck: true }
+    );
+
+    const createdUsername =
+      (result && result.user && result.user.username) || username;
+    created.push({ username: createdUsername });
+  });
+
+  return { count: created.length, created, skipped };
+}
+// Search users
+// - If no q provided -> returns all users (already filtered by folder)
+async function findUsers({ q }) {
+  let users = await getAllUsers();
+  if (!q || !String(q).trim()) {
+    return users;
+  }
+
+  const needle = String(q).trim().toLowerCase();
+  return users.filter(u => {
+    const username = String(u.username || "").toLowerCase();
+    const email = String(u.email || "").toLowerCase();
+    const name = String(u.name || "").toLowerCase();
+    return (
+      username.includes(needle) ||
+      email.includes(needle) ||
+      name.includes(needle)
+    );
+  });
+}
+
+async function resetPassword(userId, password) {
+  await assertUserNotActionLocked(userId);
+  const err = validatePassword(password);
+  if (err) throw new Error(err);
+  await api.post(`/core/users/${userId}/set_password/`, {
+    password,
+  });
+
+  // Notify the user (does not include the new password)
+  try {
+    const user = await getUserById(userId);
+    await emailPasswordChanged(user);
+  } catch (e) {
+    // Don't fail the password change if email fails
+    console.error("[EMAIL] password change notice failed:", e?.message || e);
+  }
+  return true;
+}
+
+async function updateEmail(userId, email) {
+  await assertUserNotActionLocked(userId);
+  const mail = String(email || "").trim();
+  if (!mail) throw new Error("Email required");
+  await api.patch(`/core/users/${userId}/`, { email: mail });
+  return true;
+}
+
+async function setUserGroups(userId, groupIds) {
+  const userBefore = await assertUserNotActionLocked(userId);
+  const ids = Array.isArray(groupIds)
+    ? groupIds.map(x => String(x).trim()).filter(Boolean)
+    : [];
+  await api.patch(`/core/users/${userId}/`, { groups: ids });
+
+  // Notify user (do not fail operation if email fails)
+  try {
+    await emailGroupsUpdated({
+      user: userBefore,
+      beforeIds: userBefore?.groups || [],
+      afterIds: ids,
+    });
+  } catch (e) {
+    console.error("[EMAIL] groups update notice failed:", e?.message || e);
+  }
+  return true;
+}
+
+async function toggleUserActive(userId, isActive) {
+  await assertUserNotActionLocked(userId);
+  // If disabling, revoke + VERIFY TAK certs first (if enabled)
+  if (!isActive) {
+    const shouldRevoke = getBool("TAK_REVOKE_ON_DISABLE", true);
+
+    if (shouldRevoke) {
+      const user = await getUserById(userId);
+
+      // Hard stop if revocation cannot be verified.
+      // tak.service.js already no-ops safely if TAK_URL isn't set.
+      await tak.revokeCertsForUser(user?.username, { requireVerified: true });
+    }
+  }
+
+  await api.patch(`/core/users/${userId}/`, {
+    is_active: !!isActive,
+  });
+
+  return true;
+}
+
+async function deleteUser(userId, opts = {}) {
+  // This will skip the lock check if opts.ignoreLocks === true
+  const user = await assertUserNotActionLocked(userId, opts);
+  // Revoke + VERIFY TAK certs BEFORE deleting the Authentik user
+  // requireVerified defaults to true, but making it explicit is good.
+  await tak.revokeCertsForUser(user?.username, { requireVerified: true });
+
+  await api.delete(`/core/users/${userId}/`);
+  return true;
+}
+
+async function updateName(userId, name) {
+  await assertUserNotActionLocked(userId);
+  const n = String(name || "").trim();
+  if (!n) throw new Error("Name is required");
+  await api.patch(`/core/users/${userId}/`, { name: n });
+}
+
+// Fetch single user (if you don't already have it)
+async function getUserById(userId) {
+  const res = await api.get(`/core/users/${userId}/`);
+  return res.data;
+}
+
+// Add groups to a user (merge)
+async function addUserGroups(userId, groupIds) {
+  await assertUserNotActionLocked(userId);
+  const idsToAdd = Array.isArray(groupIds)
+    ? groupIds.map(x => String(x).trim()).filter(Boolean)
+    : [];
+
+  if (!idsToAdd.length)
+    return (await getUserById(userId)).groups || [];
+
+  const user = await getUserById(userId);
+  const current = Array.isArray(user.groups)
+    ? user.groups.map(x => String(x))
+    : [];
+
+  const merged = Array.from(new Set([...current, ...idsToAdd]));
+  await setUserGroups(userId, merged);
+  return merged;
+}
+
+// Remove groups from a user
+async function removeUserGroups(userId, groupIds) {
+  await assertUserNotActionLocked(userId);
+  const idsToRemove = new Set(
+    Array.isArray(groupIds)
+      ? groupIds.map(x => String(x).trim()).filter(Boolean)
+      : []
+  );
+
+  const user = await getUserById(userId);
+  const current = Array.isArray(user.groups)
+    ? user.groups.map(x => String(x))
+    : [];
+
+  const remaining = current.filter(id => !idsToRemove.has(String(id)));
+  await setUserGroups(userId, remaining);
+  return remaining;
+}
+
+module.exports = {
+  // meta/template support
+  getTemplatesForAgency,
+
+  // shared data
+  getAllGroups,
+  getAllUsers,
+
+  // user ops
+  userExists,
+  createUser,
+  importUsersFromCsvBuffer,
+  findUsers,
+  resetPassword,
+  updateEmail,
+  updateName,
+  setUserGroups,
+  toggleUserActive,
+  deleteUser,
+  addUserGroups,
+  removeUserGroups,
+};

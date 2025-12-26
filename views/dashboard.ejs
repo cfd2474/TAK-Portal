@@ -1,0 +1,196 @@
+<%- include("partials/header") %>
+<%- include("partials/sidebar") %>
+
+<main class="main">
+  <h1>Dashboard</h1>
+
+  <% if (mutualAid && (mutualAid.activeIncidents > 0 || mutualAid.activeEvents > 0)) { %>
+    <div style="margin: 10px 0 14px 0;">
+      <% if (mutualAid.activeIncidents > 0) { %>
+        <div class="maBanner maBannerIncident">
+          <%= mutualAid.activeIncidents %> Mutual Aid Incident<%= mutualAid.activeIncidents === 1 ? "" : "s" %> <%= mutualAid.activeIncidents === 1 ? "Is" : "Are" %> Active
+        </div>
+      <% } %>
+      <% if (mutualAid.activeEvents > 0) { %>
+        <div class="maBanner maBannerEvent">
+          <%= mutualAid.activeEvents %> Mutual Aid Event<%= mutualAid.activeEvents === 1 ? "" : "s" %> <%= mutualAid.activeEvents === 1 ? "is" : "Are" %> Active
+        </div>
+      <% } %>
+    </div>
+  <% } %>
+
+  <% if (typeof error !== "undefined" && error) { %>
+    <div class="card">
+      <div class="msg bad"><%= typeof error === "string" ? error : JSON.stringify(error) %></div>
+    </div>
+  <% } %>
+
+  <div class="grid3">
+    <div class="card stat">
+      <div class="statLabel">Total Users</div>
+      <div class="statValue"><%= stats.totalUsers %></div>
+      <div class="statHint"></div>
+    </div>
+
+    <div class="card stat">
+      <div class="statLabel">Total Agencies</div>
+      <div class="statValue"><%= stats.totalAgencies %></div>
+      <div class="statHint"></div>
+    </div>
+
+    <div class="card stat">
+      <div class="statLabel">Total Groups</div>
+      <div class="statValue"><%= stats.totalGroups %></div>
+      <div class="statHint"></div>
+    </div>
+  </div>
+
+  <div class="grid2" style="margin-top:14px;">
+    <div class="card">
+      <h2>Users by Agency</h2>
+      <div class="chartWrap">
+        <canvas id="agencyChart"></canvas>
+      </div>
+      <small style="color: var(--muted);">
+        <% if (charts && charts.unknownAgency && charts.unknownAgency > 0) { %>
+          Unknown suffix: <%= charts.unknownAgency %>
+        <% } %>
+      </small>
+    </div>
+
+    <div class="card">
+      <h2>Users by Type</h2>
+      <div class="chartWrap">
+        <canvas id="typeChart"></canvas>
+      </div>
+      <small style="color: var(--muted);">
+        <% if (charts && charts.unknownType && charts.unknownType > 0) { %>
+          Unknown: <%= charts.unknownType %>
+        <% } %>
+      </small>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px;">
+    <h2>Quick Links</h2>
+    <div class="row" style="flex-wrap:wrap; gap:10px;">
+      <a class="btn" href="https://tak.hcsheriff.gov:8443/Marti"target="_blank">TAK Server</a>
+      <a class="btn" href="https://cloudtak.hcsheriff.gov"target="_blank">CloudTAK</a>
+      <a class="btn" href="http://172.22.112.36:9200/if/admin/#/administration/overview"target="_blank">Authentik</a>
+      <a class="btn" href="http://172.22.112.36:1880/"target="_blank">Node-Red</a>
+      <a class="btn" href="http://172.22.112.36:9100/#!/auth"target="_blank">Portainer</a>
+      <a class="btn" href="http://172.22.112.36:3001/dashboard"target="_blank">Uptime Kuma</a>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <script>
+    // ---- Left chart: Users by Agency ----
+    const usersByAgency = <%- JSON.stringify((charts && charts.usersByAgency) || {}) %>;
+    const unknownAgency = <%- JSON.stringify((charts && charts.unknownAgency) || 0) %>;
+
+    const agencyLabels = Object.keys(usersByAgency);
+    const agencyData = Object.values(usersByAgency);
+
+    if (unknownAgency > 0) {
+      agencyLabels.push("Unknown");
+      agencyData.push(unknownAgency);
+    }
+
+    const agencyCtx = document.getElementById("agencyChart");
+
+    new Chart(agencyCtx, {
+      type: "pie",
+      data: {
+        labels: agencyLabels,
+        datasets: [{ data: agencyData }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { position: "bottom" } }
+      }
+    });
+
+    // ---- Right chart: Users by Agency Type ----
+    const usersByType = <%- JSON.stringify((charts && charts.usersByType) || {}) %>;
+    const unknownType = <%- JSON.stringify((charts && charts.unknownType) || 0) %>;
+
+    const typeLabels = Object.keys(usersByType);
+    const typeData = Object.values(usersByType);
+
+    if (unknownType > 0) {
+      typeLabels.push("Unknown");
+      typeData.push(unknownType);
+    }
+
+    const typeCtx = document.getElementById("typeChart");
+
+    new Chart(typeCtx, {
+      type: "pie",
+      data: {
+        labels: typeLabels,
+        datasets: [{ data: typeData }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { position: "bottom" } }
+      }
+    });
+  </script>
+</main>
+
+<style>
+.grid3{
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.grid2{
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+@media (max-width: 1100px){
+  .grid3{ grid-template-columns: 1fr; }
+  .grid2{ grid-template-columns: 1fr; }
+}
+.stat{ padding: 18px; }
+.statLabel{
+  font-size: 25px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.statValue{
+  font-size: 70px;
+  font-weight: 800;
+  line-height: 1;
+}
+.statHint{
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Makes both charts smaller + centered */
+.chartWrap{
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+.maBanner{
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-weight: 800;
+  color: #ffffff;
+  margin-bottom: 10px;
+}
+.maBannerIncident{
+  background: #992525;
+}
+.maBannerEvent{
+  background: #995725;
+}
+</style>
+
+</div></body></html>

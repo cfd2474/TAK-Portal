@@ -1,0 +1,34 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+
+# Certificates / sensitive files
+certs/*.p12
+certs/*.pem
+certs/*.key
+
+# Data Files
+data/*.txt
+data/*.json
+
+# Data backups and zips
+*.zip
+*.tar
+*.gz
+
+# Logs
+logs/
+*.log
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

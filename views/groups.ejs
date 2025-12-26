@@ -1,0 +1,940 @@
+<%- include("partials/header") %>
+<%- include("partials/sidebar") %>
+
+<main class="main">
+  <h1>Manage Groups</h1>
+
+  <div class="card">
+    <h2>Create Group</h2>
+
+    <div class="row">
+      <select id="createType">
+        <option value="agency" selected>Agency-Specific Group</option>
+        <option value="generic">Global Group</option>
+      </select>
+
+      <select id="agencyPrefixSelect" style="display:none; width:260px;">
+        <option value="">Select Agency Prefix</option>
+      </select>
+
+      <input id="groupName" placeholder="Group name" style="min-width: 360px;" />
+
+      <!-- NEW: Behavior dropdown -->
+      <select id="behaviorSelect" style="min-width: 160px;">
+        <option value="both" selected>BOTH - Send and Recieve Location (default)</option>
+        <option value="read">READ - Recieve Location Only</option>
+        <option value="write">WRITE - Send Location Only</option>
+      </select>
+
+      <button class="btn" id="createBtn" type="button">Create New Group</button>
+    </div>
+    <div id="createMsg" class="msg"></div>
+  </div>
+
+  
+
+  <div class="card">
+    <div class="row" style="justify-content: space-between; align-items:center;">
+      <h2 style="margin:0;">Existing Groups</h2>
+      <button class="btn" id="reloadBtn" type="button">Reload</button>
+    </div>
+
+    <input id="filter" placeholder="Filter groups..." style="margin: 10px 0; min-width: 360px;" />
+
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Group Name</th>
+          <th style="width: 620px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+
+    <div id="listMsg" class="msg"></div>
+  </div>
+</main>
+
+<!-- Mass Assign Modal -->
+<div class="modalOverlay" id="massOverlay" style="display:none;">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="massTitle">
+    <div class="modalHeader">
+      <h2 id="massTitle" style="margin:0;">Mass Assign</h2>
+      <button class="btn" id="massCloseBtn" type="button">Close</button>
+    </div>
+
+    <div class="modalBody">
+      <div class="segmented" style="margin-top:4px;">
+        <button class="segBtn active" type="button" data-mode="agency">Entire agencies (suffix)</button>
+        <button class="segBtn" type="button" data-mode="group">Users with existing group(s)</button>
+        <button class="segBtn" type="button" data-mode="users">Specific users</button>
+      </div>
+
+      <!-- Agency mode -->
+      <div id="massAgencyPane" style="margin-top:14px;">
+        <div class="row" style="justify-content:space-between; align-items:center;">
+          <input id="agencySearch" placeholder="Search agencies..." style="min-width: 360px;" />
+          <div class="row" style="gap:10px;">
+            <button class="btn" id="agencySelectAll" type="button">Select All</button>
+            <button class="btn" id="agencyClearAll" type="button">Clear</button>
+          </div>
+        </div>
+        <div id="agencyList" class="groupsBox" style="margin-top:10px;"></div>
+        <small>Select one or more agencies; users are matched by username suffix.</small>
+      </div>
+
+      <!-- Group mode -->
+      <div id="massGroupPane" style="display:none; margin-top:14px;">
+        <div class="row" style="justify-content:space-between; align-items:center;">
+          <input id="sourceGroupSearch" placeholder="Search groups..." style="min-width: 360px;" />
+          <div class="row" style="gap:10px;">
+            <button class="btn" id="groupSelectAll" type="button">Select All</button>
+            <button class="btn" id="groupClearAll" type="button">Clear</button>
+          </div>
+        </div>
+        <div id="sourceGroupList" class="groupsBox" style="margin-top:10px;"></div>
+        <small>Select one or more existing groups; all users in any selected group will also get the target group.</small>
+      </div>
+
+      <!-- Users mode -->
+      <div id="massUsersPane" style="display:none; margin-top:14px;">
+        <div class="row" style="justify-content:space-between; align-items:center;">
+          <input id="userSearch" placeholder="Search username, name, or email..." style="min-width: 360px;" autocomplete="off" />
+          <div class="row" style="gap:10px;">
+            <button class="btn" id="userSelectAll" type="button">Select All (shown)</button>
+            <button class="btn" id="userClearAll" type="button">Clear</button>
+          </div>
+        </div>
+        <div id="userList" class="groupsBox" style="margin-top:10px;"></div>
+        <small>Search and pick specific users to add the target group to.</small>
+      </div>
+
+      <div class="row" style="margin-top:16px; align-items:center;">
+        <button class="btn success" id="massApplyBtn" type="button">Mass Assign</button>
+        <span id="massMsg" class="msg"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Group Members Modal (read-only) -->
+<div class="modalOverlay" id="membersOverlay" style="display:none;">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="membersTitle">
+    <div class="modalHeader">
+      <h2 id="membersTitle" style="margin:0;">Group Members</h2>
+      <button class="btn" id="membersCloseBtn" type="button">Close</button>
+    </div>
+    <div class="modalBody">
+      <div id="membersSummary" class="msg"></div>
+
+      <div style="margin-top:14px;">
+        <input id="membersFilter" placeholder="Filter by username, name, or email..." style="min-width: 360px;" />
+      </div>
+
+      <div id="membersList" class="groupsBox" style="margin-top:10px; max-height: 320px; overflow:auto;"></div>
+      <small id="membersHint" class="muted"></small>
+    </div>
+  </div>
+</div>
+
+
+<script>
+const membersOverlay = document.getElementById("membersOverlay");
+const membersCloseBtn = document.getElementById("membersCloseBtn");
+const membersSummary = document.getElementById("membersSummary");
+const membersFilter = document.getElementById("membersFilter");
+const membersList = document.getElementById("membersList");
+const membersHint = document.getElementById("membersHint");
+
+const createType = document.getElementById("createType");
+const agencyPrefixSelect = document.getElementById("agencyPrefixSelect");
+const groupName = document.getElementById("groupName");
+
+// NEW:
+const behaviorSelect = document.getElementById("behaviorSelect");
+
+const createBtn = document.getElementById("createBtn");
+const createMsg = document.getElementById("createMsg");
+
+const filter = document.getElementById("filter");
+const tbody = document.getElementById("tbody");
+const listMsg = document.getElementById("listMsg");
+const reloadBtn = document.getElementById("reloadBtn");
+
+// Mass assign modal
+const massOverlay = document.getElementById("massOverlay");
+const massCloseBtn = document.getElementById("massCloseBtn");
+const massTitle = document.getElementById("massTitle");
+const massMsg = document.getElementById("massMsg");
+const massApplyBtn = document.getElementById("massApplyBtn");
+
+const massAgencyPane = document.getElementById("massAgencyPane");
+const massGroupPane = document.getElementById("massGroupPane");
+const massUsersPane = document.getElementById("massUsersPane");
+
+const agencySearch = document.getElementById("agencySearch");
+const agencyList = document.getElementById("agencyList");
+const agencySelectAll = document.getElementById("agencySelectAll");
+const agencyClearAll = document.getElementById("agencyClearAll");
+
+const sourceGroupSearch = document.getElementById("sourceGroupSearch");
+const sourceGroupList = document.getElementById("sourceGroupList");
+const groupSelectAll = document.getElementById("groupSelectAll");
+const groupClearAll = document.getElementById("groupClearAll");
+
+const userSearch = document.getElementById("userSearch");
+const userList = document.getElementById("userList");
+const userSelectAll = document.getElementById("userSelectAll");
+const userClearAll = document.getElementById("userClearAll");
+
+let groupsCache = [];
+let agenciesCache = [];
+
+// Action-lock prefixes (case-insensitive, comma-separated)
+// Groups whose name starts with one of these prefixes will have ALL action buttons hidden.
+// NOTE: This value comes from the server environment (.env).
+const GROUPS_ACTIONS_HIDDEN_PREFIXES_RAW = "<%= (process.env.GROUPS_ACTIONS_HIDDEN_PREFIXES) %>";
+const GROUPS_ACTIONS_HIDDEN_PREFIXES = GROUPS_ACTIONS_HIDDEN_PREFIXES_RAW
+  .split(",")
+  .map(p => String(p || "").trim().toLowerCase())
+  .filter(Boolean);
+
+function groupActionsLocked(name){
+  const n = String(name || "").trim().toLowerCase();
+  if (!n) return false;
+  return GROUPS_ACTIONS_HIDDEN_PREFIXES.some(p => n.startsWith(p));
+}
+
+let massAction = "assign";
+let activeMassGroupId = "";
+let activeMassGroupName = "";
+let usersSearchCache = [];
+let massMode = "agency";
+
+const selectedSourceGroupIds = new Set();
+const selectedUserIds = new Set();
+
+function setMsg(el, text, ok=true){
+  el.textContent = text || "";
+  el.className = "msg " + (ok ? "ok" : "bad");
+}
+
+function esc(s){
+  return String(s ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#39;");
+}
+
+async function loadAgencies(){
+  const res = await fetch("/api/agencies");
+  const out = await res.json();
+  if(!res.ok){
+    agenciesCache = [];
+    agencyPrefixSelect.innerHTML = `<option value="">No agencies loaded</option>`;
+    return;
+  }
+
+  agenciesCache = Array.isArray(out) ? out : [];
+
+  // --- top dropdown (groupPrefix) ---
+  const prefixList = agenciesCache
+    .filter(a => String(a.groupPrefix || "").trim())
+    .slice()
+    .sort((a,b)=>String(a.name||"").localeCompare(String(b.name||"")));
+
+  agencyPrefixSelect.innerHTML =
+    `<option value="">Select Agency Prefix</option>` +
+    prefixList.map(a => {
+      const prefix = String(a.groupPrefix || "").trim().toUpperCase();
+      const label = `${a.name} (${prefix})`;
+      return `<option value="${esc(prefix)}">${esc(label)}</option>`;
+    }).join("");
+
+  renderAgencyList();
+}
+
+function agencyItems(){
+  return agenciesCache
+    .filter(a => String(a.suffix || "").trim())
+    .slice()
+    .sort((a,b)=>String(a.name||"").localeCompare(String(b.name||"")))
+    .map(a => {
+      const sfx = String(a.suffix || "").trim().toLowerCase();
+      return { name: String(a.name || ""), suffix: sfx };
+    });
+}
+
+function renderAgencyList(){
+  const needle = String(agencySearch.value || "").trim().toLowerCase();
+  const items = agencyItems().filter(x => {
+    if (!needle) return true;
+    return (
+      x.name.toLowerCase().includes(needle) ||
+      x.suffix.toLowerCase().includes(needle)
+    );
+  });
+
+  agencyList.innerHTML = items.map(x => {
+    const label = `${x.name} (${x.suffix})`;
+    return `
+      <label class="groupItem">
+        <input type="checkbox" class="agencyChk" value="${esc(x.suffix)}" />
+        <span>${esc(label)}</span>
+      </label>
+    `;
+  }).join("") || `<div style="padding:10px; color: var(--muted);">No agencies found.</div>`;
+}
+
+createType.onchange = () => {
+  const isAgency = createType.value === "agency";
+  agencyPrefixSelect.style.display = isAgency ? "block" : "none";
+};
+
+function renderGroups(){
+  const needle = String(filter.value || "").trim().toLowerCase();
+  const filtered = needle
+    ? groupsCache.filter(g => String(g.name || "").toLowerCase().includes(needle))
+    : groupsCache;
+
+  tbody.innerHTML = filtered.map(g => {
+    const locked = groupActionsLocked(g.name);
+    return `
+    <tr>
+      <td style="max-width:320px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+        ${esc(g.name)}
+      </td>
+      <td style="min-width:460px;">
+        <div class="row" style="gap:8px; flex-wrap:wrap; align-items:center;">
+          <button class="btn" type="button"
+            onclick="openGroupMembers('${esc(g.pk)}')">View Members</button>
+          ${locked ? `<span class="muted">Actions Hidden</span>` : `
+            <button class="btn success" type="button"
+              onclick="openMassAssign('${esc(g.pk)}')">Assign</button>
+            <button class="btn" type="button"
+              onclick="openMassUnassign('${esc(g.pk)}')">Unassign</button>
+            <button class="btn" type="button"
+              onclick="editGroupName('${esc(g.pk)}')">Rename</button>
+            <button class="btn danger" type="button"
+              onclick="deleteGroup('${esc(g.pk)}')">Delete</button>
+          `}
+        </div>
+      </td>
+    </tr>
+  `;
+  }).join("");
+
+  // refresh the source-group list (for the mass-assign modal)
+  renderSourceGroupList();
+}
+
+async function loadGroups(){
+  setMsg(listMsg, "Loading groups...", true);
+  const res = await fetch("/api/groups");
+  const out = await res.json();
+
+  if(!res.ok){
+    setMsg(listMsg, out.error || "Failed to load groups", false);
+    return;
+  }
+
+  groupsCache = out || [];
+  setMsg(listMsg, `Loaded ${groupsCache.length} group(s).`, true);
+  renderGroups();
+}
+
+filter.oninput = renderGroups;
+
+createBtn.onclick = async () => {
+  setMsg(createMsg, "");
+
+  let baseName = groupName.value.trim();
+  if (!baseName) return setMsg(createMsg, "Group name is required", false);
+
+  // Apply behavior suffix to the base name
+  const behavior = String(behaviorSelect.value || "both").toLowerCase();
+  let behaviorSuffix = "";
+  if (behavior === "read") behaviorSuffix = "_READ";
+  if (behavior === "write") behaviorSuffix = "_WRITE";
+
+  let name = baseName + behaviorSuffix;
+
+  // Apply agency prefix (if selected)
+  if (createType.value === "agency") {
+    const prefix = String(agencyPrefixSelect.value || "").trim().toUpperCase();
+    if (!prefix) return setMsg(createMsg, "Select an agency prefix.", false);
+    name = `${prefix}-${name}`;
+  }
+
+  if (!confirm(`Create group "${name}"?`)) return;
+
+  const res = await fetch("/api/groups", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ name })
+  });
+
+  const out = await res.json();
+  if(!res.ok){
+    setMsg(createMsg, out.error || "Create failed", false);
+    return;
+  }
+
+  setMsg(createMsg, `Created "${name}"`, true);
+  groupName.value = "";
+  behaviorSelect.value = "both";
+  await loadGroups();
+};
+
+// Rename (Edit Name)
+window.editGroupName = async (groupId) => {
+  setMsg(listMsg, "");
+
+  const g = (groupsCache || []).find(x => String(x.pk) === String(groupId));
+  const currentName = String(g?.name || "").trim();
+
+  if (groupActionsLocked(currentName)) {
+    setMsg(listMsg, `Actions are locked for group ${currentName || groupId}`, false);
+    return;
+  }
+
+  const next = prompt("Enter new group name:", currentName);
+  if (next === null) return;
+
+  const newName = String(next).trim();
+  if (!newName) return setMsg(listMsg, "Group name cannot be empty.", false);
+
+  if (newName === currentName) return setMsg(listMsg, "No changes made.", true);
+
+  if (!confirm(`Rename "${currentName}" to "${newName}"?`)) return;
+
+  const res = await fetch(`/api/groups/${encodeURIComponent(groupId)}`, {
+    method: "PATCH",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ name: newName })
+  });
+
+  let out = {};
+  try { out = await res.json(); } catch(e) {}
+
+  if(!res.ok){
+    setMsg(listMsg, out.error || "Rename failed", false);
+    return;
+  }
+
+  setMsg(listMsg, `Renamed "${currentName}" → "${newName}"`, true);
+  await loadGroups();
+};
+
+// Delete w/ impact
+window.deleteGroup = async (groupId) => {
+  setMsg(listMsg, "");
+
+  const g = (groupsCache || []).find(x => String(x.pk) === String(groupId));
+  const name = String(g?.name || "").trim();
+  if (name && groupActionsLocked(name)) {
+    setMsg(listMsg, `Actions are locked for group ${name}`, false);
+    return;
+  }
+
+  const impactRes = await fetch(`/api/groups/${encodeURIComponent(groupId)}/impact`);
+  const impact = await impactRes.json();
+
+  if(!impactRes.ok){
+    setMsg(listMsg, impact.error || "Failed to fetch delete impact", false);
+    return;
+  }
+
+  const tmplCount = Number(impact.templatesAffectedCount || 0);
+  const userCount = Number(impact.usersAffected || 0);
+
+  let tmplPreview = "";
+  if (tmplCount > 0) {
+    const names = (impact.templatesAffected || [])
+      .slice(0, 6)
+      .map(t => t.name)
+      .filter(Boolean);
+    tmplPreview = names.length ? `\n\nTemplates (first ${names.length}):\n- ${names.join("\n- ")}` : "";
+    if ((impact.templatesAffected || []).length > 6) tmplPreview += `\n- ...and more`;
+  }
+
+  const ok = confirm(
+    `DELETE GROUP: "${impact.groupName}"?\n\n` +
+    `This will:\n` +
+    `• Remove this group from ${userCount} user(s)\n` +
+    `• Remove this group from ${tmplCount} template(s)\n\n` +
+    `Then delete the group in Authentik.` +
+    tmplPreview
+  );
+
+  if(!ok) return;
+
+  const delRes = await fetch("/api/groups/" + encodeURIComponent(groupId), { method:"DELETE" });
+  const out = await delRes.json();
+
+  if(!delRes.ok){
+    setMsg(listMsg, out.error || "Delete failed", false);
+    return;
+  }
+
+  setMsg(
+    listMsg,
+    `Deleted "${out.groupName}". Removed from ${out.usersUpdated} user(s), updated ${out.templatesUpdated} template(s).`,
+    true
+  );
+
+  await loadGroups();
+};
+
+function showMassModal(show){
+  massOverlay.style.display = show ? "flex" : "none";
+  document.body.classList.toggle("noScroll", !!show);
+}
+
+function setMassAction(next){
+  massAction = next === "unassign" ? "unassign" : "assign";
+  const actionLabel = massAction === "assign" ? "Mass Assign" : "Mass Unassign";
+  massTitle.textContent = `${actionLabel}: ${activeMassGroupName || activeMassGroupId || ""}`.trim();
+  massApplyBtn.textContent = actionLabel;
+  setMsg(massMsg, "");
+}
+
+function selectedMassMode(){
+  return massMode || "agency";
+}
+
+function updateMassPanes(){
+  const mode = selectedMassMode();
+  massAgencyPane.style.display = mode === "agency" ? "block" : "none";
+  massGroupPane.style.display = mode === "group" ? "block" : "none";
+  massUsersPane.style.display = mode === "users" ? "block" : "none";
+  setMsg(massMsg, "");
+}
+
+function showMembersModal(show){
+  membersOverlay.style.display = show ? "flex" : "none";
+  document.body.classList.toggle("noScroll", !!show);
+}
+
+let activeMembers = [];
+let activeMembersGroupName = "";
+let activeMembersGroupId = "";
+let membersSortKey = "name";
+let membersSortDir = "asc";
+
+window.setMembersSort = function(key){
+  key = String(key || "").toLowerCase();
+  if (!["username", "name", "email"].includes(key)) return;
+  if (membersSortKey === key) {
+    membersSortDir = membersSortDir === "asc" ? "desc" : "asc";
+  } else {
+    membersSortKey = key;
+    membersSortDir = "asc";
+  }
+  renderMembersList();
+};
+
+function renderMembersList(){
+  const needle = String(membersFilter.value || "").trim().toLowerCase();
+
+  const items = (activeMembers || []).slice().sort((a, b) => {
+    const ak = String(a[membersSortKey] || "").toLowerCase();
+    const bk = String(b[membersSortKey] || "").toLowerCase();
+    if (ak < bk) return membersSortDir === "asc" ? -1 : 1;
+    if (ak > bk) return membersSortDir === "asc" ? 1 : -1;
+    return 0;
+  });
+
+  const filtered = needle
+    ? items.filter(u => {
+        const uName = String(u.username || "").toLowerCase();
+        const n = String(u.name || "").toLowerCase();
+        const em = String(u.email || "").toLowerCase();
+        return uName.includes(needle) || n.includes(needle) || em.includes(needle);
+      })
+    : items;
+
+  if (!filtered.length) {
+    membersList.innerHTML = `<div class="muted">No members match your filter.</div>`;
+    return;
+  }
+
+  const sortArrow = (key) => {
+    if (membersSortKey !== key) return "";
+    return membersSortDir === "asc" ? " ▲" : " ▼";
+  };
+
+  const rowsHtml = filtered.map(u => `
+    <tr>
+      <td>${esc(u.username || "")}</td>
+      <td>${esc(u.name || "")}</td>
+      <td>${esc(u.email || "")}</td>
+      <td style="text-align:right;">
+        <button class="btn danger" type="button"
+          onclick="removeUserFromGroup('${esc(u.pk)}')">Remove</button>
+      </td>
+    </tr>
+  `).join("");
+
+  membersList.innerHTML = `
+    <table class="table">
+      <thead>
+        <tr>
+          <th><span style="cursor:pointer;" onclick="setMembersSort('username')">Username${sortArrow('username')}</span></th>
+          <th><span style="cursor:pointer;" onclick="setMembersSort('name')">Name${sortArrow('name')}</span></th>
+          <th><span style="cursor:pointer;" onclick="setMembersSort('email')">Email${sortArrow('email')}</span></th>
+          <th style="text-align:right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rowsHtml}
+      </tbody>
+    </table>
+  `;
+}
+
+window.openGroupMembers = async (groupId) => {
+  setMsg(listMsg, "");
+
+  const g = (groupsCache || []).find(x => String(x.pk) === String(groupId));
+  activeMembersGroupName = String(g?.name || "");
+  activeMembersGroupId = String(groupId || "");
+
+  membersSummary.textContent = "Loading members...";
+  membersSummary.className = "msg";
+  membersList.innerHTML = "";
+  membersHint.textContent = "";
+  membersFilter.value = "";
+
+  showMembersModal(true);
+
+  try {
+    const res = await fetch(`/api/groups/${encodeURIComponent(groupId)}/members`);
+    const out = await res.json();
+
+    if (!res.ok) {
+      throw new Error(out.error || "Failed to load members");
+    }
+
+    activeMembers = Array.isArray(out.users) ? out.users : [];
+
+    const memberCount = typeof out.memberCount === "number"
+      ? out.memberCount
+      : activeMembers.length;
+
+    const groupLabel = activeMembersGroupName || out.group?.name || groupId;
+
+    membersSummary.textContent = `${memberCount} member${memberCount === 1 ? "" : "s"} in group "${groupLabel}".`;
+    membersSummary.className = "msg ok";
+    membersHint.textContent = memberCount
+      ? "Showing current members of this group. Use Remove to strip this group from individual users."
+      : "No users are currently assigned to this group.";
+
+    renderMembersList();
+  } catch (e) {
+    membersSummary.textContent = "Failed to load members.";
+    membersSummary.className = "msg bad";
+    membersList.innerHTML = "";
+    membersHint.textContent = "";
+    activeMembers = [];
+  }
+};
+
+window.removeUserFromGroup = async (userPk) => {
+  if (!activeMembersGroupId) return;
+
+  const label = activeMembersGroupName || activeMembersGroupId;
+  if (!confirm(`Remove this user from group "${label}"?`)) return;
+
+  try {
+    const res = await fetch("/api/groups/mass-unassign", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        groupId: activeMembersGroupId,
+        userIds: [String(userPk)]
+      })
+    });
+    const out = await res.json();
+    if (!res.ok) {
+      alert(out.error || "Failed to remove user from group.");
+      return;
+    }
+
+    activeMembers = activeMembers.filter(u => String(u.pk) !== String(userPk));
+    const memberCount = activeMembers.length;
+    const groupLabel = label;
+
+    membersSummary.textContent =
+      `${memberCount} member${memberCount === 1 ? "" : "s"} in group "${groupLabel}".`;
+    membersSummary.className = "msg ok";
+
+    membersHint.textContent = memberCount
+      ? "Showing current members of this group. Use Remove to strip this group from individual users."
+      : "No users are currently assigned to this group.";
+
+    renderMembersList();
+  } catch (e) {
+    alert("Failed to remove user from group.");
+  }
+};
+
+membersCloseBtn.onclick = () => showMembersModal(false);
+membersOverlay.addEventListener("click", (e) => {
+  if (e.target === membersOverlay) showMembersModal(false);
+});
+membersFilter.oninput = renderMembersList;
+
+// FIXED: openMassAssign and openMassUnassign are now two separate, top-level functions
+
+window.openMassAssign = async (groupId) => {
+  const g = (groupsCache || []).find(x => String(x.pk) === String(groupId));
+  if (g && groupActionsLocked(g.name)) {
+    setMsg(listMsg, `Actions are locked for group ${String(g.name || groupId)}`, false);
+    return;
+  }
+  activeMassGroupId = String(groupId);
+  activeMassGroupName = String(g?.name || "");
+  setMassAction("assign");
+
+  // reset selections
+  agencySearch.value = "";
+  userSearch.value = "";
+  usersSearchCache = [];
+  selectedSourceGroupIds.clear();
+  selectedUserIds.clear();
+  renderAgencyList();
+  renderUserList([]);
+  sourceGroupSearch.value = "";
+  renderSourceGroupList();
+
+  // default to agency mode
+  setMassMode("agency");
+  updateMassPanes();
+  showMassModal(true);
+};
+
+window.openMassUnassign = async (groupId) => {
+  const g = (groupsCache || []).find(x => String(x.pk) === String(groupId));
+  if (g && groupActionsLocked(g.name)) {
+    setMsg(listMsg, `Actions are locked for group ${String(g.name || groupId)}`, false);
+    return;
+  }
+  activeMassGroupId = String(groupId);
+  activeMassGroupName = String(g?.name || "");
+  setMassAction("unassign");
+
+  // reset selections
+  agencySearch.value = "";
+  userSearch.value = "";
+  usersSearchCache = [];
+  selectedSourceGroupIds.clear();
+  selectedUserIds.clear();
+  renderAgencyList();
+  renderUserList([]);
+  sourceGroupSearch.value = "";
+  renderSourceGroupList();
+
+  // default to agency mode
+  setMassMode("agency");
+  updateMassPanes();
+  showMassModal(true);
+};
+
+massCloseBtn.onclick = () => showMassModal(false);
+massOverlay.addEventListener("click", (e) => {
+  if (e.target === massOverlay) showMassModal(false);
+});
+
+function setMassMode(next){
+  massMode = next;
+  document.querySelectorAll(".segBtn").forEach(b => {
+    b.classList.toggle("active", String(b.dataset.mode) === String(next));
+  });
+  updateMassPanes();
+}
+
+document.querySelectorAll('.segBtn').forEach(btn => {
+  btn.addEventListener('click', () => setMassMode(btn.dataset.mode));
+});
+
+agencySearch.oninput = renderAgencyList;
+agencySelectAll.onclick = () => {
+  agencyList.querySelectorAll('input.agencyChk').forEach(c => (c.checked = true));
+};
+agencyClearAll.onclick = () => {
+  agencyList.querySelectorAll('input.agencyChk').forEach(c => (c.checked = false));
+};
+
+function renderUserList(users){
+  userList.innerHTML = (users || []).map(u => {
+    const pk = String(u.pk);
+    const username = String(u.username || "");
+    const name = String(u.name || "");
+    const email = String(u.email || "");
+    const label = `${username} — ${name || "(no name)"} — ${email || "(no email)"}`;
+    const checked = selectedUserIds.has(pk) ? "checked" : "";
+    return `
+      <label class="groupItem">
+        <input type="checkbox" class="userChk" value="${esc(pk)}" ${checked} />
+        <span>${esc(label)}</span>
+      </label>
+    `;
+  }).join("") || `<div style="padding:10px; color: var(--muted);">No users loaded.</div>`;
+}
+
+userList.addEventListener("change", (e) => {
+  const t = e.target;
+  if (!(t && t.classList && t.classList.contains("userChk"))) return;
+  const id = String(t.value || "").trim();
+  if (!id) return;
+  if (t.checked) selectedUserIds.add(id);
+  else selectedUserIds.delete(id);
+});
+
+let userSearchT = null;
+userSearch.oninput = () => {
+  clearTimeout(userSearchT);
+  userSearchT = setTimeout(async () => {
+    const q = String(userSearch.value || "").trim();
+    if (!q) {
+      usersSearchCache = [];
+      renderUserList([]);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/users/search?q=${encodeURIComponent(q)}`);
+      const out = await res.json();
+      if(!res.ok) throw new Error(out.error || "Search failed");
+      usersSearchCache = Array.isArray(out) ? out.slice(0, 200) : [];
+      renderUserList(usersSearchCache);
+    } catch (e) {
+      renderUserList([]);
+    }
+  }, 220);
+};
+
+userSelectAll.onclick = () => {
+  // Add all shown users to the persistent selection set
+  usersSearchCache.forEach(u => {
+    const id = String(u.pk || "").trim();
+    if (id) selectedUserIds.add(id);
+  });
+  renderUserList(usersSearchCache);
+};
+userClearAll.onclick = () => {
+  selectedUserIds.clear();
+  renderUserList(usersSearchCache);
+};
+
+function renderSourceGroupList(){
+  const needle = String(sourceGroupSearch?.value || "").trim().toLowerCase();
+  const items = (groupsCache || [])
+    .filter(g => String(g.pk) !== String(activeMassGroupId))
+    .slice()
+    .sort((a,b)=>String(a.name||"").localeCompare(String(b.name||"")))
+    .filter(g => {
+      if (!needle) return true;
+      const n = String(g.name || "").toLowerCase();
+      return n.includes(needle);
+    });
+
+  sourceGroupList.innerHTML = items.map(g => {
+    const id = String(g.pk);
+    const checked = selectedSourceGroupIds.has(id) ? "checked" : "";
+    return `
+      <label class="groupItem">
+        <input type="checkbox" class="srcGroupChk" value="${esc(id)}" ${checked} />
+        <span>${esc(String(g.name || id))}</span>
+      </label>
+    `;
+  }).join("") || `<div style="padding:10px; color: var(--muted);">No groups found.</div>`;
+}
+
+sourceGroupSearch.oninput = renderSourceGroupList;
+groupSelectAll.onclick = () => {
+  // add all currently shown groups
+  sourceGroupList.querySelectorAll("input.srcGroupChk").forEach(c => {
+    const id = String(c.value || "").trim();
+    if (id) selectedSourceGroupIds.add(id);
+  });
+  renderSourceGroupList();
+};
+groupClearAll.onclick = () => {
+  selectedSourceGroupIds.clear();
+  renderSourceGroupList();
+};
+
+sourceGroupList.addEventListener("change", (e) => {
+  const t = e.target;
+  if (!(t && t.classList && t.classList.contains("srcGroupChk"))) return;
+  const id = String(t.value || "").trim();
+  if (!id) return;
+  if (t.checked) selectedSourceGroupIds.add(id);
+  else selectedSourceGroupIds.delete(id);
+});
+
+massApplyBtn.onclick = async () => {
+  setMsg(massMsg, "");
+  if (!activeMassGroupId) return setMsg(massMsg, "No target group selected.", false);
+  if (groupActionsLocked(activeMassGroupName)) {
+    return setMsg(massMsg, `Actions are locked for group ${activeMassGroupName || activeMassGroupId}`, false);
+  }
+
+  const mode = selectedMassMode();
+  let payload = { groupId: activeMassGroupId };
+
+  if (mode === "agency") {
+    const suffixes = Array.from(agencyList.querySelectorAll('input.agencyChk:checked'))
+      .map(x => String(x.value).trim().toLowerCase())
+      .filter(Boolean);
+    if (!suffixes.length) return setMsg(massMsg, "Select one or more agencies.", false);
+    const actionVerb = massAction === "unassign" ? "unassign" : "assign";
+    if (!confirm(`Mass ${actionVerb} "${activeMassGroupName}" ${actionVerb === "assign" ? "to" : "from"} all users in ${suffixes.length} agency suffix(es)?`)) return;
+    payload.suffixes = suffixes;
+  }
+
+  if (mode === "group") {
+    const srcIds = Array.from(selectedSourceGroupIds);
+    if (!srcIds.length) return setMsg(massMsg, "Select one or more source groups.", false);
+    const actionVerb = massAction === "unassign" ? "unassign" : "assign";
+    if (!confirm(`Mass ${actionVerb} "${activeMassGroupName}" ${actionVerb === "assign" ? "to" : "from"} users already in ${srcIds.length} selected group(s)?`)) return;
+    payload.sourceGroupIds = srcIds;
+  }
+
+  if (mode === "users") {
+    const userIds = Array.from(selectedUserIds);
+    if (!userIds.length) return setMsg(massMsg, "Select one or more users.", false);
+    const actionVerb = massAction === "unassign" ? "unassign" : "assign";
+    if (!confirm(`Mass ${actionVerb} "${activeMassGroupName}" ${actionVerb === "assign" ? "to" : "from"} ${userIds.length} user(s)?`)) return;
+    payload.userIds = userIds;
+  }
+
+  const endpoint = massAction === "unassign" ? "/api/groups/mass-unassign" : "/api/groups/mass-assign";
+
+  try {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(payload)
+    });
+    const out = await res.json();
+    if(!res.ok) return setMsg(massMsg, out.error || `Mass ${massAction} failed`, false);
+    setMsg(massMsg, `Matched ${out.matched} user(s). Updated ${out.updated}.`, true);
+  } catch (e) {
+    setMsg(massMsg, `Mass ${massAction} failed`, false);
+  }
+};
+
+reloadBtn.onclick = loadGroups;
+
+(async () => {
+  createType.onchange();
+  await loadAgencies();
+  await loadGroups();
+})();
+</script>
+
+</div></body></html>

@@ -1,0 +1,348 @@
+<%- include("partials/header") %>
+<%- include("partials/sidebar") %>
+
+<main class="main">
+  <h1>Agency Templates</h1>
+  <small>Templates allow quick assignment of multiple groups to a user upon creation. Editing a template does not edit previously created users.</small>
+  <div class="card">
+    <div class="row" style="justify-content: space-between; align-items: center;">
+      <h2 style="margin:0;" id="formTitle">Create Template</h2>
+      <div class="row" style="gap:8px;">
+        <button class="btn" id="cancelEditBtn" type="button" style="display:none;">Cancel Edit</button>
+      </div>
+    </div>
+
+    <form id="form" class="grid3" autocomplete="off">
+      <label>Template Name
+        <input id="name" required />
+      </label>
+
+      <label>Agency
+        <select id="agency">
+          <option value="">Select an agency</option>
+        </select>
+      </label>
+
+<label>Default Template
+  <select id="isDefault">
+    <option value="no">No</option>
+    <option value="yes">Yes</option>
+  </select>
+</label>
+
+
+      <div style="grid-column:1/-1;">
+        <label>Groups
+          <input id="groupSearch" placeholder="Search groups..." />
+          <div class="row" style="gap:10px; margin-top:8px;">
+            <button class="btn" type="button" id="selectAllBtn">Select All</button>
+            <button class="btn" type="button" id="clearAllBtn">Clear</button>
+          </div>
+          <div id="groupsBox" class="groupsBox"></div>
+        </label>
+      </div>
+
+      <div style="grid-column:1/-1;" class="row">
+        <button class="btn" id="submitBtn" type="submit">Create Template</button>
+        <span id="msg" class="msg"></span>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Existing Templates</h2>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Agency</th>
+          <th>Default</th>
+          <th>Groups</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</main>
+
+<script>
+const msg = document.getElementById("msg");
+const tbody = document.getElementById("tbody");
+const form = document.getElementById("form");
+
+const formTitle = document.getElementById("formTitle");
+const submitBtn = document.getElementById("submitBtn");
+const cancelEditBtn = document.getElementById("cancelEditBtn");
+
+const nameEl = document.getElementById("name");
+const agencyEl = document.getElementById("agency");
+const isDefaultEl = document.getElementById("isDefault");
+
+const groupSearch = document.getElementById("groupSearch");
+const groupsBox = document.getElementById("groupsBox");
+const selectAllBtn = document.getElementById("selectAllBtn");
+const clearAllBtn = document.getElementById("clearAllBtn");
+
+let allGroups = [];       // Authentik groups: [{pk,name,...}]
+let allTemplates = [];    // templates from JSON
+let editingIndex = null;  // number | null
+
+function setMsg(text, ok=true){
+  msg.textContent = text || "";
+  msg.className = "msg " + (ok ? "ok" : "bad");
+}
+
+function esc(s){
+  return String(s ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#39;");
+}
+
+function getCheckedGroupNames(){
+  return Array.from(groupsBox.querySelectorAll('input[type="checkbox"]:checked'))
+    .map(cb => cb.value);
+}
+
+function setCheckedGroupNames(names){
+  const set = new Set((names || []).map(String));
+  Array.from(groupsBox.querySelectorAll('input[type="checkbox"]')).forEach(cb => {
+    cb.checked = set.has(cb.value);
+  });
+}
+
+function renderGroups(filterText = ""){
+  const q = String(filterText || "").trim().toLowerCase();
+
+  const list = allGroups
+    .map(g => String(g.name))
+    .sort((a,b)=>a.localeCompare(b))
+    .filter(name => !q || name.toLowerCase().includes(q));
+
+  groupsBox.innerHTML = list.map(name => `
+    <label class="groupItem">
+      <input type="checkbox" value="${esc(name)}" />
+      <span>${esc(name)}</span>
+    </label>
+  `).join("");
+
+  // if we're editing, preserve checked state after re-render
+  if (editingIndex !== null) {
+    const t = allTemplates[editingIndex];
+    setCheckedGroupNames(t?.groups || []);
+  }
+}
+
+async function loadAgencies(){
+  const res = await fetch("/api/agencies");
+  const agencies = await res.json();
+  agencyEl.innerHTML = `<option value="">Select an agency</option>` +
+    agencies.map(a => `<option value="${esc(a.suffix)}">${esc(a.name)} (${esc(a.suffix)})</option>`).join("");
+}
+
+async function loadGroups(){
+  const res = await fetch("/api/users/groups");
+  const groups = await res.json();
+  if (!res.ok) throw new Error(groups.error || "Failed to load groups");
+  allGroups = groups;
+  renderGroups("");
+}
+
+async function loadTemplates(){
+  const res = await fetch("/api/templates");
+  const templates = await res.json();
+  if (!res.ok) throw new Error(templates.error || "Failed to load templates");
+  allTemplates = templates;
+
+  tbody.innerHTML = allTemplates.map((t,i)=>`
+    <tr>
+      <td>${esc(t.name)}</td>
+      <td>${t.agencySuffix ? esc(t.agencySuffix) : "—"}</td>
+      <td>${t.isDefault ? "Yes" : ""}</td>
+      <td>${esc((t.groups || []).join(", "))}</td>
+      <td class="row" style="gap:8px;">
+        <button class="btn" type="button" onclick="editTemplate(${i})">Edit</button>
+        <button class="btn danger" type="button" onclick="deleteTemplate(${i})">Delete</button>
+      </td>
+    </tr>
+  `).join("");
+}
+
+function setCreateMode(){
+  editingIndex = null;
+  formTitle.textContent = "Create Template";
+  submitBtn.textContent = "Create Template";
+  cancelEditBtn.style.display = "none";
+  setMsg("");
+
+  nameEl.value = "";
+  agencyEl.value = "";
+  isDefaultEl.value = "no";
+  groupSearch.value = "";
+  renderGroups("");
+  setCheckedGroupNames([]);
+}
+
+function setEditMode(idx){
+  editingIndex = idx;
+  const t = allTemplates[idx];
+
+  formTitle.textContent = "Edit Template";
+  submitBtn.textContent = "Save Changes";
+  cancelEditBtn.style.display = "inline-block";
+  setMsg("");
+
+  nameEl.value = t.name || "";
+  agencyEl.value = t.agencySuffix || "";
+  isDefaultEl.value = t.isDefault ? "yes" : "no";
+  groupSearch.value = "";
+  renderGroups("");
+  setCheckedGroupNames(t.groups || []);
+
+  // scroll to form for convenience
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+window.editTemplate = (idx) => setEditMode(idx);
+
+window.deleteTemplate = async (idx) => {
+  if(!confirm("Delete this template?")) return;
+  setMsg("");
+
+  const res = await fetch("/api/templates/" + idx, { method:"DELETE" });
+  const out = await res.json();
+
+  if(!res.ok){
+    setMsg(out.error || "Delete failed", false);
+    return;
+  }
+
+  setMsg("Template deleted", true);
+
+  // If you deleted the one you were editing, exit edit mode
+  if (editingIndex === idx) setCreateMode();
+
+  await loadTemplates();
+};
+
+groupSearch.oninput = () => {
+  renderGroups(groupSearch.value);
+};
+
+selectAllBtn.onclick = () => {
+  Array.from(groupsBox.querySelectorAll('input[type="checkbox"]')).forEach(cb => cb.checked = true);
+};
+
+clearAllBtn.onclick = () => {
+  Array.from(groupsBox.querySelectorAll('input[type="checkbox"]')).forEach(cb => cb.checked = false);
+};
+
+cancelEditBtn.onclick = () => setCreateMode();
+
+form.onsubmit = async (e) => {
+  e.preventDefault();
+  setMsg("");
+
+  const payload = {
+    name: nameEl.value.trim(),
+    agencySuffix: agencyEl.value,
+    groups: getCheckedGroupNames(),
+    isDefault: isDefaultEl.value === "yes"
+  };
+
+  if (!payload.name) return setMsg("Template name is required", false);
+  if (!payload.groups.length) return setMsg("Select at least one group", false);
+
+  const isEdit = editingIndex !== null;
+  const url = isEdit ? ("/api/templates/" + editingIndex) : "/api/templates";
+  const method = isEdit ? "PUT" : "POST";
+
+  const res = await fetch(url, {
+    method,
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(payload)
+  });
+
+  const out = await res.json();
+  if(!res.ok){
+    setMsg(out.error || (isEdit ? "Update failed" : "Create failed"), false);
+    return;
+  }
+
+  setMsg(isEdit ? "Template updated" : "Template created", true);
+  await loadTemplates();
+
+  // after save, remain in edit mode (common UX) or return to create mode
+  // I�m returning to create mode to avoid accidental overwrites:
+  setCreateMode();
+};
+
+(async () => {
+  try {
+    await loadAgencies();
+    await loadGroups();
+    await loadTemplates();
+    setCreateMode();
+  } catch (err) {
+    setMsg(err.message || "Failed to load page", false);
+  }
+})();
+</script>
+
+<style>
+/* templates page only */
+.groupsBox{
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  background: #0b1430;
+  border-radius: 12px;
+  padding: 10px;
+  max-height: 320px;
+  overflow: auto;
+
+  /* COMPACT MULTI-COLUMN LIST */
+  display: grid;
+  grid-auto-flow: column;                 /* fill down, then new column */
+  grid-template-rows: repeat(7, auto);    /* <<< CHANGE THIS NUMBER */
+  grid-auto-columns: minmax(200px, 1fr);
+  gap: 6px 14px;
+}
+
+/* Force checkbox + text inline */
+.groupItem{
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+
+  padding: 6px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.groupItem:hover{
+  background: rgba(255,255,255,.06);
+}
+
+.groupItem input{
+  margin: 0;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.groupItem span{
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+</style>
+
+
+</div></body></html>

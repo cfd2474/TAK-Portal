@@ -1,0 +1,1175 @@
+<%- include("partials/header") %>
+<%- include("partials/sidebar") %>
+
+<main class="main">
+  <h1>Manage Users</h1>
+
+  <div class="card">
+    <h2>Search</h2>
+    <form id="searchForm" class="row">
+      <input
+        id="q"
+        placeholder="Search username, email, or name..."
+        style="min-width: 360px;"
+        autocomplete="off"
+      />
+    </form>
+
+    <div id="msg" class="msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>Results</h2>
+
+    <!-- Pagination controls (top) -->
+    <div class="pagination" id="paginationTop">
+      <button class="btn" id="prevPageBtnTop" type="button">Previous</button>
+      <span id="pageInfoTop"></span>
+      <button class="btn" id="nextPageBtnTop" type="button">Next</button>
+    </div>
+
+    <table class="table">
+      <thead id="thead">
+        <tr>
+          <th class="sortable" data-key="username">
+            Username <span class="sortIndicator" aria-hidden="true"></span>
+          </th>
+          <th class="sortable" data-key="name">
+            Name <span class="sortIndicator" aria-hidden="true"></span>
+          </th>
+          <th class="sortable" data-key="email">
+            Email <span class="sortIndicator" aria-hidden="true"></span>
+          </th>
+          <th class="sortable" data-key="status">
+            Status <span class="sortIndicator" aria-hidden="true"></span>
+          </th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+
+    <!-- Pagination controls (bottom) -->
+    <div class="pagination" id="paginationBottom">
+      <button class="btn" id="prevPageBtnBottom" type="button">Previous</button>
+      <span id="pageInfoBottom"></span>
+      <button class="btn" id="nextPageBtnBottom" type="button">Next</button>
+    </div>
+  </div>
+</main>
+
+<!-- Modal -->
+<div class="modalOverlay" id="modalOverlay" style="display:none;">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="userTitle">
+    <div class="modalHeader">
+      <h2 id="userTitle" style="margin:0;">User</h2>
+      <button class="btn" id="closeBtn" type="button">Close</button>
+    </div>
+
+    <div class="modalBody">
+      <div class="grid2">
+
+        <!-- First/Last Name -->
+        <label>First Name
+          <input id="firstNameInput" />
+        </label>
+
+        <label>Last Name
+          <input id="lastNameInput" />
+        </label>
+
+        <div style="grid-column:1/-1;" class="row">
+          <button class="btn" id="saveNameBtn" type="button">Update Name</button>
+          <span class="msg" id="nameMsg"></span>
+        </div>
+
+        <label>Email
+          <input id="emailInput" />
+          <button class="btn" id="saveEmailBtn" type="button">Update Email</button>
+        </label>
+
+        <label>Reset Password
+          <input id="pw1" type="password" placeholder="New password" />
+          <input id="pw2" type="password" placeholder="Confirm password" />
+          <button class="btn" id="resetPwBtn" type="button">Reset Password</button>
+        </label>
+
+        <div style="grid-column:1/-1;">
+          <h3>Current Groups</h3>
+          <div id="groupChips" class="chips"></div>
+          <small>These are the user’s current group memberships.</small>
+        </div>
+
+        <div style="grid-column:1/-1;">
+          <h3>Modify Groups</h3>
+
+          <!-- Templates-style groups picker (simple checked = member) -->
+          <label style="display:block;">
+            Groups
+            <input id="groupFilter" placeholder="Search groups..." />
+
+            <div class="row" style="gap:10px; margin-top:8px;">
+              <button class="btn" id="selectAllBtn" type="button">Select All</button>
+              <button class="btn" id="clearAllBtn" type="button">Clear</button>
+              <small style="align-self:center; color: var(--muted);">
+                Checking adds; unchecking removes. Changes save automatically.
+              </small>
+            </div>
+
+            <div class="groupsBox" id="groupsBox"></div>
+
+            <div class="row" style="gap:10px; margin-top:10px; align-items:flex-end;">
+              <label style="flex:1; max-width:320px;">
+                Apply Template (overwrite)
+                <select id="templateApplySelect">
+                  <option value="">Select a template...</option>
+                </select>
+              </label>
+              <button class="btn" id="applyTemplateBtn" type="button">Apply Template</button>
+            </div>
+            <small style="display:block; margin-top:4px; color: var(--muted);">
+              Applying a template will overwrite this user's groups to match the template.
+            </small>
+          </label>
+        </div>
+
+        <div style="grid-column:1/-1;" class="row">
+          <button class="btn" id="toggleBtn" type="button"></button>
+          <button class="btn danger" id="deleteBtn" type="button">Delete User</button>
+          <span id="actionMsg" class="msg"></span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const msg = document.getElementById("msg");
+const actionMsg = document.getElementById("actionMsg");
+const tbody = document.getElementById("tbody");
+const thead = document.getElementById("thead");
+const searchForm = document.getElementById("searchForm");
+const q = document.getElementById("q");
+
+// Pagination DOM
+const paginationTop = document.getElementById("paginationTop");
+const paginationBottom = document.getElementById("paginationBottom");
+const prevPageBtnTop = document.getElementById("prevPageBtnTop");
+const nextPageBtnTop = document.getElementById("nextPageBtnTop");
+const pageInfoTop = document.getElementById("pageInfoTop");
+const prevPageBtnBottom = document.getElementById("prevPageBtnBottom");
+const nextPageBtnBottom = document.getElementById("nextPageBtnBottom");
+const pageInfoBottom = document.getElementById("pageInfoBottom");
+
+// Modal elements
+const modalOverlay = document.getElementById("modalOverlay");
+const closeBtn = document.getElementById("closeBtn");
+const userTitle = document.getElementById("userTitle");
+
+// Name fields
+const firstNameInput = document.getElementById("firstNameInput");
+const lastNameInput = document.getElementById("lastNameInput");
+const saveNameBtn = document.getElementById("saveNameBtn");
+const nameMsg = document.getElementById("nameMsg");
+
+// Other fields
+const emailInput = document.getElementById("emailInput");
+const saveEmailBtn = document.getElementById("saveEmailBtn");
+const pw1 = document.getElementById("pw1");
+const pw2 = document.getElementById("pw2");
+const resetPwBtn = document.getElementById("resetPwBtn");
+
+const groupChips = document.getElementById("groupChips");
+const groupFilter = document.getElementById("groupFilter");
+const groupsBox = document.getElementById("groupsBox");
+const selectAllBtn = document.getElementById("selectAllBtn");
+const clearAllBtn = document.getElementById("clearAllBtn");
+const templateApplySelect = document.getElementById("templateApplySelect");
+const applyTemplateBtn = document.getElementById("applyTemplateBtn");
+
+const toggleBtn = document.getElementById("toggleBtn");
+const deleteBtn = document.getElementById("deleteBtn");
+
+// Action-lock prefixes (case-insensitive, comma-separated)
+// Users whose username starts with one of these prefixes will have ALL action buttons hidden.
+// NOTE: This value comes from the server environment (.env).
+const USERS_ACTIONS_HIDDEN_PREFIXES_RAW = "<%= (process.env.USERS_ACTIONS_HIDDEN_PREFIXES) %>";
+const USERS_ACTIONS_HIDDEN_PREFIXES = USERS_ACTIONS_HIDDEN_PREFIXES_RAW
+  .split(",")
+  .map(p => String(p || "").trim().toLowerCase())
+  .filter(Boolean);
+
+function userActionsLocked(username){
+  const u = String(username || "").trim().toLowerCase();
+  if (!u) return false;
+  return USERS_ACTIONS_HIDDEN_PREFIXES.some(p => u.startsWith(p));
+}
+
+let selectedUser = null;
+let groupsCache = [];          // [{pk,name,...}]
+let groupIndex = new Map();    // pk(string) -> name
+
+// This set represents the desired membership state.
+// Checked => included in Set => user is a member.
+let pickedGroupIds = new Set(); // pk strings
+
+// ------- Sorting state -------
+let sortState = {
+  key: "name",   // default sort
+  dir: "asc"     // "asc" | "desc"
+};
+
+// ------- Users cache for LIVE filter -------
+let allUsers = [];  // master list from loadAllUsers()
+let filterTimer = null;
+
+// ------- Pagination state -------
+const PAGE_SIZE = 25;
+let currentPage = 1;       // 1-based
+let currentUsers = [];     // current filtered + sorted list (all pages)
+
+function setMsgEl(el, text, ok=true){
+  el.textContent = text || "";
+  el.className = "msg " + (ok ? "ok" : "bad");
+}
+
+function escapeHtml(s){
+  return String(s ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#39;");
+}
+
+/**
+ * Parses either:
+ * - "Last, First"
+ * - "First Last"
+ * into {first,last}
+ */
+function splitName(full){
+  const t = String(full || "").trim();
+  if (!t) return { first: "", last: "" };
+
+  // Stored format: "Last, First"
+  if (t.includes(",")) {
+    const [lastPart, firstPart] = t.split(",", 2);
+    return {
+      first: String(firstPart || "").trim(),
+      last: String(lastPart || "").trim()
+    };
+  }
+
+  // Fallback: "First Last"
+  const parts = t.split(/\s+/);
+  if (parts.length === 1) return { first: parts[0], last: "" };
+  return { first: parts.slice(0, -1).join(" "), last: parts[parts.length - 1] };
+}
+
+// Always store backend as "Last, First"
+function buildBackendName(first, last){
+  const f = String(first || "").trim();
+  const l = String(last || "").trim();
+
+  if (l && f) return `${l}, ${f}`;
+  if (l) return l;
+  return f; // first only
+}
+
+// --- Sort helpers ---
+function lastNameForSort(name){
+  const t = String(name || "").trim();
+  if (!t) return "";
+
+  // Prefer stored format "Last, First"
+  if (t.includes(",")) return t.split(",", 1)[0].trim();
+
+  // Fallback: last token
+  const parts = t.split(/\s+/);
+  return parts.length ? parts[parts.length - 1] : "";
+}
+
+function normalizeSortValue(v){
+  const s = String(v ?? "").trim();
+  return s.toLowerCase();
+}
+
+function getSortValue(user, key){
+  if (!user) return "";
+
+  if (key === "username") return normalizeSortValue(user.username);
+  if (key === "email") return normalizeSortValue(user.email);
+  if (key === "name") return normalizeSortValue(lastNameForSort(user.name));
+  if (key === "status") return user.is_active ? "enabled" : "disabled";
+
+  return "";
+}
+
+function stableSortedCopy(arr, key, dir){
+  const sign = dir === "desc" ? -1 : 1;
+
+  return arr
+    .map((item, idx) => ({ item, idx }))
+    .sort((a, b) => {
+      const av = getSortValue(a.item, key);
+      const bv = getSortValue(b.item, key);
+
+      // Put blanks at the end for asc, at the start for desc
+      const aBlank = !String(av || "").trim();
+      const bBlank = !String(bv || "").trim();
+      if (aBlank && !bBlank) return 1 * sign;
+      if (!aBlank && bBlank) return -1 * sign;
+
+      const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" });
+      if (cmp !== 0) return cmp * sign;
+
+      // Stable tie-breaker
+      return (a.idx - b.idx);
+    })
+    .map(x => x.item);
+}
+
+function updateSortIndicators(){
+  const ths = Array.from(thead.querySelectorAll("th.sortable"));
+  ths.forEach(th => {
+    const key = th.dataset.key;
+    const ind = th.querySelector(".sortIndicator");
+    th.classList.remove("sortedAsc", "sortedDesc");
+
+    if (!ind) return;
+
+    if (key === sortState.key){
+      if (sortState.dir === "asc"){
+        ind.textContent = "▲";
+        th.classList.add("sortedAsc");
+      } else {
+        ind.textContent = "▼";
+        th.classList.add("sortedDesc");
+      }
+    } else {
+      ind.textContent = "";
+    }
+  });
+}
+
+// Render only the current page slice
+function renderCurrentPage() {
+  const total = currentUsers.length;
+  const totalPages = total ? Math.max(1, Math.ceil(total / PAGE_SIZE)) : 0;
+
+  if (!total) {
+    renderResults([]);
+    updatePaginationControls(0, 0);
+    return;
+  }
+
+  if (currentPage > totalPages) currentPage = totalPages;
+  if (currentPage < 1) currentPage = 1;
+
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const pageItems = currentUsers.slice(start, start + PAGE_SIZE);
+
+  renderResults(pageItems);
+  updatePaginationControls(total, totalPages);
+}
+
+function updatePaginationControls(total, totalPages) {
+  const haveTop = !!paginationTop;
+  const haveBottom = !!paginationBottom;
+
+  if (!haveTop && !haveBottom) return;
+
+  if (!total) {
+    if (haveTop) paginationTop.style.display = "none";
+    if (haveBottom) paginationBottom.style.display = "none";
+    return;
+  }
+
+  if (haveTop) paginationTop.style.display = "flex";
+  if (haveBottom) paginationBottom.style.display = "flex";
+
+  const shown = Math.min(PAGE_SIZE, total - (currentPage - 1) * PAGE_SIZE);
+  const infoText = `Page ${currentPage} of ${totalPages} — showing ${shown} of ${total} users`;
+
+  if (pageInfoTop) pageInfoTop.textContent = infoText;
+  if (pageInfoBottom) pageInfoBottom.textContent = infoText;
+
+  const disablePrev = currentPage <= 1;
+  const disableNext = currentPage >= totalPages;
+
+  [prevPageBtnTop, prevPageBtnBottom].forEach(btn => {
+    if (btn) btn.disabled = disablePrev;
+  });
+  [nextPageBtnTop, nextPageBtnBottom].forEach(btn => {
+    if (btn) btn.disabled = disableNext;
+  });
+}
+
+// Pagination button handlers
+[prevPageBtnTop, prevPageBtnBottom].forEach(btn => {
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    if (currentPage > 1) {
+      currentPage--;
+      renderCurrentPage();
+    }
+  });
+});
+
+[nextPageBtnTop, nextPageBtnBottom].forEach(btn => {
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    const totalPages = currentUsers.length
+      ? Math.max(1, Math.ceil(currentUsers.length / PAGE_SIZE))
+      : 0;
+    if (currentPage < totalPages) {
+      currentPage++;
+      renderCurrentPage();
+    }
+  });
+});
+
+function applySortAndRender(users){
+  const list = Array.isArray(users) ? users.slice() : [];
+  const sorted = stableSortedCopy(list, sortState.key, sortState.dir);
+
+  // Keep full filtered+sorted list
+  window.__lastUsers = sorted;
+  currentUsers = sorted;
+
+  renderCurrentPage();
+  updateSortIndicators();
+}
+
+// Click-to-sort on any column header
+thead.addEventListener("click", (e) => {
+  const th = e.target && e.target.closest ? e.target.closest("th.sortable") : null;
+  if (!th) return;
+
+  const key = th.dataset.key;
+  if (!key) return;
+
+  if (sortState.key === key) {
+    sortState.dir = (sortState.dir === "asc") ? "desc" : "asc";
+  } else {
+    sortState.key = key;
+    sortState.dir = "asc";
+  }
+
+  applySortAndRender(window.__lastUsers || []);
+});
+
+function renderResults(users){
+  tbody.innerHTML = users.map(u=>{
+    const pk = escapeHtml(u.pk);
+    const toggleLabel = u.is_active ? "Disable" : "Enable";
+    const locked = userActionsLocked(u.username);
+    return `
+      <tr class="${u.is_active ? "" : "row-disabled"}">
+        <td>${escapeHtml(u.username)}</td>
+        <td>${escapeHtml(u.name || "")}</td>
+        <td>${escapeHtml(u.email || "")}</td>
+        <td>${u.is_active ? "Enabled" : "Disabled"}</td>
+        <td>
+          ${locked ? `<span class="muted">Actions Hidden</span>` : `
+            <div class="row" style="gap:8px; flex-wrap:wrap;">
+              <button class="btn" onclick="editUser('${pk}')">Edit</button>
+              <button class="btn" onclick="toggleUserFromTable('${pk}')">${toggleLabel}</button>
+              <button class="btn danger" onclick="deleteUserFromTable('${pk}')">Delete</button>
+            </div>
+          `}
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function renderGroupChips(user){
+  const ids = Array.isArray(user.groups) ? user.groups.map(x => String(x)) : [];
+  const names = ids
+    .map(id => groupIndex.get(id) || ("Group " + id))
+    .sort((a,b)=>String(a).localeCompare(String(b)));
+
+  groupChips.innerHTML = names.length
+    ? names.map(n => `<span class="chip">${escapeHtml(n)}</span>`).join("")
+    : `<span class="muted">None</span>`;
+}
+
+function openModal(){
+  modalOverlay.style.display = "flex";
+  document.body.classList.add("noScroll");
+}
+
+function closeModal(){
+  modalOverlay.style.display = "none";
+  document.body.classList.remove("noScroll");
+  setMsgEl(actionMsg, "");
+  setMsgEl(nameMsg, "");
+  pw1.value = ""; pw2.value = "";
+  groupFilter.value = "";
+}
+
+closeBtn.onclick = closeModal;
+modalOverlay.addEventListener("click", (e) => { if (e.target === modalOverlay) closeModal(); });
+window.addEventListener("keydown", (e) => { if (e.key === "Escape" && modalOverlay.style.display !== "none") closeModal(); });
+
+// Load templates & default groups for a specific agency suffix (from user.attributes.agency)
+let agencyTemplatesCache = [];
+
+async function loadTemplatesForAgency(agencySuffix){
+  agencyTemplatesCache = [];
+  if (!templateApplySelect) return;
+
+  templateApplySelect.innerHTML = '<option value="">Loading templates...</option>';
+  applyTemplateBtn.disabled = true;
+
+  const sfx = String(agencySuffix || "").trim();
+  if (!sfx) {
+    templateApplySelect.innerHTML = '<option value="">No agency info for this user</option>';
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/users/meta?agencySuffix=' + encodeURIComponent(sfx));
+    const meta = await res.json();
+    if (!res.ok) throw new Error(meta.error || 'Failed to load templates');
+
+    const all = Array.isArray(meta.templates) ? meta.templates : [];
+    const rest = all.slice(1); // skip Manual item at [0]
+
+    agencyTemplatesCache = rest;
+
+    if (!rest.length) {
+      templateApplySelect.innerHTML = '<option value="">No templates for this agency</option>';
+      return;
+    }
+
+    templateApplySelect.innerHTML = rest
+      .map((t,i)=>`<option value="${i}">${escapeHtml(t.name || '')}</option>`)
+      .join('');
+
+    applyTemplateBtn.disabled = false;
+  } catch (err) {
+    console.error(err);
+    setMsgEl(actionMsg, err.message || 'Failed to load templates', false);
+    templateApplySelect.innerHTML = '<option value="">Failed to load templates</option>';
+  }
+}
+
+// Apply chosen template: overwrite pickedGroupIds using template groups + default groups
+applyTemplateBtn.onclick = () => {
+  if (!selectedUser) return;
+  if (!agencyTemplatesCache.length) return;
+
+  const idx = Number(templateApplySelect.value);
+  if (!Number.isInteger(idx) || idx < 0 || idx >= agencyTemplatesCache.length) return;
+
+  const tmpl = agencyTemplatesCache[idx];
+  const templateGroups = Array.isArray(tmpl.groups) ? tmpl.groups : [];
+
+  // Build map from group name (lowercase) -> pk string
+  const byNameLower = new Map(
+    (groupsCache || []).map(g => [String(g.name || '').trim().toLowerCase(), String(g.pk)])
+  );
+
+  const allNames = templateGroups
+    .map(n => String(n || '').trim())
+    .filter(Boolean);
+
+  const ids = allNames
+    .map(n => byNameLower.get(n.toLowerCase()))
+    .filter(Boolean);
+
+  if (!ids.length) {
+    setMsgEl(actionMsg, 'No matching groups found for this template.', false);
+    return;
+  }
+
+  pickedGroupIds = new Set(ids);
+  renderGroupsBox();   // refresh checkboxes
+  saveGroupsNow();     // persist overwrite immediately
+};
+
+// -------- Groups picker (templates-style) ----------
+function renderGroupsBox(){
+  const needle = String(groupFilter.value || "").trim().toLowerCase();
+  const sorted = groupsCache.slice().sort((a,b)=>String(a.name||"").localeCompare(String(b.name||"")));
+
+  const filtered = needle
+    ? sorted.filter(g => String(g.name || "").toLowerCase().includes(needle))
+    : sorted;
+
+  // Render unchecked inputs, then re-apply checked state from pickedGroupIds
+  groupsBox.innerHTML = filtered.map(g => {
+    const id = String(g.pk);
+    const name = String(g.name || "");
+    return `
+      <label class="groupItem">
+        <input type="checkbox" value="${escapeHtml(id)}" />
+        <span>${escapeHtml(name)}</span>
+      </label>
+    `;
+  }).join("");
+
+  Array.from(groupsBox.querySelectorAll('input[type="checkbox"]')).forEach(cb => {
+    cb.checked = pickedGroupIds.has(String(cb.value));
+  });
+}
+
+groupFilter.oninput = renderGroupsBox;
+
+// --- Simple rule: checked => added; unchecked => removed.
+// We persist by overwriting the user's groups to match pickedGroupIds.
+let saveGroupsTimer = null;
+let savingGroups = false;
+
+function scheduleSaveGroups(){
+  clearTimeout(saveGroupsTimer);
+  saveGroupsTimer = setTimeout(saveGroupsNow, 250);
+}
+
+async function saveGroupsNow(){
+  if(!selectedUser) return;
+  if(savingGroups) return;
+
+  savingGroups = true;
+  setMsgEl(actionMsg, "Saving group changes...", true);
+
+  const selected = Array.from(pickedGroupIds);
+
+  const res = await fetch(`/api/users/${selectedUser.pk}/groups`,{
+    method:"PUT",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ groupIds: selected })
+  });
+
+  const out = await res.json();
+  savingGroups = false;
+
+  if(!res.ok){
+    setMsgEl(actionMsg, out.error || "Update groups failed", false);
+
+    // Revert UI back to server-known state (selectedUser.groups)
+    pickedGroupIds = new Set((selectedUser.groups || []).map(x => String(x)));
+    renderGroupsBox();
+    return;
+  }
+
+  // Keep local state in sync. If backend returns groups, prefer it.
+  selectedUser.groups = Array.isArray(out.groups) ? out.groups : selected;
+  pickedGroupIds = new Set((selectedUser.groups || []).map(x => String(x)));
+
+  setMsgEl(actionMsg, "Groups updated.", true);
+  renderGroupChips(selectedUser);
+  renderGroupsBox();
+}
+
+groupsBox.addEventListener("change", (e) => {
+  const cb = e.target;
+  if (!cb || cb.tagName !== "INPUT" || cb.type !== "checkbox") return;
+
+  const id = String(cb.value);
+  if (cb.checked) pickedGroupIds.add(id);
+  else pickedGroupIds.delete(id);
+
+  // optimistic chips update
+  selectedUser.groups = Array.from(pickedGroupIds);
+  renderGroupChips(selectedUser);
+
+  scheduleSaveGroups();
+});
+
+selectAllBtn.onclick = () => {
+  Array.from(groupsBox.querySelectorAll('input[type="checkbox"]')).forEach(cb => {
+    cb.checked = true;
+    pickedGroupIds.add(String(cb.value));
+  });
+
+  if (selectedUser) {
+    selectedUser.groups = Array.from(pickedGroupIds);
+    renderGroupChips(selectedUser);
+  }
+  scheduleSaveGroups();
+};
+
+clearAllBtn.onclick = () => {
+  Array.from(groupsBox.querySelectorAll('input[type="checkbox"]')).forEach(cb => cb.checked = false);
+  pickedGroupIds.clear();
+
+  if (selectedUser) {
+    selectedUser.groups = [];
+    renderGroupChips(selectedUser);
+  }
+  scheduleSaveGroups();
+};
+
+async function loadGroups(){
+  const res = await fetch("/api/users/groups");
+  const out = await res.json();
+  if(!res.ok) throw new Error(out.error || "Failed to load groups");
+
+  groupsCache = Array.isArray(out) ? out : [];
+  groupIndex = new Map(groupsCache.map(g => [String(g.pk), String(g.name)]));
+}
+
+// ---------- Edit user ----------
+window.editUser = async (userPk) => {
+  const u = (window.__lastUsers || []).find(x => String(x.pk) === String(userPk));
+  if(!u) return;
+
+  if (userActionsLocked(u.username)) {
+    setMsgEl(msg, `Actions are locked for user ${u.username}.`, false);
+    return;
+  }
+
+  selectedUser = { ...u };
+
+  // Load templates list for this user's agency
+  const agencySuffix = selectedUser?.attributes?.agency || "";
+  await loadTemplatesForAgency(agencySuffix);
+
+  userTitle.textContent = `${selectedUser.username} — ${selectedUser.name || ""}`;
+  emailInput.value = selectedUser.email || "";
+
+  const { first, last } = splitName(selectedUser.name || "");
+  firstNameInput.value = first;
+  lastNameInput.value = last;
+  setMsgEl(nameMsg, "");
+  setMsgEl(actionMsg, "");
+
+  renderGroupChips(selectedUser);
+
+  pickedGroupIds = new Set((selectedUser.groups || []).map(x => String(x)));
+  renderGroupsBox();
+
+  toggleBtn.textContent = selectedUser.is_active ? "Disable User" : "Enable User";
+
+  openModal();
+};
+
+window.toggleUserFromTable = async (userPk) => {
+  const u = (window.__lastUsers || []).find(x => String(x.pk) === String(userPk));
+  if(!u) return;
+
+  if (userActionsLocked(u.username)) {
+    setMsgEl(msg, `Actions are locked for user ${u.username}.`, false);
+    return;
+  }
+
+  const action = u.is_active ? "DISABLE" : "ENABLE";
+  if(!confirm(`Are you sure you want to ${action} ${u.username}?`)) return;
+
+  const res = await fetch(`/api/users/${u.pk}/active`,{
+    method:"PUT",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ is_active: !u.is_active })
+  });
+
+  const out = await res.json();
+  if(!res.ok) return setMsgEl(msg, out.error || "Toggle failed", false);
+
+  // Update both caches
+  const flip = (row) => (String(row.pk) === String(u.pk) ? { ...row, is_active: !row.is_active } : row);
+
+  allUsers = (allUsers || []).map(flip);
+  const updatedVisible = (window.__lastUsers || []).map(flip);
+
+  // Keep modal state consistent if the same user is currently open
+  if (selectedUser && String(selectedUser.pk) === String(u.pk)) {
+    selectedUser.is_active = !selectedUser.is_active;
+    toggleBtn.textContent = selectedUser.is_active ? "Disable User" : "Enable User";
+    setMsgEl(actionMsg, `User is now ${selectedUser.is_active ? "ENABLED" : "DISABLED"}.`, true);
+  }
+
+  applySortAndRender(updatedVisible);
+  setMsgEl(msg, `User ${u.username} is now ${!u.is_active ? "ENABLED" : "DISABLED"}.`, true);
+};
+
+window.deleteUserFromTable = async (userPk) => {
+  const u = (window.__lastUsers || []).find(x => String(x.pk) === String(userPk));
+  if(!u) return;
+
+  if (userActionsLocked(u.username)) {
+    setMsgEl(msg, `Actions are locked for user ${u.username}.`, false);
+    return;
+  }
+
+  if(!confirm(`DELETE ${u.username}? This cannot be undone.`)) return;
+
+  const res = await fetch(`/api/users/${u.pk}`, { method:"DELETE" });
+  const out = await res.json();
+  if(!res.ok) return setMsgEl(msg, out.error || "Delete failed", false);
+
+  // If modal is open on this user, close it
+  if (selectedUser && String(selectedUser.pk) === String(u.pk)) {
+    selectedUser = null;
+    closeModal();
+  }
+
+  // Remove from both caches
+  allUsers = (allUsers || []).filter(row => String(row.pk) !== String(u.pk));
+  const remainingVisible = (window.__lastUsers || []).filter(row => String(row.pk) !== String(u.pk));
+
+  applySortAndRender(remainingVisible);
+  setMsgEl(msg, `User ${u.username} deleted.`, true);
+};
+
+// ---------- LIVE filter ----------
+function matchesUser(u, needleLower){
+  if (!needleLower) return true;
+  const hay = [
+    u.username || "",
+    u.email || "",
+    u.name || ""
+  ].join(" ").toLowerCase();
+  return hay.includes(needleLower);
+}
+
+function applyFilterSortRender(){
+  const needle = String(q.value || "").trim().toLowerCase();
+
+  const base = Array.isArray(allUsers) ? allUsers : [];
+  const filtered = needle ? base.filter(u => matchesUser(u, needle)) : base.slice();
+
+  // Reset to first page when filter/search changes
+  currentPage = 1;
+  applySortAndRender(filtered);
+
+  if (needle) setMsgEl(msg, `Showing ${filtered.length} of ${base.length}.`, true);
+  else setMsgEl(msg, `Loaded ${base.length} user(s).`, true);
+}
+
+function scheduleFilter(){
+  clearTimeout(filterTimer);
+  filterTimer = setTimeout(applyFilterSortRender, 120);
+}
+
+// Live filtering as you type
+q.addEventListener("input", scheduleFilter);
+
+// Optional: Esc clears search + shows all
+q.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    q.value = "";
+    applyFilterSortRender();
+  }
+});
+
+// ---------- Load users ----------
+async function loadAllUsers(){
+  setMsgEl(msg, "Loading users...", true);
+
+  const res = await fetch("/api/users/search");
+  const out = await res.json();
+
+  if(!res.ok){
+    setMsgEl(msg, out.error || "Failed to load users", false);
+    return;
+  }
+
+  // store master list for live filtering
+  allUsers = Array.isArray(out) ? out : [];
+
+  // render all (sorted, paginated)
+  applyFilterSortRender();
+}
+
+// Replace "search submit hits API" with "submit just filters"
+searchForm.onsubmit = (e) => {
+  e.preventDefault();
+  applyFilterSortRender();
+};
+
+// ---------- Update name ----------
+saveNameBtn.onclick = async () => {
+  if(!selectedUser) return;
+
+  const first = String(firstNameInput.value || "").trim();
+  const last = String(lastNameInput.value || "").trim();
+
+  if(!first && !last){
+    setMsgEl(nameMsg, "Enter a first and/or last name.", false);
+    return;
+  }
+
+  const backendName = buildBackendName(first, last);
+
+  const res = await fetch(`/api/users/${selectedUser.pk}/name`,{
+    method:"PUT",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ name: backendName })
+  });
+
+  const out = await res.json();
+  if(!res.ok) return setMsgEl(nameMsg, out.error || "Update name failed", false);
+
+  selectedUser.name = backendName;
+  userTitle.textContent = `${selectedUser.username} — ${selectedUser.name || ""}`;
+  setMsgEl(nameMsg, "Name updated.", true);
+
+  // update both caches
+  const patch = (u) => String(u.pk) === String(selectedUser.pk) ? {...u, name: selectedUser.name} : u;
+  allUsers = (allUsers || []).map(patch);
+  const updatedVisible = (window.__lastUsers || []).map(patch);
+
+  applySortAndRender(updatedVisible);
+};
+
+// ---------- Update email ----------
+saveEmailBtn.onclick = async () => {
+  if(!selectedUser) return;
+  setMsgEl(actionMsg,"");
+
+  const res = await fetch(`/api/users/${selectedUser.pk}/email`,{
+    method:"PUT",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ email: emailInput.value.trim() })
+  });
+
+  const out = await res.json();
+  if(!res.ok) return setMsgEl(actionMsg, out.error || "Update email failed", false);
+
+  selectedUser.email = emailInput.value.trim();
+  setMsgEl(actionMsg, "Email updated.", true);
+
+  // update both caches
+  const patch = (u) => String(u.pk) === String(selectedUser.pk) ? {...u, email: selectedUser.email} : u;
+  allUsers = (allUsers || []).map(patch);
+  const updatedVisible = (window.__lastUsers || []).map(patch);
+
+  applySortAndRender(updatedVisible);
+};
+
+// ---------- Reset password ----------
+resetPwBtn.onclick = async () => {
+  if(!selectedUser) return;
+  setMsgEl(actionMsg,"");
+
+  if(pw1.value !== pw2.value) return setMsgEl(actionMsg,"Passwords do not match.", false);
+
+  const res = await fetch(`/api/users/${selectedUser.pk}/reset-password`,{
+    method:"POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ password: pw1.value })
+  });
+
+  const out = await res.json();
+  if(!res.ok) return setMsgEl(actionMsg, out.error || "Reset password failed", false);
+
+  pw1.value = ""; pw2.value = "";
+  setMsgEl(actionMsg, "Password reset.", true);
+};
+
+// ---------- Toggle ----------
+toggleBtn.onclick = async () => {
+  if(!selectedUser) return;
+
+  const action = selectedUser.is_active ? "DISABLE" : "ENABLE";
+  if(!confirm(`Are you sure you want to ${action} ${selectedUser.username}?`)) return;
+
+  const res = await fetch(`/api/users/${selectedUser.pk}/active`,{
+    method:"PUT",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ is_active: !selectedUser.is_active })
+  });
+
+  const out = await res.json();
+  if(!res.ok) return setMsgEl(actionMsg, out.error || "Toggle failed", false);
+
+  selectedUser.is_active = !selectedUser.is_active;
+  toggleBtn.textContent = selectedUser.is_active ? "Disable User" : "Enable User";
+  setMsgEl(actionMsg, `User is now ${selectedUser.is_active ? "ENABLED" : "DISABLED"}.`, true);
+
+  // update both caches
+  const patch = (u) => String(u.pk) === String(selectedUser.pk) ? {...u, is_active: selectedUser.is_active} : u;
+  allUsers = (allUsers || []).map(patch);
+  const updatedVisible = (window.__lastUsers || []).map(patch);
+
+  applySortAndRender(updatedVisible);
+};
+
+// ---------- Delete ----------
+deleteBtn.onclick = async () => {
+  if(!selectedUser) return;
+
+  if(!confirm(`DELETE ${selectedUser.username}? This cannot be undone.`)) return;
+
+  const res = await fetch(`/api/users/${selectedUser.pk}`,{ method:"DELETE" });
+  const out = await res.json();
+  if(!res.ok) return setMsgEl(actionMsg, out.error || "Delete failed", false);
+
+  setMsgEl(actionMsg, "User deleted.", true);
+  closeModal();
+
+  // remove from both caches
+  allUsers = (allUsers || []).filter(u => String(u.pk) !== String(selectedUser.pk));
+  selectedUser = null;
+
+  // after delete, re-apply filter (respects current q.value)
+  applyFilterSortRender();
+};
+
+(async () => {
+  try {
+    await loadGroups();
+    updateSortIndicators(); // show initial default sort indicator
+    await loadAllUsers();   // fetch once, then live filter + paginate locally
+  } catch (err) {
+    setMsgEl(msg, err.message || "Failed to load page", false);
+  }
+})();
+</script>
+
+<style>
+.modalOverlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 1000;
+}
+.modal{
+  width: min(1100px, 96vw);
+  max-height: 92vh;
+  overflow: auto;
+  border: 1px solid var(--line);
+  background: #0b1430;
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.45);
+}
+.modalHeader{
+  position: sticky;
+  top: 0;
+  background: #0b1430;
+  border-bottom: 1px solid var(--line);
+  padding: 14px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.modalBody{ padding: 14px; }
+.noScroll{ overflow: hidden; }
+
+.chips{
+  display:flex;
+  flex-wrap: wrap;
+  gap:8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.04);
+  border-radius: 12px;
+  min-height: 44px;
+}
+.chip{
+  display:inline-flex;
+  align-items:center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.10);
+  font-size: 12px;
+}
+.muted{ color: var(--muted); }
+
+/* Sortable header UI */
+th.sortable{
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+th.sortable:hover{
+  text-decoration: underline;
+}
+.sortIndicator{
+  display: inline-block;
+  min-width: 12px;
+  margin-left: 6px;
+  opacity: 0.9;
+}
+th.sortedAsc .sortIndicator,
+th.sortedDesc .sortIndicator{
+  font-weight: 700;
+}
+
+/* Groups picker - match templates page */
+.groupsBox{
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  background: #0b1430;
+  border-radius: 12px;
+  padding: 10px;
+  max-height: 320px;
+  overflow: auto;
+
+  /* COMPACT MULTI-COLUMN LIST */
+  display: grid;
+  grid-auto-flow: column;                 /* fill down, then new column */
+  grid-template-rows: repeat(7, auto);    /* <<< CHANGE THIS NUMBER */
+  grid-auto-columns: minmax(200px, 1fr);
+  gap: 6px 14px;
+}
+.groupItem{
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+
+  padding: 6px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.groupItem:hover{
+  background: rgba(255,255,255,.06);
+}
+.groupItem input{
+  margin: 0;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+.groupItem span{
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Hide Status column on small screens */
+@media (max-width: 640px){
+  .table th:nth-child(4),
+  .table td:nth-child(4){
+    display: none;
+  }
+}
+
+tr.row-disabled {
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(255, 255, 255, 0.65);
+}
+
+tr.row-disabled td {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Pagination controls */
+.pagination {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+  font-size: 14px;
+}
+#pageInfoTop,
+#pageInfoBottom {
+  opacity: 0.8;
+}
+</style>
+
+</div></body></html>

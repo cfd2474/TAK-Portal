@@ -1,0 +1,129 @@
+const router = require("express").Router();
+const groups = require("../services/groups.service");
+const mutualAid = require("../services/mutualAid.service");
+
+function toErrorPayload(err) {
+  const data = err?.response?.data;
+  if (data) return typeof data === "string" ? data : data;
+  return err?.message || "Unknown error";
+}
+
+router.get("/", async (req, res) => {
+  try {
+    res.json(await groups.getAllGroups());
+  } catch (err) {
+    res.status(500).json({ error: toErrorPayload(err) });
+  }
+});
+
+router.post("/", async (req, res) => {
+  try {
+    const out = await groups.createGroup(req.body?.name);
+    res.json({ success: true, group: out });
+  } catch (err) {
+    res.status(400).json({ error: toErrorPayload(err) });
+  }
+});
+
+/**
+ * NEW: rename group
+ * Expected body: { name: "NEW_GROUP_NAME" }
+ */
+router.patch("/:groupId", async (req, res) => {
+  try {
+    const name = String(req.body?.name || "").trim();
+    if (!name) {
+      return res.status(400).json({ error: "Group name is required" });
+    }
+
+    const out = await groups.renameGroup(req.params.groupId, name);
+    res.json({ success: true, group: out });
+  } catch (err) {
+    res.status(400).json({ error: toErrorPayload(err) });
+  }
+});
+
+// impact preview before delete
+router.get("/:groupId/impact", async (req, res) => {
+  try {
+    const out = await groups.getDeleteImpact(req.params.groupId);
+    res.json(out);
+  } catch (err) {
+    res.status(400).json({ error: toErrorPayload(err) });
+  }
+});
+
+// delete now cleans up users + templates
+router.delete("/:groupId", async (req, res) => {
+  try {
+    const out = await groups.deleteGroupWithCleanup(req.params.groupId);
+    res.json(out);
+  } catch (err) {
+    res.status(400).json({ error: toErrorPayload(err) });
+  }
+});
+
+router.post("/mass-assign", async (req, res) => {
+  try {
+    const out = await groups.massAssignUsersToGroup({
+      groupId: req.body?.groupId,
+      suffixes: req.body?.suffixes,
+      // NEW: allow multiple source groups (backwards compatible)
+      sourceGroupIds: req.body?.sourceGroupIds ?? req.body?.sourceGroupId,
+      userIds: req.body?.userIds
+    });
+    res.json({ success: true, ...out });
+  } catch (err) {
+    res.status(400).json({ error: toErrorPayload(err) });
+  }
+});
+
+// NEW: mass unassign users from a group
+router.post("/mass-unassign", async (req, res) => {
+  try {
+    const out = await groups.massUnassignUsersFromGroup({
+      groupId: req.body?.groupId,
+      suffixes: req.body?.suffixes,
+      // allow multiple source groups (same semantics as mass-assign)
+      sourceGroupIds: req.body?.sourceGroupIds ?? req.body?.sourceGroupId,
+      userIds: req.body?.userIds
+    });
+    res.json({ success: true, ...out });
+  } catch (err) {
+    res.status(400).json({ error: toErrorPayload(err) });
+  }
+});
+
+// NEW: fetch members of a single group, plus related mutual-aid entries
+router.get("/:groupId/members", async (req, res) => {
+  try {
+    const groupId = req.params.groupId;
+    const group = await groups.getGroupById(groupId);
+    const users = await groups.getGroupMembers(groupId);
+
+    let mutual = [];
+    try {
+      const items = mutualAid.list() || [];
+      const groupName = String(group?.name || "").trim();
+      mutual = items.filter((it) => {
+        const idMatch = String(it.groupId || "") === String(groupId);
+        const nameMatch = groupName && String(it.groupName || "").trim() === groupName;
+        return idMatch || nameMatch;
+      });
+    } catch (e) {
+      mutual = [];
+    }
+
+    res.json({
+      group,
+      users,
+      mutualAid: mutual,
+      memberCount: Array.isArray(users) ? users.length : 0,
+    });
+  } catch (err) {
+    res.status(400).json({ error: toErrorPayload(err) });
+  }
+});
+
+
+module.exports = router;
