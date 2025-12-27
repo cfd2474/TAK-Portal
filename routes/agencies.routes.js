@@ -22,6 +22,21 @@ function validateAgency(a) {
 // Basic agencies list (raw)
 router.get("/", (req, res) => res.json(store.load()));
 
+// Agencies (no user counts anymore)
+router.get("/with-counts", async (req, res) => {
+  try {
+    const agencies = store.load();
+
+    const result = agencies.map((a, index) => {
+      const id = index;
+      return { ...a, id, _id: id };
+    });
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.response?.data || err.message });
+  }
+});
 
 router.post("/", (req, res) => {
   const agencies = store.load();
@@ -49,7 +64,9 @@ router.put("/:index", (req, res) => {
   if (err) return res.status(400).json({ error: err });
 
   // uniqueness check excluding itself
-  if (agencies.some((x, i) => i !== idx && String(x.suffix || "").toLowerCase() === a.suffix)) {
+  if (agencies.some((x, i) =>
+    i !== idx && String(x.suffix || "").toLowerCase() === a.suffix
+  )) {
     return res.status(400).json({ error: "Suffix already exists" });
   }
 
