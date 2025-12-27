@@ -28,7 +28,7 @@
       <label>County
         <input
           name="county"
-          placeholder="(ex. Hamilton County)"
+          placeholder="(ex. Hamilton, Grundy)"
           required
         />
       </label>
@@ -197,23 +197,19 @@ function toTitleCaseWords(str) {
     .join(" ");
 }
 
-// Examples this handles:
-// "grundy"          -> "Grundy County"
-// "grundy county"   -> "Grundy County"
-// "GRUNDY COUNTY"   -> "Grundy County"
-// "  grundy   "     -> "Grundy County"
+// Handler for fixing county names
 function normalizeCountyName(raw) {
   let v = String(raw || "").trim().replace(/\s+/g, " ");
   if (!v) return "";
 
   const lower = v.toLowerCase();
   if (lower.endsWith(" county")) {
+    // strip " county" and title-case the base name
     const base = v.slice(0, lower.lastIndexOf(" county"));
-    const baseTitle = toTitleCaseWords(base);
-    return baseTitle + " County";
+    return toTitleCaseWords(base);
   } else {
-    const baseTitle = toTitleCaseWords(v);
-    return baseTitle + " County";
+    // just title-case whatever they typed
+    return toTitleCaseWords(v);
   }
 }
 
