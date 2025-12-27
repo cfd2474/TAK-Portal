@@ -1,3 +1,4 @@
+const { getString } = require("./env");
 const api = require("./authentik");
 const templatesStore = require("./templates.service");
 
@@ -5,7 +6,7 @@ const templatesStore = require("./templates.service");
 // If a group name starts with any prefix in GROUPS_ACTIONS_HIDDEN_PREFIXES,
 // the UI hides action buttons AND the API will reject mutating operations.
 function getGroupActionLockPrefixes() {
-  return String(process.env.GROUPS_ACTIONS_HIDDEN_PREFIXES || "")
+  return String(getString("GROUPS_ACTIONS_HIDDEN_PREFIXES", ""))
     .split(",")
     .map(p => String(p || "").trim().toLowerCase())
     .filter(Boolean);
@@ -20,7 +21,7 @@ function isGroupActionLocked(groupName) {
 }
 
 function getHiddenUserPrefixes() {
-  return String(process.env.USERS_HIDDEN_PREFIXES || "")
+  return String(getString("USERS_HIDDEN_PREFIXES", ""))
     .split(",")
     .map(p => String(p || "").trim().toLowerCase())
     .filter(Boolean);
@@ -58,7 +59,7 @@ async function getAllGroupsRaw() {
     const results = Array.isArray(data.results) ? data.results : [];
     groups = groups.concat(results);
     url = data.next
-      ? data.next.replace(`${process.env.AUTHENTIK_URL}/api/v3`, "")
+      ? data.next.replace(`${getString("AUTHENTIK_URL", "")}/api/v3`, "")
       : null;
   }
 
@@ -110,7 +111,7 @@ async function getAllUsersRaw() {
       url = `/core/users/?page=${page}&page_size=${pageSize}`;
     } else if (data.next) {
       // DRF-style "next" URL
-      url = data.next.replace(`${process.env.AUTHENTIK_URL}/api/v3`, "");
+      url = data.next.replace(`${getString("AUTHENTIK_URL", "")}/api/v3`, "");
     } else {
       url = null;
     }
@@ -126,7 +127,7 @@ async function getAllUsersRaw() {
   }
 
   // Respect AUTHENTIK_USER_PATH if set
-  const folderRaw = String(process.env.AUTHENTIK_USER_PATH || "").trim();
+  const folderRaw = String(getString("AUTHENTIK_USER_PATH", "")).trim();
   if (!folderRaw) return users;
 
   const target = normalizePath(folderRaw);

@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const path = require("path");
 
+const { getString } = require("./services/env");
 const mutualAidSvc = require("./services/mutualAid.service");
 
 const app = express();
@@ -33,6 +34,27 @@ app.get("/templates", (req, res) => res.render("templates"));
 app.get("/mutual-aid", (req, res) => res.render("mutual-aid"));
 app.get("/qr-generator", (req, res) => res.render("qr-generator"));
 
+app.get("/settings", (req, res) => {
+  const settings = require("./services/settings.service").getSettings();
+  const keys = Object.keys(settings).sort();
+  res.render("settings", { settings, keys });
+});
+
+app.post("/settings", (req, res) => {
+  const bodySettings = req.body.settings || {};
+  const patch = {};
+
+  Object.keys(bodySettings).forEach(key => {
+    patch[key] = bodySettings[key];
+  });
+
+  require("./services/settings.service").updateSettings(patch);
+
+  // After saving, redirect back to the settings page
+  res.redirect("/settings");
+});
+
+
 
 const port = process.env.WEB_UI_PORT || 3000;
 app.listen(port, () => {
@@ -46,16 +68,16 @@ app.listen(port, () => {
   }
 
   try {
-    const takUrl = process.env.TAK_URL;
+    const takUrl = getString("TAK_URL", "");
     if (!takUrl) {
-      console.log("⚠️ TAK_URL not set in .env");
+      console.log("⚠️ TAK_URL not set in settings.json");
       return;
     }
 
     const host = new URL(takUrl).hostname;
     console.log("TAK host:", host);
   } catch (e) {
-    console.log("⚠️ Invalid TAK_URL in .env");
+    console.log("⚠️ Invalid TAK_URL in settings.json");
   }
 });
 

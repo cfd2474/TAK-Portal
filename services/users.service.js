@@ -1,3 +1,4 @@
+const { getString, getInt } = require("./env");
 const api = require("./authentik");
 const agenciesStore = require("./agencies.service");
 const templatesStore = require("./templates.service");
@@ -7,7 +8,7 @@ const tak = require("./tak.service");
 // If a username starts with any prefix in USERS_ACTIONS_HIDDEN_PREFIXES,
 // the UI hides action buttons AND the API will reject mutating operations.
 function getUserActionLockPrefixes() {
-  return String(process.env.USERS_ACTIONS_HIDDEN_PREFIXES || "")
+  return String(getString("USERS_ACTIONS_HIDDEN_PREFIXES", ""))
     .split(",")
     .map(p => String(p || "").trim().toLowerCase())
     .filter(Boolean);
@@ -166,7 +167,7 @@ async function getAllGroupsRaw() {
     const res = await api.get(url);
     groups = groups.concat(res.data.results);
     url = res.data.next
-      ? res.data.next.replace(`${process.env.AUTHENTIK_URL}/api/v3`, "")
+      ? res.data.next.replace(`${getString("AUTHENTIK_URL", "")}/api/v3`, "")
       : null;
   }
 
@@ -190,7 +191,7 @@ async function getAllUsersRaw() {
   let hasNext = true;
 
   while (hasNext) {
-    const url = `${process.env.AUTHENTIK_URL}/api/v3/core/users/?page=${page}&page_size=${pageSize}`;
+    const url = `${getString("AUTHENTIK_URL", "")}/api/v3/core/users/?page=${page}&page_size=${pageSize}`;
     const res = await api.get(url);
     const data = res?.data || {};
     const results = Array.isArray(data.results) ? data.results : [];
@@ -220,7 +221,7 @@ async function getAllUsersRaw() {
   }
 
   // --- path filter ---
-  const folderRaw = String(process.env.AUTHENTIK_USER_PATH || "").trim();
+  const folderRaw = String(getString("AUTHENTIK_USER_PATH", "")).trim();
   if (!folderRaw) {
     return users;
   }
@@ -354,7 +355,7 @@ async function createUser(
   };
 
   // Ensure created users land in the correct "folder" (path)
-  const folderRaw = String(process.env.AUTHENTIK_USER_PATH || "").trim();
+  const folderRaw = String(getString("AUTHENTIK_USER_PATH", "")).trim();
   if (folderRaw) payload.path = normalizePath(folderRaw);
 
   // Optional password
@@ -589,7 +590,7 @@ async function importUsersFromCsvBuffer(buffer, opts = {}) {
   const allGroups = await getAllGroups();
 
   const defaultLimit = 5;
-  const envVal = Number(process.env.USER_IMPORT_CONCURRENCY || "");
+  const envVal = getInt("USER_IMPORT_CONCURRENCY", defaultLimit);
   const importConcurrency =
     Number.isFinite(envVal) && envVal > 0 && envVal <= 25 ? envVal : defaultLimit;
 

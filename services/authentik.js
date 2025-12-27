@@ -1,9 +1,15 @@
 const axios = require("axios");
 const http = require("http");
 const https = require("https");
+const { getString } = require("./env");
 
-if (!process.env.AUTHENTIK_URL) throw new Error("Missing AUTHENTIK_URL in .env");
-if (!process.env.AUTHENTIK_TOKEN) throw new Error("Missing AUTHENTIK_TOKEN in .env");
+const AUTHENTIK_URL = getString("AUTHENTIK_URL");
+const AUTHENTIK_TOKEN = getString("AUTHENTIK_TOKEN");
+
+if (!AUTHENTIK_URL) throw new Error("Missing AUTHENTIK_URL in settings.json");
+if (!AUTHENTIK_TOKEN) throw new Error("Missing AUTHENTIK_TOKEN in settings.json");
+
+const baseUrl = AUTHENTIK_URL.replace(/\/+$|\s+$/g, "");
 
 const agentOptions = {
   keepAlive: true,
@@ -11,13 +17,12 @@ const agentOptions = {
 };
 
 module.exports = axios.create({
-  baseURL: `${process.env.AUTHENTIK_URL}/api/v3`,
+  baseURL: `${baseUrl}/api/v3`,
   headers: {
-    Authorization: `Bearer ${process.env.AUTHENTIK_TOKEN}`,
+    Authorization: `Bearer ${AUTHENTIK_TOKEN}`,
     "Content-Type": "application/json",
   },
   timeout: 30000,
   httpAgent: new http.Agent(agentOptions),
   httpsAgent: new https.Agent(agentOptions),
 });
-

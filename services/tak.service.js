@@ -38,7 +38,7 @@ const axios = require("axios");
 const { getBool, getString } = require("./env");
 
 function isTakConfigured() {
-  return !!String(process.env.TAK_URL || "").trim();
+  return !!String(getString("TAK_URL", "")).trim();
 }
 
 function isTakBypassed() {
@@ -59,7 +59,7 @@ function resolvePathMaybe(p) {
 }
 
 function getTakBaseUrl() {
-  const raw = String(process.env.TAK_URL || "").trim();
+  const raw = String(getString("TAK_URL", "")).trim();
   const u = new URL(raw);
 
   // Default Marti context if none provided
@@ -80,21 +80,21 @@ function unwrapTakList(payload) {
 function buildTakAxios() {
   const TAK_DEBUG = getBool("TAK_DEBUG", false);
 
-  const p12Path = resolvePathMaybe(process.env.TAK_API_P12_PATH);
+  const p12Path = resolvePathMaybe(getString("TAK_API_P12_PATH", ""));
 
   const hasP12Pass = Object.prototype.hasOwnProperty.call(
-    process.env,
+    {},
     "TAK_API_P12_PASSPHRASE"
   );
   const p12Pass = hasP12Pass
-    ? String(process.env.TAK_API_P12_PASSPHRASE) // may be "" intentionally
-    : process.env.TAK_API_KEY_PASSPHRASE
-      ? String(process.env.TAK_API_KEY_PASSPHRASE)
+    ? String(getString("TAK_API_P12_PASSPHRASE", "")) // may be "" intentionally
+    : getString("TAK_API_KEY_PASSPHRASE", "")
+      ? String(getString("TAK_API_KEY_PASSPHRASE", ""))
       : undefined;
 
-  const certPath = resolvePathMaybe(process.env.TAK_API_CERT_PATH);
-  const keyPath = resolvePathMaybe(process.env.TAK_API_KEY_PATH);
-  const caPath = resolvePathMaybe(process.env.TAK_CA_PATH);
+  const certPath = resolvePathMaybe(getString("TAK_API_CERT_PATH", ""));
+  const keyPath = resolvePathMaybe(getString("TAK_API_KEY_PATH", ""));
+  const caPath = resolvePathMaybe(getString("TAK_CA_PATH", ""));
 
   if (!p12Path && (!certPath || !keyPath)) {
     throw new Error(
@@ -160,7 +160,7 @@ function buildTakAxios() {
   } else {
     agentOptions.cert = fs.readFileSync(certPath);
     agentOptions.key = fs.readFileSync(keyPath);
-    agentOptions.passphrase = process.env.TAK_API_KEY_PASSPHRASE || undefined;
+    agentOptions.passphrase = getString("TAK_API_KEY_PASSPHRASE", "") || undefined;
   }
 
   const httpsAgent = new https.Agent(agentOptions);

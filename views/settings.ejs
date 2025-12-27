@@ -1,0 +1,42 @@
+<%- include("partials/header") %>
+<%- include("partials/sidebar") %>
+
+<main class="main">
+  <h1>Settings</h1>
+
+  <div class="card">
+    <p>
+      All configurable options (formerly in <code>.env</code> and <code>bookmarks.env</code>)
+      are now stored in <code>data/settings.json</code>. You can edit them here.
+    </p>
+
+    <form method="post" action="/settings" class="grid1" autocomplete="off">
+      <% if (Array.isArray(keys) && keys.length) { %>
+        <% keys.forEach(function(key) { %>
+          <label>
+            <span><%= key %></span>
+            <input
+              type="text"
+              name="settings[<%= key %>]"
+              value="<%= typeof settings[key] === 'string' ? settings[key] : '' %>"
+            />
+          </label>
+        <% }); %>
+      <% } else { %>
+        <p>No settings found in settings.json yet.</p>
+      <% } %>
+
+      <div style="margin-top: 1rem;">
+        <button type="submit" class="btn-primary">Save Settings</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Notes</h2>
+    <ul>
+      <li><code>WEB_UI_PORT</code> stays in <code>.env</code> and is <strong>not</strong> editable here.</li>
+      <li>You can add new keys directly in <code>data/settings.json</code>; they will appear on this page automatically.</li>
+    </ul>
+  </div>
+</main>

@@ -1,40 +1,35 @@
 // services/bookmarks.service.js
-const fs = require("fs");
-const path = require("path");
-const dotenv = require("dotenv");
+//
+// Bookmarks are now stored in data/settings.json as flat keys:
+//   BOOKMARK1_TITLE, BOOKMARK1_URL, ..., BOOKMARK8_TITLE, BOOKMARK8_URL
+//
+// This service exposes a single loadBookmarks() helper that returns
+// an array of { id, title, url } objects suitable for rendering.
+
+const { getString } = require("./env");
 
 const MAX_BOOKMARKS = 8;
 
 function loadBookmarks() {
-  const bookmarksPath = path.join(__dirname, "..", "bookmarks.env");
+  const bookmarks = [];
 
-  if (!fs.existsSync(bookmarksPath)) {
-    return [];
+  for (let i = 1; i <= MAX_BOOKMARKS; i += 1) {
+    const titleKey = `BOOKMARK${i}_TITLE`;
+    const urlKey = `BOOKMARK${i}_URL`;
+
+    const title = getString(titleKey, "").trim();
+    const url = getString(urlKey, "").trim();
+
+    if (!title && !url) continue;
+
+    bookmarks.push({
+      id: i,
+      title,
+      url,
+    });
   }
 
-  try {
-    const raw = fs.readFileSync(bookmarksPath);
-    const parsed = dotenv.parse(raw);
-
-    const bookmarks = [];
-
-    for (let i = 1; i <= MAX_BOOKMARKS; i++) {
-      const title = parsed[`BOOKMARK${i}_TITLE`];
-      const url = parsed[`BOOKMARK${i}_URL`];
-
-      if (title && url) {
-        bookmarks.push({
-          title: title.trim(),
-          url: url.trim(),
-        });
-      }
-    }
-
-    return bookmarks;
-  } catch (err) {
-    console.error("Failed to load bookmarks.env:", err);
-    return [];
-  }
+  return bookmarks;
 }
 
 module.exports = {
