@@ -4,39 +4,262 @@
 <main class="main">
   <h1>Settings</h1>
 
-  <div class="card">
-    <p>
-      All configurable options (formerly in <code>.env</code> and <code>bookmarks.env</code>)
-      are now stored in <code>data/settings.json</code>. You can edit them here.
-    </p>
+  <p>
+    All configurable options (formerly in <code>.env</code> and <code>bookmarks.env</code>)
+    are now stored in <code>data/settings.json</code>. You can edit them here.
+  </p>
 
-    <form method="post" action="/settings" class="grid1" autocomplete="off">
-      <% if (Array.isArray(keys) && keys.length) { %>
-        <% keys.forEach(function(key) { %>
-          <label>
-            <span><%= key %></span>
-            <input
-              type="text"
-              name="settings[<%= key %>]"
-              value="<%= typeof settings[key] === 'string' ? settings[key] : '' %>"
-            />
-          </label>
-        <% }); %>
-      <% } else { %>
-        <p>No settings found in settings.json yet.</p>
-      <% } %>
+  <form method="post" action="/settings" autocomplete="off">
+    <% 
+      // Helper to render a single field
+      function renderField(key, label, helpText) { 
+    %>
+      <label class="settings-field">
+        <span class="settings-label"><%= label || key %></span>
+        <input
+          type="text"
+          name="settings[<%= key %>]"
+          value="<%= typeof settings[key] === 'string' ? settings[key] : '' %>"
+        />
+        <% if (helpText) { %>
+          <small class="settings-help"><%= helpText %></small>
+        <% } %>
+      </label>
+    <% } %>
 
-      <div style="margin-top: 1rem;">
-        <button type="submit" class="btn-primary">Save Settings</button>
+    <% 
+      const knownKeys = new Set([
+        "AUTHENTIK_URL",
+        "AUTHENTIK_TOKEN",
+        "USERS_HIDDEN_PREFIXES",
+        "GROUPS_HIDDEN_PREFIXES",
+        "USERS_ACTIONS_HIDDEN_PREFIXES",
+        "GROUPS_ACTIONS_HIDDEN_PREFIXES",
+
+        "TAK_URL",
+        "TAK_API_P12_PATH",
+        "TAK_API_P12_PASSPHRASE",
+        "TAK_CA_PATH",
+        "TAK_REVOKE_ON_DISABLE",
+        "TAK_DEBUG",
+        "TAK_BYPASS_ENABLED",
+
+        "EMAIL_ENABLED",
+        "EMAIL_PROVIDER",
+        "SMTP_HOST",
+        "SMTP_PORT",
+        "SMTP_SECURE",
+        "SMTP_USER",
+        "SMTP_PASS",
+        "SMTP_FROM",
+        "EMAIL_ALWAYS_CC",
+        "EMAIL_SEND_COPY_TO",
+        "EMAIL_FAIL_HARD",
+
+        "BOOKMARK1_TITLE",
+        "BOOKMARK1_URL",
+        "BOOKMARK2_TITLE",
+        "BOOKMARK2_URL",
+        "BOOKMARK3_TITLE",
+        "BOOKMARK3_URL",
+        "BOOKMARK4_TITLE",
+        "BOOKMARK4_URL",
+        "BOOKMARK5_TITLE",
+        "BOOKMARK5_URL",
+        "BOOKMARK6_TITLE",
+        "BOOKMARK6_URL",
+        "BOOKMARK7_TITLE",
+        "BOOKMARK7_URL",
+        "BOOKMARK8_TITLE",
+        "BOOKMARK8_URL"
+      ]);
+
+      const otherKeys = keys.filter(k => !knownKeys.has(k));
+    %>
+
+    <!-- Authentik / Portal -->
+    <div class="card">
+      <h2>Authentik &amp; Portal</h2>
+      <div class="grid2">
+        <% renderField(
+          "AUTHENTIK_URL",
+          "Authentik URL",
+          "Base URL of your Authentik instance (e.g. http://authentik:9000)"
+        ); %>
+        <% renderField(
+          "AUTHENTIK_TOKEN",
+          "Authentik API Token",
+          "API token with permission to manage users and groups."
+        ); %>
+        <% renderField(
+          "USERS_HIDDEN_PREFIXES",
+          "Hidden User Prefixes",
+          "Comma-separated prefixes of usernames to hide from the UI (e.g. ak-,adm_)."
+        ); %>
+        <% renderField(
+          "GROUPS_HIDDEN_PREFIXES",
+          "Hidden Group Prefixes",
+          "Comma-separated prefixes of groups to hide from the UI."
+        ); %>
+        <% renderField(
+          "USERS_ACTIONS_HIDDEN_PREFIXES",
+          "User Action-Lock Prefixes",
+          "Users whose name starts with these prefixes cannot be modified from the portal."
+        ); %>
+        <% renderField(
+          "GROUPS_ACTIONS_HIDDEN_PREFIXES",
+          "Group Action-Lock Prefixes",
+          "Groups whose name starts with these prefixes cannot be modified from the portal."
+        ); %>
       </div>
-    </form>
-  </div>
+    </div>
 
-  <div class="card">
+    <!-- TAK Server -->
+    <div class="card">
+      <h2>TAK Server</h2>
+      <div class="grid2">
+        <% renderField(
+          "TAK_URL",
+          "TAK URL",
+          "Full Marti URL, e.g. https://tak.example.gov:8443/Marti."
+        ); %>
+        <% renderField(
+          "TAK_API_P12_PATH",
+          "Client P12 Path",
+          "Path to the client .p12 certificate inside the container."
+        ); %>
+        <% renderField(
+          "TAK_API_P12_PASSPHRASE",
+          "Client P12 Passphrase",
+          "Passphrase for the client .p12 file (may be empty)."
+        ); %>
+        <% renderField(
+          "TAK_CA_PATH",
+          "TAK CA Path",
+          "Path to the TAK CA certificate file."
+        ); %>
+        <% renderField(
+          "TAK_REVOKE_ON_DISABLE",
+          "Revoke on Disable",
+          "If true, revokes TAK certs when a user is disabled."
+        ); %>
+        <% renderField(
+          "TAK_DEBUG",
+          "TAK Debug",
+          "If true, enables verbose TAK debug logging."
+        ); %>
+        <% renderField(
+          "TAK_BYPASS_ENABLED",
+          "Bypass TAK",
+          "If true, disables all outbound TAK calls (for testing)."
+        ); %>
+      </div>
+    </div>
+
+    <!-- Email -->
+    <div class="card">
+      <h2>Email</h2>
+      <div class="grid2">
+        <% renderField(
+          "EMAIL_ENABLED",
+          "Email Enabled",
+          "true/false – whether email notifications are enabled."
+        ); %>
+        <% renderField(
+          "EMAIL_PROVIDER",
+          "Email Provider",
+          "Currently only 'smtp' is supported."
+        ); %>
+        <% renderField(
+          "SMTP_HOST",
+          "SMTP Host",
+          "SMTP server hostname."
+        ); %>
+        <% renderField(
+          "SMTP_PORT",
+          "SMTP Port",
+          "Port for your SMTP server (e.g. 587)."
+        ); %>
+        <% renderField(
+          "SMTP_SECURE",
+          "SMTP Secure",
+          "true for SMTPS/465, false for STARTTLS/587."
+        ); %>
+        <% renderField(
+          "SMTP_USER",
+          "SMTP Username",
+          "Username for SMTP authentication (if required)."
+        ); %>
+        <% renderField(
+          "SMTP_PASS",
+          "SMTP Password",
+          "Password for SMTP authentication (if required)."
+        ); %>
+        <% renderField(
+          "SMTP_FROM",
+          "From Address",
+          'Display name and email, e.g. "TAK Admin <admin@example.com>".'
+        ); %>
+        <% renderField(
+          "EMAIL_ALWAYS_CC",
+          "Always CC",
+          "Optional: comma-separated list of CC recipients."
+        ); %>
+        <% renderField(
+          "EMAIL_SEND_COPY_TO",
+          "Always BCC",
+          "Optional: comma-separated list of BCC recipients."
+        ); %>
+        <% renderField(
+          "EMAIL_FAIL_HARD",
+          "Fail Hard on Email Error",
+          "If true, user operations fail when email sending fails."
+        ); %>
+      </div>
+    </div>
+
+    <!-- Bookmarks -->
+    <div class="card">
+      <h2>Dashboard Bookmarks</h2>
+      <p>These appear on the dashboard as quick links.</p>
+      <div class="grid2">
+        <% for (let i = 1; i <= 8; i++) { %>
+          <% renderField(
+            `BOOKMARK${i}_TITLE`,
+            `Bookmark ${i} Title`,
+            ""
+          ); %>
+          <% renderField(
+            `BOOKMARK${i}_URL`,
+            `Bookmark ${i} URL`,
+            ""
+          ); %>
+        <% } %>
+      </div>
+    </div>
+
+    <!-- Any other keys (future-proof) -->
+    <% if (otherKeys.length) { %>
+      <div class="card">
+        <h2>Other Settings</h2>
+        <div class="grid2">
+          <% otherKeys.forEach(function(key) { %>
+            <% renderField(key, key, "") %>
+          <% }); %>
+        </div>
+      </div>
+    <% } %>
+
+    <div style="margin-top: 1rem;">
+      <button type="submit" class="btn-primary">Save Settings</button>
+    </div>
+  </form>
+
+  <div class="card" style="margin-top: 1.5rem;">
     <h2>Notes</h2>
     <ul>
       <li><code>WEB_UI_PORT</code> stays in <code>.env</code> and is <strong>not</strong> editable here.</li>
-      <li>You can add new keys directly in <code>data/settings.json</code>; they will appear on this page automatically.</li>
+      <li>You can add new keys directly in <code>data/settings.json</code>; unrecognized keys will appear in the "Other Settings" section.</li>
     </ul>
   </div>
 </main>
