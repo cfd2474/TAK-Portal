@@ -36,7 +36,7 @@ app.get("/qr-generator", (req, res) => res.render("qr-generator"));
 
 const port = process.env.WEB_UI_PORT || 3000;
 app.listen(port, () => {
-  console.log(`✅ TAK Authentik Web Admin running on http://localhost:${port}`);
+  console.log(`✅ TAK Portal running on http://localhost:${port}`);
 
   // Rehydrate expiration timers from stored mutual aid records.
   try {
