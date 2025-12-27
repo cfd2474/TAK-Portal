@@ -8,6 +8,9 @@ const mutualAidSvc = require("./services/mutualAid.service");
 
 const app = express();
 
+// Expose version to all EJS views (e.g. sidebar)
+app.locals.APP_VERSION = pkg.version || "dev";
+
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
@@ -24,7 +27,6 @@ app.use("/api/qr", require("./routes/qr.routes"));
 app.use("/api/mutual-aid", require("./routes/mutualAid.routes"));
 app.use("/", require("./routes/dashboard.routes"));
 
-
 // UI Routes
 app.get("/", (req, res) => res.redirect("/users/create"));
 app.get("/users/create", (req, res) => res.render("users-create"));
@@ -36,7 +38,8 @@ app.get("/mutual-aid", (req, res) => res.render("mutual-aid"));
 app.get("/qr-generator", (req, res) => res.render("qr-generator"));
 
 app.get("/settings", (req, res) => {
-  const settings = require("./services/settings.service").getSettings();
+  const settingsSvc = require("./services/settings.service");
+  const settings = settingsSvc.getSettings();
   const keys = Object.keys(settings).sort();
   res.render("settings", { settings, keys });
 });
@@ -45,7 +48,7 @@ app.post("/settings", (req, res) => {
   const bodySettings = req.body.settings || {};
   const patch = {};
 
-  Object.keys(bodySettings).forEach(key => {
+  Object.keys(bodySettings).forEach((key) => {
     patch[key] = bodySettings[key];
   });
 
@@ -55,9 +58,8 @@ app.post("/settings", (req, res) => {
   res.redirect("/settings");
 });
 
-
-
 const port = process.env.WEB_UI_PORT || 3000;
+
 app.listen(port, () => {
   console.log(`✅ TAK Portal running on http://localhost:${port}`);
 
@@ -65,7 +67,10 @@ app.listen(port, () => {
   try {
     mutualAidSvc.initExpirationScheduler();
   } catch (e) {
-    console.log("⚠️ Mutual aid expiration scheduler init failed", e?.message || e);
+    console.log(
+      "⚠️ Mutual aid expiration scheduler init failed",
+      e?.message || e
+    );
   }
 
   try {
@@ -81,5 +86,3 @@ app.listen(port, () => {
     console.log("⚠️ Invalid TAK_URL in settings.json");
   }
 });
-
-
