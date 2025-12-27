@@ -15,6 +15,7 @@ certs/*.pem
 certs/*.key
 
 # Data Files
+data/
 data/*.txt
 data/*.json
 
