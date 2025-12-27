@@ -10,7 +10,8 @@ function toErrorPayload(err) {
 
 router.get("/", async (req, res) => {
   try {
-    res.json(await groups.getAllGroups());
+    const forceRefresh = req.query.forceRefresh === "true";
+    res.json(await groups.getAllGroups({ forceRefresh }));
   } catch (err) {
     res.status(500).json({ error: toErrorPayload(err) });
   }

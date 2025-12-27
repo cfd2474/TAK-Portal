@@ -185,7 +185,8 @@ router.get("/import-csv/status/:jobId", (req, res) => {
 router.get("/search", async (req, res) => {
   try {
     const q = req.query.q;
-    const results = await users.findUsers({ q });
+    const forceRefresh = req.query.forceRefresh === "true";
+    const results = await users.findUsers({ q, forceRefresh });
     res.json(results);
   } catch (err) {
     res.status(500).json({ error: toErrorPayload(err) });

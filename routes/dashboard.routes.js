@@ -3,49 +3,66 @@ const router = require("express").Router();
 const usersService = require("../services/users.service");
 const agenciesStore = require("../services/agencies.service");
 const mutualAidService = require("../services/mutualAid.service");
-const bookmarksService = require("../services/bookmarks.service"); // ⬅️ new
+const bookmarksService = require("../services/bookmarks.service");
+
+const DASHBOARD_CACHE_TTL_MS = Number(process.env.DASHBOARD_CACHE_TTL_MS || 300000); // 5 minutes
+
+let _dashboardCache = { viewModel: null, expires: 0 };
+
+function buildCharts(users, agencies) {
+  const agenciesNorm = (agencies || [])
+    .map(a => ({
+      name: String(a.name || "").trim(),
+      type: String(a.type || "").trim(),            // Fire, EMS, Law, etc
+      suffix: String(a.suffix || "").trim().toLowerCase(),
+    }))
+    .filter(a => a.name && a.suffix);
+
+  const usersByAgency = {};
+  for (const a of agenciesNorm) {
+    usersByAgency[a.name] = 0;
+  }
+
+  let unknownAgency = 0;
+
+  const usersByType = {};
+  let unknownType = 0;
+
+  for (const u of users || []) {
+    const uname = String(u.username || "").toLowerCase();
+    const match = agenciesNorm.find(a => uname.endsWith(a.suffix));
+
+    if (match) {
+      usersByAgency[match.name] += 1;
+
+      const t = match.type || "Unknown";
+      usersByType[t] = (usersByType[t] || 0) + 1;
+    } else {
+      unknownAgency += 1;
+      unknownType += 1;
+    }
+  }
+
+  return { usersByAgency, unknownAgency, usersByType, unknownType };
+}
 
 router.get("/", async (req, res) => {
+  const now = Date.now();
+
+  // 5-minute cache for the entire dashboard view model.
+  if (_dashboardCache.viewModel && _dashboardCache.expires > now) {
+    return res.render("dashboard", _dashboardCache.viewModel);
+  }
+
   try {
     const [users, groups] = await Promise.all([
       usersService.getAllUsers(),
-      usersService.getAllGroups()
+      usersService.getAllGroups(),
     ]);
 
     const agencies = agenciesStore.load();
-
-    // --- Users by agency (suffix match) ---
-    const agenciesNorm = agencies
-      .map(a => ({
-        name: a.name,
-        type: String(a.type || "Unknown").trim() || "Unknown",
-        suffix: String(a.suffix || "").trim().toLowerCase()
-      }))
-      .filter(a => a.suffix);
-
-    const usersByAgency = {};
-    for (const a of agenciesNorm) usersByAgency[a.name] = 0;
-
-    let unknownAgency = 0;
-
-    // --- Users by agency TYPE ---
-    const usersByType = {};
-    let unknownType = 0;
-
-    for (const u of users) {
-      const uname = String(u.username || "").toLowerCase();
-      const match = agenciesNorm.find(a => uname.endsWith(a.suffix));
-
-      if (match) {
-        usersByAgency[match.name] += 1;
-
-        const t = match.type || "Unknown";
-        usersByType[t] = (usersByType[t] || 0) + 1;
-      } else {
-        unknownAgency += 1;
-        unknownType += 1;
-      }
-    }
+    const bookmarks = bookmarksService.loadBookmarks();
+    const charts = buildCharts(users, agencies);
 
     // --- Mutual Aid active banners ---
     let activeIncidentCount = 0;
@@ -63,44 +80,48 @@ router.get("/", async (req, res) => {
         if (t === "EVENT") activeEventCount += 1;
       }
     } catch (e) {
-      // Non-fatal; banners are optional.
+      console.error("[DASHBOARD] MutualAid stats failed:", e?.message || e);
     }
 
-    const bookmarks = bookmarksService.loadBookmarks(); // ⬅️ new
-
-    res.render("dashboard", {
+    const viewModel = {
       stats: {
-        totalUsers: users.length,
-        totalGroups: groups.length,
-        totalAgencies: agencies.length
+        totalUsers: Array.isArray(users) ? users.length : 0,
+        totalGroups: Array.isArray(groups) ? groups.length : 0,
+        totalAgencies: Array.isArray(agencies) ? agencies.length : 0,
       },
       mutualAid: {
         activeIncidents: activeIncidentCount,
-        activeEvents: activeEventCount
+        activeEvents: activeEventCount,
       },
-      charts: {
-        usersByAgency,
-        unknownAgency,
-        usersByType,
-        unknownType
-      },
-      bookmarks // ⬅️ new
-    });
-  } catch (err) {
-    const bookmarks = bookmarksService.loadBookmarks(); // ⬅️ optional but nice
+      charts,
+      bookmarks,
+    };
 
-    res.status(500).render("dashboard", {
+    _dashboardCache = {
+      viewModel,
+      expires: Date.now() + DASHBOARD_CACHE_TTL_MS,
+    };
+
+    res.render("dashboard", viewModel);
+  } catch (err) {
+    console.error("[DASHBOARD] Failed to load:", err?.message || err);
+
+    const bookmarks = bookmarksService.loadBookmarks();
+
+    const viewModel = {
       stats: { totalUsers: 0, totalGroups: 0, totalAgencies: 0 },
       mutualAid: { activeIncidents: 0, activeEvents: 0 },
       charts: {
         usersByAgency: {},
         unknownAgency: 0,
         usersByType: {},
-        unknownType: 0
+        unknownType: 0,
       },
-      bookmarks, // ⬅️ new
-      error: err?.response?.data || err?.message || "Failed to load dashboard"
-    });
+      bookmarks,
+      error: err?.response?.data || err?.message || "Failed to load dashboard",
+    };
+
+    res.status(500).render("dashboard", viewModel);
   }
 });
 

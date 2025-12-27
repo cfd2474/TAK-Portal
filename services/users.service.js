@@ -159,7 +159,7 @@ function getTemplatesForAgency(agencySuffix) {
 }
 
 // Authentik API helpers (groups)
-async function getAllGroups() {
+async function getAllGroupsRaw() {
   let groups = [];
   let url = "/core/groups/";
   while (url) {
@@ -183,7 +183,7 @@ async function getAllGroups() {
 // - page using Authentik's `pagination` object (no hard cap on total)
 // - hide service/system users by username prefix (USERS_HIDDEN_PREFIXES)
 // - optionally filter by AUTHENTIK_USER_PATH if set
-async function getAllUsers() {
+async function getAllUsersRaw() {
   let users = [];
   const pageSize = 200; // per-page size; total is unlimited
   let page = 1;
@@ -379,6 +379,7 @@ async function createUser(
     console.error("[EMAIL] user creation notice failed:", e?.message || e);
   }
 
+  invalidateUsersCache();
   return { user, groups: finalGroups };
 }
 
@@ -662,12 +663,13 @@ async function importUsersFromCsvBuffer(buffer, opts = {}) {
     force: true,
   });
 
+  invalidateUsersCache();
   return { count: created.length, created, skipped };
 }
 // Search users
 // - If no q provided -> returns all users (already filtered by folder)
-async function findUsers({ q }) {
-  let users = await getAllUsers();
+async function findUsers({ q, forceRefresh = false } = {}) {
+  let users = await getAllUsers({ forceRefresh });
   if (!q || !String(q).trim()) {
     return users;
   }
@@ -751,6 +753,7 @@ async function toggleUserActive(userId, isActive) {
     is_active: !!isActive,
   });
 
+  invalidateUsersCache();
   return true;
 }
 
@@ -762,6 +765,7 @@ async function deleteUser(userId, opts = {}) {
   await tak.revokeCertsForUser(user?.username, { requireVerified: true });
 
   await api.delete(`/core/users/${userId}/`);
+  invalidateUsersCache();
   return true;
 }
 
@@ -817,6 +821,86 @@ async function removeUserGroups(userId, groupIds) {
   return remaining;
 }
 
+
+// ---------------- In-memory caching for Authentik reads ----------------
+// These caches are process-local only and are safe to clear on any write.
+// They dramatically reduce repeated /core/users/ and /core/groups/ calls
+// when multiple pages (dashboard, agencies, manage users) all need the
+// same data within a short window.
+
+const USERS_CACHE_TTL_MS = Number(process.env.USERS_CACHE_TTL_MS || 60000); // 1 minute default
+const GROUPS_CACHE_TTL_MS = Number(process.env.GROUPS_CACHE_TTL_MS || 60000); // 1 minute default
+
+let _usersCache = { data: null, expires: 0, promise: null };
+let _groupsCache = { data: null, expires: 0, promise: null };
+
+function invalidateUsersCache() {
+  _usersCache = { data: null, expires: 0, promise: null };
+}
+
+function invalidateGroupsCache() {
+  _groupsCache = { data: null, expires: 0, promise: null };
+}
+
+async function getAllUsers(options = {}) {
+  const { forceRefresh = false } = options;
+  const now = Date.now();
+
+  if (forceRefresh) {
+    invalidateUsersCache();
+  }
+
+  if (_usersCache.data && _usersCache.expires > now) {
+    return _usersCache.data;
+  }
+  if (_usersCache.promise) {
+    return _usersCache.promise;
+  }
+
+  _usersCache.promise = (async () => {
+    const data = await getAllUsersRaw();
+    _usersCache.data = Array.isArray(data) ? data : [];
+    _usersCache.expires = Date.now() + USERS_CACHE_TTL_MS;
+    _usersCache.promise = null;
+    return _usersCache.data;
+  })().catch(err => {
+    _usersCache.promise = null;
+    throw err;
+  });
+
+  return _usersCache.promise;
+}
+
+async function getAllGroups(options = {}) {
+  const { forceRefresh = false } = options;
+  const now = Date.now();
+
+  if (forceRefresh) {
+    invalidateGroupsCache();
+  }
+
+  if (_groupsCache.data && _groupsCache.expires > now) {
+    return _groupsCache.data;
+  }
+  if (_groupsCache.promise) {
+    return _groupsCache.promise;
+  }
+
+  _groupsCache.promise = (async () => {
+    const data = await getAllGroupsRaw();
+    _groupsCache.data = Array.isArray(data) ? data : [];
+    _groupsCache.expires = Date.now() + GROUPS_CACHE_TTL_MS;
+    _groupsCache.promise = null;
+    return _groupsCache.data;
+  })().catch(err => {
+    _groupsCache.promise = null;
+    throw err;
+  });
+
+  return _groupsCache.promise;
+}
+
+
 module.exports = {
   // meta/template support
   getTemplatesForAgency,
@@ -824,6 +908,8 @@ module.exports = {
   // shared data
   getAllGroups,
   getAllUsers,
+  invalidateUsersCache,
+  invalidateGroupsCache,
 
   // user ops
   userExists,

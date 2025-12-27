@@ -48,7 +48,7 @@ function normalizeIdList(value) {
 }
 
 // ---------------- Authentik API helpers (groups) ----------------
-async function getAllGroups() {
+async function getAllGroupsRaw() {
   let groups = [];
   let url = "/core/groups/";
 
@@ -91,7 +91,7 @@ async function getGroupById(groupId) {
 // Also:
 // - Hides USERS_HIDDEN_PREFIXES
 // - Respects AUTHENTIK_USER_PATH
-async function getAllUsers() {
+async function getAllUsersRaw() {
   let users = [];
   const pageSize = 200;
   let page = 1;
@@ -141,6 +141,7 @@ async function createGroup(name) {
   const n = String(name || "").trim();
   if (!n) throw new Error("Group name is required");
   const res = await api.post("/core/groups/", { name: n });
+  invalidateGroupsCache();
   return res.data;
 }
 
@@ -155,6 +156,8 @@ async function deleteGroup(groupId) {
   const id = normalizeId(groupId);
   if (!id) throw new Error("Group id is required");
   await api.delete(`/core/groups/${id}/`);
+  invalidateGroupsCache();
+  invalidateGroupUsersCache();
   return true;
 }
 
@@ -196,6 +199,8 @@ async function renameGroup(groupId, newName, opts = {}) {
   if (templatesUpdated > 0) {
     templatesStore.save(updatedTemplates);
   }
+
+  invalidateGroupsCache();
 
   return {
     ...updatedGroup,
@@ -402,6 +407,8 @@ async function massAssignUsersToGroup({ groupId, suffixes, sourceGroupIds, userI
   const targetUserPks = matchedUsers.map(u => u.pk);
   const { changed } = await bulkAddUsersToGroup(gid, targetUserPks);
 
+  invalidateGroupUsersCache();
+
   return { matched: matchedUsers.length, updated: changed };
 }
 
@@ -444,6 +451,8 @@ async function massUnassignUsersFromGroup({ groupId, suffixes, sourceGroupIds, u
 
     const { changed } = await bulkRemoveUsersFromGroup(gid, targetUserPks);
 
+    invalidateGroupUsersCache();
+
     return { matched: matchedUsers.length, updated: changed };
   }
 
@@ -457,6 +466,8 @@ async function massUnassignUsersFromGroup({ groupId, suffixes, sourceGroupIds, u
 
     const targetUserPks = matchedUsers.map(u => u.pk);
     const { changed } = await bulkRemoveUsersFromGroup(gid, targetUserPks);
+
+    invalidateGroupUsersCache();
 
     return { matched: matchedUsers.length, updated: changed };
   }
@@ -479,6 +490,85 @@ async function massUnassignUsersFromGroup({ groupId, suffixes, sourceGroupIds, u
 
   return { matched: matchedUsers.length, updated: changed };
 }
+
+
+// ---------------- In-memory caching for Authentik group/user reads ----------------
+// These caches are process-local only and can be safely cleared whenever
+// groups or group membership are mutated. They help avoid repeatedly
+// pulling the full groups/users list from Authentik for group-centric views.
+
+const GROUPS_CACHE_TTL_MS = Number(process.env.GROUPS_CACHE_TTL_MS || 60000); // 1 minute default
+const GROUP_USERS_CACHE_TTL_MS = Number(process.env.GROUP_USERS_CACHE_TTL_MS || 60000); // 1 minute default
+
+let _groupsCache = { data: null, expires: 0, promise: null };
+let _groupUsersCache = { data: null, expires: 0, promise: null };
+
+function invalidateGroupsCache() {
+  _groupsCache = { data: null, expires: 0, promise: null };
+}
+
+function invalidateGroupUsersCache() {
+  _groupUsersCache = { data: null, expires: 0, promise: null };
+}
+
+async function getAllGroups(options = {}) {
+  const { forceRefresh = false } = options;
+  const now = Date.now();
+
+  if (forceRefresh) {
+    invalidateGroupsCache();
+  }
+
+  if (_groupsCache.data && _groupsCache.expires > now) {
+    return _groupsCache.data;
+  }
+  if (_groupsCache.promise) {
+    return _groupsCache.promise;
+  }
+
+  _groupsCache.promise = (async () => {
+    const data = await getAllGroupsRaw();
+    _groupsCache.data = Array.isArray(data) ? data : [];
+    _groupsCache.expires = Date.now() + GROUPS_CACHE_TTL_MS;
+    _groupsCache.promise = null;
+    return _groupsCache.data;
+  })().catch(err => {
+    _groupsCache.promise = null;
+    throw err;
+  });
+
+  return _groupsCache.promise;
+}
+
+async function getAllUsers(options = {}) {
+  const { forceRefresh = false } = options;
+  const now = Date.now();
+
+  if (forceRefresh) {
+    invalidateGroupUsersCache();
+  }
+
+  if (_groupUsersCache.data && _groupUsersCache.expires > now) {
+    return _groupUsersCache.data;
+  }
+  if (_groupUsersCache.promise) {
+    return _groupUsersCache.promise;
+  }
+
+  _groupUsersCache.promise = (async () => {
+    const data = await getAllUsersRaw();
+    _groupUsersCache.data = Array.isArray(data) ? data : [];
+    _groupUsersCache.expires = Date.now() + GROUP_USERS_CACHE_TTL_MS;
+    _groupUsersCache.promise = null;
+    return _groupUsersCache.data;
+  })().catch(err => {
+    _groupUsersCache.promise = null;
+    throw err;
+  });
+
+  return _groupUsersCache.promise;
+}
+
 
 module.exports = {
   getAllGroups,
