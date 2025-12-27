@@ -432,6 +432,31 @@ async function importUsersFromCsvBuffer(buffer) {
   }
 
   const agencies = agenciesStore.load();
+
+  // Preload all templates once and cache per-agency lookups to avoid
+  // repeatedly hitting the templates store for every CSV row.
+  const allTemplates = templatesStore.load();
+  const templatesByAgency = new Map();
+  function getTemplatesForAgencyCached(agencySuffix) {
+    const key = String(agencySuffix || "").trim().toLowerCase();
+    if (!templatesByAgency.has(key)) {
+      const filtered = allTemplates.filter(t => {
+        const tSfx = String(t.agencySuffix || "").trim().toLowerCase();
+        return tSfx === key;
+      });
+      const mapped = filtered.map(t => ({
+        name: String(t.name || "").trim(),
+        agencySuffix: String(t.agencySuffix || "").trim().toLowerCase(),
+        groups: Array.isArray(t.groups)
+          ? t.groups.map(g => String(g).trim()).filter(Boolean)
+          : [],
+        isDefault: !!t.isDefault,
+      }));
+      templatesByAgency.set(key, mapped);
+    }
+    return templatesByAgency.get(key) || [];
+  }
+
   const rows = [];
   const errors = [];
 
@@ -486,7 +511,7 @@ async function importUsersFromCsvBuffer(buffer) {
 
     // Template must exist for the resolved agency
     if (templateName && agencySuffix) {
-      const dyn = getTemplatesForAgency(agencySuffix);
+      const dyn = getTemplatesForAgencyCached(agencySuffix);
       const found = dyn.find(
         t =>
           String(t.name || "").trim().toLowerCase() ===
@@ -545,9 +570,14 @@ async function importUsersFromCsvBuffer(buffer) {
   // Preload Authentik groups once for all rows to avoid repeated API calls
   const allGroups = await getAllGroups();
 
+  const defaultLimit = 5;
+  const envVal = Number(process.env.USER_IMPORT_CONCURRENCY || "");
+  const importConcurrency =
+    Number.isFinite(envVal) && envVal > 0 && envVal <= 20 ? envVal : defaultLimit;
+
   // Use a modest concurrency to balance speed vs load on Authentik
-  await runWithConcurrencyLimit(rows, 5, async row => {
-    const dyn = getTemplatesForAgency(row.agencySuffix);
+  await runWithConcurrencyLimit(rows, importConcurrency, async row => {
+    const dyn = getTemplatesForAgencyCached(row.agencySuffix);
     const idx = dyn.findIndex(
       t =>
         String(t.name || "").trim().toLowerCase() ===
@@ -562,37 +592,72 @@ async function importUsersFromCsvBuffer(buffer) {
 
     const username = `${row.badge}${row.agencySuffix}`;
 
-    // Option B behavior: if user already exists, skip but record it.
-    if (await userExists(username)) {
-      skipped.push({
-        line: row.lineNum,
-        username,
-        reason: "Username already exists",
-      });
-      return;
-    }
-
     // Dynamic templates are offset by +1 (0 = Manual Group Selection)
     const templateIndex = 1 + idx;
 
-    const result = await createUser(
-      {
-        badge: row.badge,
-        agencySuffix: row.agencySuffix,
-        email: row.email,
-        firstName: row.firstName,
-        lastName: row.lastName,
-        password: row.password || undefined,
-        templateIndex,
-        manualGroupIds: [],
-        allGroups,
-      },
-      { skipExistenceCheck: true }
-    );
+    try {
+      const result = await createUser(
+        {
+          badge: row.badge,
+          agencySuffix: row.agencySuffix,
+          email: row.email,
+          firstName: row.firstName,
+          lastName: row.lastName,
+          password: row.password || undefined,
+          templateIndex,
+          manualGroupIds: [],
+          allGroups,
+        },
+        { skipExistenceCheck: true }
+      );
 
-    const createdUsername =
-      (result && result.user && result.user.username) || username;
-    created.push({ username: createdUsername });
+      const createdUsername =
+        (result && result.user && result.user.username) || username;
+      created.push({ username: createdUsername });
+    } catch (err) {
+      // If Authentik reports that the username already exists, treat it as a
+      // skipped row (same semantics as the explicit pre-check), but avoid an
+      // extra GET /core/users/ per user.
+      const resp = err && err.response;
+      const data = resp && resp.data;
+      let msg = "";
+
+      if (data && typeof data === "object") {
+        if (Array.isArray(data.username) && data.username.length) {
+          msg = String(data.username[0]);
+        } else if (typeof data.username === "string") {
+          msg = data.username;
+        } else if (Array.isArray(data.non_field_errors) && data.non_field_errors.length) {
+          msg = String(data.non_field_errors[0]);
+        } else {
+          try {
+            msg = JSON.stringify(data);
+          } catch {
+            msg = "";
+          }
+        }
+      } else if (typeof data === "string") {
+        msg = data;
+      } else if (err && err.message) {
+        msg = err.message;
+      }
+
+      const lower = String(msg || "").toLowerCase();
+      if (lower.includes("already") && lower.includes("exist") && lower.includes("username")) {
+        skipped.push({
+          line: row.lineNum,
+          username,
+          reason: "Username already exists",
+        });
+        return;
+      }
+
+      // Anything else is a real error for this row: rethrow so the import
+      // fails loudly instead of silently skipping.
+      throw err;
+    }
+
+
   });
 
   return { count: created.length, created, skipped };
