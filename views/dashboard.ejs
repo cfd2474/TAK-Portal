@@ -146,24 +146,25 @@
     }
 
     function loadChartJsAndInit() {
-      if (window.Chart) {
-        initCharts();
-        return;
-      }
-
-      // Try local chart.js first (place Chart.js bundle in /public/chart.js)
-      var localScript = document.createElement("script");
-      localScript.src = "/chart.js";
-      localScript.onload = initCharts;
-      localScript.onerror = function() {
-        // Fallback to CDN
-        var cdnScript = document.createElement("script");
-        cdnScript.src = "https://cdn.jsdelivr.net/npm/chart.js";
-        cdnScript.onload = initCharts;
-        document.head.appendChild(cdnScript);
-      };
-      document.head.appendChild(localScript);
+    if (window.Chart) {
+      initCharts();
+      return;
     }
+
+    // Try local chart.js first 
+    var localScript = document.createElement("script");
+    localScript.src = "/chart.js";
+    localScript.onload = initCharts;
+    localScript.onerror = function() {
+      // Fallback to CDN
+      var cdnScript = document.createElement("script");
+      cdnScript.src = "https://cdn.jsdelivr.net/npm/chart.js";
+      cdnScript.onload = initCharts;
+      document.head.appendChild(cdnScript);
+    };
+    document.head.appendChild(localScript);
+  }
+
 
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", loadChartJsAndInit);
