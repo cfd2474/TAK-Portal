@@ -1,6 +1,6 @@
 {
-  "AUTHENTIK_URL": "http:// # Authentik URL with Port",
-  "AUTHENTIK_TOKEN": " # Authentik API Token",
+  "AUTHENTIK_URL": "http://your-authentik-url:9000 # Authentik URL with Port",
+  "AUTHENTIK_TOKEN": "your-real-token-here # Authentik API Token",
   "USERS_HIDDEN_PREFIXES": "ak-,adm_,nodered-",
   "GROUPS_HIDDEN_PREFIXES": "authentik, EVENT-, INCIDENT-",
   "USERS_ACTIONS_HIDDEN_PREFIXES": "incident-,event-",

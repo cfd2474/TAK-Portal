@@ -1,19 +1,8 @@
-/**
- * services/settings.service.js
- *
- * Central settings store backed by data/settings.json.
- * All former .env and bookmarks.env values (except WEB_UI_PORT)
- * now live here as flat key/value pairs.
- *
- * The keys intentionally match the old env var names so existing
- * code can read them via services/env.js helpers.
- */
-
 const fs = require("fs");
 const path = require("path");
 
 const SETTINGS_PATH = path.join(__dirname, "..", "data", "settings.json");
-// Your template lives at the project root:
+// Example template at project root
 const TEMPLATE_PATH = path.join(__dirname, "..", "settings.example.json");
 
 function ensureDirExists(filePath) {
@@ -33,35 +22,30 @@ function readJsonSafe(filePath) {
       return parsed;
     }
   } catch (err) {
-    // ignore, caller can handle empty
+    console.warn(`[settings] Failed to read ${filePath}:`, err.message || err);
   }
   return {};
 }
 
-/**
- * Merge existing settings with the template:
- * - All keys from template are present
- * - Any user overrides in existing settings win
- */
 function mergeWithTemplate(existing) {
   const template = fs.existsSync(TEMPLATE_PATH)
     ? readJsonSafe(TEMPLATE_PATH)
     : {};
 
+  // No template? Just return whatever we had.
   if (!template || Object.keys(template).length === 0) {
-    return existing || {};
+    return { merged: existing || {}, needsSave: false };
   }
 
   const current = existing || {};
 
-  // template provides defaults, existing overrides them
+  // template values are defaults; existing config overrides them
   const merged = { ...template, ...current };
 
-  // If merged and existing differ, we should save.
-  const needsSave =
-    Object.keys(template).some(
-      key => !Object.prototype.hasOwnProperty.call(current, key)
-    ) || Object.keys(current).some(key => template[key] !== current[key]);
+  // Needs save if we’re missing any template keys
+  const needsSave = Object.keys(template).some(
+    key => !Object.prototype.hasOwnProperty.call(current, key)
+  );
 
   return { merged, needsSave };
 }
@@ -79,6 +63,7 @@ function loadSettingsFromDisk() {
     ensureDirExists(SETTINGS_PATH);
     try {
       fs.writeFileSync(SETTINGS_PATH, JSON.stringify(merged, null, 2));
+      console.log("[settings] Wrote merged settings.json");
     } catch (err) {
       console.warn(
         "[settings] Failed to write settings.json:",
@@ -88,6 +73,10 @@ function loadSettingsFromDisk() {
   }
 
   return merged;
+}
+
+function ensureSettingsInitialized() {
+  _settings = loadSettingsFromDisk();
 }
 
 function getSettings() {
@@ -108,14 +97,6 @@ function updateSettings(patch) {
   saveSettings(merged);
 }
 
-/**
- * Make sure settings.json exists and has all keys from the template.
- * Safe to call multiple times.
- */
-function ensureSettingsInitialized() {
-  _settings = loadSettingsFromDisk();
-}
-
 function get(name, fallback) {
   const cfg = getSettings();
   if (Object.prototype.hasOwnProperty.call(cfg, name)) {
@@ -127,9 +108,9 @@ function get(name, fallback) {
 module.exports = {
   SETTINGS_PATH,
   TEMPLATE_PATH,
+  ensureSettingsInitialized,
   getSettings,
   saveSettings,
   updateSettings,
-  ensureSettingsInitialized,
   get,
 };
