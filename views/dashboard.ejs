@@ -71,23 +71,21 @@
     </div>
   </div>
 
-  <% if (bookmarks && bookmarks.length > 0) { %>
-    <div class="card" style="margin-top:14px;">
-      <h2>Bookmarks</h2>
-      <div class="row" style="flex-wrap:wrap; gap:10px;">
-        <% bookmarks.forEach(function(bm) { %>
-          <a
-            class="btn"
-            href="<%= bm.url %>"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <%= bm.title %>
-          </a>
-        <% }); %>
-      </div>
+  <div class="card" style="margin-top:14px;">
+    <h2>Bookmarks</h2>
+    <div class="row" style="flex-wrap:wrap; gap:10px;">
+      <% (bookmarks || []).forEach(function(bm) { %>
+        <a
+          class="btn"
+          href="<%= bm.url %>"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <%= bm.title %>
+        </a>
+      <% }); %>
     </div>
-  <% } %>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
