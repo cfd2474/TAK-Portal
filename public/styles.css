@@ -51,6 +51,14 @@ body {
     }
 }
 
+.version-text {
+    display: block;
+    margin-top: 6px;
+    opacity: .6;
+    font-size: 11px;
+  }
+  
+
 .brand {
     font-weight: 800;
     letter-spacing: .5px;
