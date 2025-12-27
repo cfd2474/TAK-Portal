@@ -9,12 +9,11 @@ SERVICE_NAME="tak-portal"
 
 usage() {
   cat <<EOF
-Usage: $0 {setup|config|bookmarks|start|stop|restart|update|logs|status|remove}
+Usage: $0 {setup|config|start|stop|restart|update|logs|status|remove}
 
 Commands:
-  setup      Create/edit .env and make sure script is ready (also ensures bookmarks.env exists)
+  setup      Open .env in nano for editing
   config     Alias for 'setup'
-  bookmarks  Create/edit bookmarks.env for dashboard quick links, then restart
   start      Build (if needed) and start the stack in the background
   stop       Stop the stack and keep data volume
   restart    Restart containers (rebuild if needed)
@@ -25,38 +24,15 @@ Commands:
 EOF
 }
 
-ensure_env() {
+edit_env() {
   if [[ -f .env ]]; then
-    echo ".env already exists — opening in nano..."
+    echo "Opening .env in nano..."
     nano .env
   else
-    if [[ -f .env.example ]]; then
-      echo "Creating .env from .env.example..."
-      cp .env.example .env
-      echo "Opening .env in nano..."
-      nano .env
-    else
-      echo "ERROR: Neither .env nor .env.example found."
-      exit 1
-    fi
-  fi
-}
-
-ensure_bookmarks_env() {
-  if [[ -f bookmarks.env ]]; then
-    echo "bookmarks.env already exists — opening in nano..."
-    nano bookmarks.env
-  else
-    if [[ -f bookmarks.env.example ]]; then
-      echo "Creating bookmarks.env from bookmarks.env.example..."
-      cp bookmarks.env.example bookmarks.env
-      echo "Opening bookmarks.env in nano..."
-      nano bookmarks.env
-    else
-      echo "ERROR: Neither bookmarks.env nor bookmarks.env.example found."
-      echo "Create bookmarks.env.example or bookmarks.env first."
-      exit 1
-    fi
+    echo "ERROR: .env not found in $(pwd)"
+    echo "There should be a default .env included with the download."
+    echo "Create it manually or re-download the project, then rerun this command."
+    exit 1
   fi
 }
 
@@ -64,34 +40,12 @@ CMD="${1:-}"
 
 case "$CMD" in
   setup|config)
-    echo "Running setup/config..."
-    ensure_env
-
-    # Ensure bookmarks.env exists on initial setup, but don't open nano here.
-    if [[ ! -f bookmarks.env ]] && [[ -f bookmarks.env.example ]]; then
-      echo "Creating default bookmarks.env from bookmarks.env.example..."
-      cp bookmarks.env.example bookmarks.env
-    fi
+    echo "Opening .env for configuration..."
+    edit_env
 
     echo
     echo "Setup complete. You can now run:"
     echo "  ./$(basename "${BASH_SOURCE[0]}") start"
-    echo "Optional: ./$(basename "${BASH_SOURCE[0]}") bookmarks   # to edit dashboard bookmarks"
-    ;;
-
-  bookmarks)
-    echo "Configuring dashboard bookmarks..."
-    ensure_bookmarks_env
-
-    echo
-    echo "Restarting TAK Portal to apply bookmark changes..."
-    if [[ -f .env ]]; then
-      $COMPOSE_CMD down
-      $COMPOSE_CMD up -d --build
-      echo "Restart complete."
-    else
-      echo ".env not found; skipping restart. Run ./$(basename "${BASH_SOURCE[0]}") setup first."
-    fi
     ;;
 
   start)
