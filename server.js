@@ -17,6 +17,8 @@ app.locals.APP_VERSION = pkg.version || "dev";
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
+app.use("/branding", express.static(path.join(__dirname, "data", "branding")));
+
 
 // Multer storage for settings uploads (certs + branding)
 const uploadStorage = multer.diskStorage({
@@ -30,7 +32,7 @@ const uploadStorage = multer.diskStorage({
       ) {
         targetDir = path.join(__dirname, "data", "certs");
       } else if (file.fieldname === "BRAND_LOGO_UPLOAD") {
-        targetDir = path.join(__dirname, "public", "branding");
+        targetDir = path.join(__dirname, "data", "branding");
       } else {
         targetDir = path.join(__dirname, "data", "uploads");
       }
