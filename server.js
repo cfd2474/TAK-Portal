@@ -1,6 +1,10 @@
 require("dotenv").config();
 const express = require("express");
 const path = require("path");
+const fs = require("fs");
+const multer = require("multer");
+const settingsSvc = require("./services/settings.service");
+
 
 const { getString } = require("./services/env");
 const pkg = require("./package.json");
@@ -15,6 +19,69 @@ app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 
+// Multer storage for settings uploads (certs + branding)
+const uploadStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    try {
+      let targetDir;
+
+      if (file.fieldname === "TAK_API_P12_UPLOAD" || file.fieldname === "TAK_CA_UPLOAD") {
+        targetDir = path.join(__dirname, "data", "certs");
+      } else if (file.fieldname === "BRAND_LOGO_UPLOAD") {
+        targetDir = path.join(__dirname, "public", "branding");
+      } else {
+        targetDir = path.join(__dirname, "data", "uploads");
+      }
+
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+      }
+
+      cb(null, targetDir);
+    } catch (err) {
+      console.error("Failed to determine upload destination:", err);
+      cb(err);
+    }
+  },
+  filename: (req, file, cb) => {
+    const safeOriginal = file.originalname
+      ? file.originalname.replace(/[^a-zA-Z0-9_.-]/g, "_")
+      : "upload";
+
+    if (file.fieldname === "TAK_API_P12_UPLOAD") {
+      return cb(null, "tak-client.p12");
+    }
+
+    if (file.fieldname === "TAK_CA_UPLOAD") {
+      return cb(null, "tak-ca.pem");
+    }
+
+    if (file.fieldname === "BRAND_LOGO_UPLOAD") {
+      const ext = path.extname(safeOriginal) || ".png";
+      return cb(null, "logo" + ext);
+    }
+
+    cb(null, safeOriginal);
+  },
+});
+
+const upload = multer({ storage: uploadStorage });
+
+// Expose settings + theme/logo to all views
+app.use((req, res, next) => {
+  try {
+    const settings = settingsSvc.getSettings();
+    res.locals.settings = settings || {};
+    res.locals.brandTheme = settings.BRAND_THEME || "dark-blue";
+    res.locals.brandLogoUrl = settings.BRAND_LOGO_URL || "";
+  } catch (err) {
+    console.warn("Failed to load settings for request:", err?.message || err);
+    res.locals.settings = {};
+    res.locals.brandTheme = "dark-blue";
+    res.locals.brandLogoUrl = "";
+  }
+  next();
+});
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
@@ -38,24 +105,83 @@ app.get("/mutual-aid", (req, res) => res.render("mutual-aid"));
 app.get("/qr-generator", (req, res) => res.render("qr-generator"));
 
 app.get("/settings", (req, res) => {
-  const settingsSvc = require("./services/settings.service");
   const settings = settingsSvc.getSettings();
   const keys = Object.keys(settings).sort();
   res.render("settings", { settings, keys });
 });
 
-app.post("/settings", (req, res) => {
-  const bodySettings = req.body.settings || {};
-  const patch = {};
 
-  Object.keys(bodySettings).forEach((key) => {
-    patch[key] = bodySettings[key];
+app.post(
+  "/settings",
+  upload.fields([
+    { name: "TAK_API_P12_UPLOAD", maxCount: 1 },
+    { name: "TAK_CA_UPLOAD", maxCount: 1 },
+    { name: "BRAND_LOGO_UPLOAD", maxCount: 1 },
+  ]),
+  (req, res) => {
+    const bodySettings = req.body.settings || {};
+    const patch = {};
+
+    // Copy over simple settings from the form
+    Object.keys(bodySettings).forEach((key) => {
+      patch[key] = bodySettings[key];
+    });
+
+    // Handle uploaded files and update path settings
+    const files = req.files || {};
+
+    const p12Files = files.TAK_API_P12_UPLOAD || [];
+    if (p12Files.length > 0) {
+      const f = p12Files[0];
+      // Store path relative to project root so tak.service can resolve it
+      const relPath = path.relative(process.cwd(), f.path);
+      patch.TAK_API_P12_PATH = relPath.replace(/\\/g, "/");
+    }
+
+    const caFiles = files.TAK_CA_UPLOAD || [];
+    if (caFiles.length > 0) {
+      const f = caFiles[0];
+      const relPath = path.relative(process.cwd(), f.path);
+      patch.TAK_CA_PATH = relPath.replace(/\\/g, "/");
+    }
+
+    const logoFiles = files.BRAND_LOGO_UPLOAD || [];
+    if (logoFiles.length > 0) {
+      const f = logoFiles[0];
+      // Use a web path for templates; underlying fs path is under public/
+      const webPath = "/branding/" + path.basename(f.path);
+      patch.BRAND_LOGO_URL = webPath.replace(/\\/g, "/");
+    }
+
+    settingsSvc.updateSettings(patch);
+
+    // After saving, redirect back to the settings page
+    res.redirect("/settings");
+  }
+);
+
+// Export a zip of the data folder
+app.get("/settings/export-data", (req, res) => {
+  const archiver = require("archiver");
+  const dataDir = path.join(__dirname, "data");
+
+  if (!fs.existsSync(dataDir)) {
+    return res.status(404).send("No data directory to export");
+  }
+
+  res.setHeader("Content-Type", "application/zip");
+  res.setHeader("Content-Disposition", 'attachment; filename="tak-portal-data.zip"');
+
+  const archive = archiver("zip", { zlib: { level: 9 } });
+
+  archive.on("error", (err) => {
+    console.error("Export data zip error:", err);
+    res.status(500).end("Failed to export data");
   });
 
-  require("./services/settings.service").updateSettings(patch);
-
-  // After saving, redirect back to the settings page
-  res.redirect("/settings");
+  archive.pipe(res);
+  archive.directory(dataDir, "data");
+  archive.finalize();
 });
 
 const port = process.env.WEB_UI_PORT || 3000;

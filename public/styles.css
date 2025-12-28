@@ -10,6 +10,93 @@
     --success: #18b35a;
 }
 
+/* Theme variants */
+body.theme-dark-blue {
+    --bg: #0b1220;
+    --panel: #111a2e;
+    --card: #0f1930;
+    --text: #e8eefc;
+    --muted: #a8b3cf;
+    --line: #1f2a44;
+    --btn: #2b6cff;
+}
+
+body.theme-slate {
+    --bg: #050708;
+    --panel: #111827;
+    --card: #020617;
+    --text: #f9fafb;
+    --muted: #9ca3af;
+    --line: #1f2933;
+    --btn: #4b5563;
+}
+
+body.theme-maroon {
+    --bg: #120508;
+    --panel: #220712;
+    --card: #330815;
+    --text: #fde7ec;
+    --muted: #fca5a5;
+    --line: #4b0f1f;
+    --btn: #b91c1c;
+}
+
+body.theme-green {
+    --bg: #02120a;
+    --panel: #042017;
+    --card: #05291d;
+    --text: #dcfce7;
+    --muted: #6ee7b7;
+    --line: #064e3b;
+    --btn: #16a34a;
+}
+
+/* Brand + header logo */
+.topbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 8px 18px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+}
+
+.topbar-inner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.topbar-logo {
+    max-height: 32px;
+    width: auto;
+}
+
+.topbar-title {
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--text);
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 14px 18px 14px;
+    border-bottom: 1px solid var(--line);
+}
+
+.brand-logo {
+    max-height: 36px;
+    width: auto;
+}
+
+.brand-title {
+    font-weight: 700;
+    font-size: 16px;
+}
+
+
 * {
     box-sizing: border-box;
 }

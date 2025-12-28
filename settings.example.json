@@ -30,6 +30,9 @@
   "EMAIL_FAIL_HARD": "false",
 
 
+  "BRAND_THEME": "dark-blue",
+  "BRAND_LOGO_URL": "",
+
   "BOOKMARK1_TITLE": "TAK Portal GitHub",
   "BOOKMARK1_URL": "https://github.com/AdventureSeeker423/TAK-Portal",
   "BOOKMARK2_TITLE": "Authentik",

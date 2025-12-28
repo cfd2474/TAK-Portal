@@ -1,11 +1,62 @@
 const express = require("express");
 const router = express.Router();
 const QRCode = require("qrcode");
+const path = require("path");
+const fs = require("fs");
+const Jimp = require("jimp");
+const settingsSvc = require("../services/settings.service");
+
+
+
+// Overlay branding logo (if configured) onto the center of a QR PNG buffer.
+async function addLogoToPng(pngBuffer) {
+  try {
+    const settings = settingsSvc.getSettings();
+    const logoUrl = settings.BRAND_LOGO_URL;
+
+    if (!logoUrl) {
+      return pngBuffer;
+    }
+
+    const logoFsPath = path.join(
+      __dirname,
+      "..",
+      "public",
+      logoUrl.replace(/^\//, "")
+    );
+
+    if (!fs.existsSync(logoFsPath)) {
+      return pngBuffer;
+    }
+
+    const [qrImage, logoImage] = await Promise.all([
+      Jimp.read(pngBuffer),
+      Jimp.read(logoFsPath),
+    ]);
+
+    const qrWidth = qrImage.getWidth();
+    const qrHeight = qrImage.getHeight();
+    const logoMaxSize = Math.floor(Math.min(qrWidth, qrHeight) * 0.25);
+
+    logoImage.contain(logoMaxSize, logoMaxSize);
+
+    const x = Math.floor((qrWidth - logoImage.getWidth()) / 2);
+    const y = Math.floor((qrHeight - logoImage.getHeight()) / 2);
+
+    qrImage.composite(logoImage, x, y);
+
+    return await qrImage.getBufferAsync(Jimp.MIME_PNG);
+  } catch (err) {
+    console.error("Failed to add logo to QR:", err);
+    return pngBuffer;
+  }
+}
 
 /**
  * Generate QR for on-page display (medium resolution)
  * POST /api/qr
  */
+
 router.post("/", async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -21,27 +72,30 @@ router.post("/", async (req, res) => {
 
     const host = new URL(takUrl).hostname;
 
-    const enrollUrl =
-      `tak://com.atakmap.app/enroll?` +
-      `host=${host}` +
-      `&username=${encodeURIComponent(username)}` +
-      `&token=${encodeURIComponent(password)}`;
+const enrollUrl =
+  `tak://com.atakmap.app/enroll?` +
+  `host=${host}` +
+  `&username=${encodeURIComponent(username)}` +
+  `&token=${encodeURIComponent(password)}`;
 
-    const qrCode = await QRCode.toDataURL(enrollUrl, {
-      errorCorrectionLevel: "H",
-      type: "image/png",
-      width: 512,     // Display size
-      margin: 2,
-      color: {
-        dark: "#000000",
-        light: "#FFFFFF"
-      }
-    });
+const basePng = await QRCode.toBuffer(enrollUrl, {
+  errorCorrectionLevel: "H",
+  type: "png",
+  width: 512,     // Display size
+  margin: 2,
+  color: {
+    dark: "#000000",
+    light: "#FFFFFF"
+  }
+});
 
-    return res.json({
-      qrCode,
-      enrollUrl
-    });
+const finalPng = await addLogoToPng(basePng);
+const qrCode = "data:image/png;base64," + finalPng.toString("base64");
+
+return res.json({
+  qrCode,
+  enrollUrl
+});
   } catch (err) {
     console.error("QR generation error:", err);
     return res.status(500).json({ error: "Failed to generate QR code" });
@@ -79,6 +133,7 @@ router.get("/download", async (req, res) => {
       errorCorrectionLevel: "H",
       type: "png",
       width: 1200,   // Much higher than display
+    const finalPng = await addLogoToPng(pngBuffer);
       margin: 3
     });
 
@@ -93,7 +148,7 @@ router.get("/download", async (req, res) => {
       `attachment; filename="${filename}"`
     );
 
-    return res.send(pngBuffer);
+    return res.send(finalPng);
   } catch (err) {
     console.error("QR download error:", err);
     return res.status(500).send("Failed to generate download QR");

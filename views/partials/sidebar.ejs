@@ -1,5 +1,10 @@
 <aside class="sidebar" id="sidebar">
-	<div class="brand">TAK Portal</div>
+<div class="brand">
+	<% if (brandLogoUrl) { %>
+		<img src="<%= brandLogoUrl %>" alt="Portal logo" class="brand-logo" />
+	<% } %>
+	<span class="brand-title">TAK Portal</span>
+</div>
   
 	<nav class="sidebar-nav">
 	  <div class="nav-top">

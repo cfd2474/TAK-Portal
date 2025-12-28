@@ -4,24 +4,50 @@
 <main class="main">
   <h1>Settings</h1>
 
-  <form method="post" action="/settings" autocomplete="off">
-    <% 
-      // Helper to render a single field
-      function renderField(key, label, helpText) { 
-    %>
-      <label class="settings-field">
-        <span class="settings-label"><%= label || key %></span>
-        <input
-          type="text"
-          name="settings[<%= key %>]"
-          value="<%= typeof settings[key] === 'string' ? settings[key] : '' %>"
-        />
-        <% if (helpText) { %>
-          <small class="settings-help"><%= helpText %></small>
-        <% } %>
-      </label>
+  <form method="post" action="/settings" autocomplete="off" enctype="multipart/form-data">
+<% 
+  // Helper to render a single field
+  const BOOL_KEYS = new Set([
+    "TAK_REVOKE_ON_DISABLE",
+    "TAK_DEBUG",
+    "TAK_BYPASS_ENABLED",
+    "EMAIL_ENABLED",
+    "SMTP_SECURE",
+    "EMAIL_FAIL_HARD"
+  ]);
+
+  function renderField(key, label, helpText) { 
+%>
+  <label class="settings-field">
+    <span class="settings-label"><%= label || key %></span>
+
+    <% if (BOOL_KEYS.has(key)) { %>
+      <% 
+        const rawVal = (settings && typeof settings[key] === "string")
+          ? settings[key].toLowerCase()
+          : "";
+        const currentVal =
+          rawVal === "true" ? "true" :
+          rawVal === "false" ? "false" :
+          "";
+      %>
+      <select name="settings[<%= key %>]">
+        <option value="true" <%= currentVal === "true" ? "selected" : "" %>>true</option>
+        <option value="false" <%= currentVal === "false" ? "selected" : "" %>>false</option>
+      </select>
+    <% } else { %>
+      <input
+        type="text"
+        name="settings[<%= key %>]"
+        value="<%= typeof settings[key] === 'string' ? settings[key] : '' %>"
+      />
     <% } %>
 
+    <% if (helpText) { %>
+      <small class="settings-help"><%= helpText %></small>
+    <% } %>
+  </label>
+<% } %>
     <% 
       const knownKeys = new Set([
         "AUTHENTIK_URL",
@@ -109,48 +135,81 @@
       </div>
     </div>
 
-    <!-- TAK Server -->
-    <div class="card">
-      <h2>TAK Server</h2>
-      <div class="grid2">
-        <% renderField(
-          "TAK_URL",
-          "TAK URL",
-          "Full Marti URL, e.g. https://tak.example.gov:8443/Marti."
-        ); %>
-        <% renderField(
-          "TAK_API_P12_PATH",
-          "Client P12 Path",
-          "Path to the client .p12 certificate inside the container."
-        ); %>
-        <% renderField(
-          "TAK_API_P12_PASSPHRASE",
-          "Client P12 Passphrase",
-          "Passphrase for the client .p12 file (may be empty)."
-        ); %>
-        <% renderField(
-          "TAK_CA_PATH",
-          "TAK CA Path",
-          "Path to the TAK CA certificate file."
-        ); %>
-        <% renderField(
-          "TAK_REVOKE_ON_DISABLE",
-          "Revoke on Disable",
-          "If true, revokes TAK certs when a user is disabled."
-        ); %>
-        <% renderField(
-          "TAK_DEBUG",
-          "TAK Debug",
-          "If true, enables verbose TAK debug logging."
-        ); %>
-        <% renderField(
-          "TAK_BYPASS_ENABLED",
-          "Bypass TAK",
-          "If true, disables all outbound TAK calls (for testing)."
-        ); %>
-      </div>
-    </div>
+<!-- TAK Server -->
+<div class="card">
+  <h2>TAK Server</h2>
+  <div class="grid2">
+    <% renderField(
+      "TAK_URL",
+      "TAK URL",
+      "Full Marti URL, e.g. https://tak.example.gov:8443/Marti."
+    ); %>
 
+    <!-- Client P12 Upload -->
+    <label class="settings-field">
+      <span class="settings-label">Client P12 Certificate</span>
+      <input
+        type="file"
+        name="TAK_API_P12_UPLOAD"
+        accept=".p12,.pfx,application/x-pkcs12"
+      />
+      <% if (settings.TAK_API_P12_PATH) { %>
+        <small class="settings-help">
+          Currently stored at:
+          <code><%= settings.TAK_API_P12_PATH %></code>
+        </small>
+      <% } else { %>
+        <small class="settings-help">
+          Upload the client .p12/.pfx file. It will be stored under
+          <code>data/certs/</code> inside the container.
+        </small>
+      <% } %>
+    </label>
+
+    <% renderField(
+      "TAK_API_P12_PASSPHRASE",
+      "Client P12 Passphrase",
+      "Passphrase for the client .p12 file (may be empty)."
+    ); %>
+
+    <!-- TAK CA Upload -->
+    <label class="settings-field">
+      <span class="settings-label">TAK CA Certificate</span>
+      <input
+        type="file"
+        name="TAK_CA_UPLOAD"
+        accept=".pem,.crt,.cer,.der"
+      />
+      <% if (settings.TAK_CA_PATH) { %>
+        <small class="settings-help">
+          Currently stored at:
+          <code><%= settings.TAK_CA_PATH %></code>
+        </small>
+      <% } else { %>
+        <small class="settings-help">
+          Upload the TAK CA certificate. It will be stored under
+          <code>data/certs/</code> inside the container.
+        </small>
+      <% } %>
+    </label>
+
+    <% renderField(
+      "TAK_REVOKE_ON_DISABLE",
+      "Revoke on Disable",
+      "If true, revokes TAK certs when a user is disabled."
+    ); %>
+    <% renderField(
+      "TAK_DEBUG",
+      "TAK Debug",
+      "If true, enables verbose TAK debug logging."
+    ); %>
+    <% renderField(
+      "TAK_BYPASS_ENABLED",
+      "Bypass TAK",
+      "If true, disables all outbound TAK calls (for testing)."
+    ); %>
+  </div>
+</div>
     <!-- Email -->
     <div class="card">
       <h2>Email</h2>
@@ -213,6 +272,55 @@
       </div>
     </div>
 
+<!-- Appearance -->
+<div class="card">
+  <h2>Appearance</h2>
+  <div class="grid2">
+    <!-- Logo upload -->
+    <label class="settings-field">
+      <span class="settings-label">Portal Logo</span>
+      <input
+        type="file"
+        name="BRAND_LOGO_UPLOAD"
+        accept="image/*"
+      />
+      <% if (settings.BRAND_LOGO_URL) { %>
+        <small class="settings-help">
+          Current logo path:
+          <code><%= settings.BRAND_LOGO_URL %></code>
+        </small>
+      <% } else { %>
+        <small class="settings-help">
+          Upload a logo to show in the header, at the top of the sidebar,
+          and centered on generated QR codes.
+        </small>
+      <% } %>
+    </label>
+
+    <!-- Theme selection -->
+    <label class="settings-field">
+      <span class="settings-label">Color Theme</span>
+      <% const currentTheme = settings.BRAND_THEME || "dark-blue"; %>
+      <select name="settings[BRAND_THEME]">
+        <option value="dark-blue" <%= currentTheme === "dark-blue" ? "selected" : "" %>>
+          Default – Dark Blue
+        </option>
+        <option value="slate" <%= currentTheme === "slate" ? "selected" : "" %>>
+          Dark Grey / Slate
+        </option>
+        <option value="maroon" <%= currentTheme === "maroon" ? "selected" : "" %>>
+          Dark Maroon
+        </option>
+        <option value="green" <%= currentTheme === "green" ? "selected" : "" %>>
+          Dark Green
+        </option>
+      </select>
+      <small class="settings-help">
+        Choose the main color theming for the site.
+      </small>
+    </label>
+  </div>
+</div>
     <!-- Bookmarks -->
     <div class="card">
       <h2>Dashboard Bookmarks</h2>
@@ -245,8 +353,9 @@
       </div>
     <% } %>
 
-    <div style="margin-top: 1rem;">
-      <button type="submit" class="btn">Save Settings</button>
-    </div>    
+<div style="margin-top: 1rem; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+  <button type="submit" class="btn">Save Settings</button>
+  <a href="/settings/export-data" class="btn">Export Data</a>
+</div>    
   </form>
 </main>
