@@ -22,7 +22,7 @@ body.theme-dark-blue {
 }
 
 body.theme-slate {
-    --bg: #1d1d1d;
+    --bg: #0b0b0b;
     --panel: #121212;
     --card: #1c1c1e;
     --text: #ffffff;
@@ -258,6 +258,10 @@ select:focus {
     font-weight: 600;
     line-height: 1;
     text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
 }
 
 .btn:hover {
