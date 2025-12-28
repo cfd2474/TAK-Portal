@@ -17,7 +17,7 @@ Commands:
   start      Build (if needed) and start the stack in the background
   stop       Stop the stack and keep data volume
   restart    Restart containers (rebuild if needed)
-  update     git pull + rebuild & restart containers, then optionally prune old images
+  update     git pull, rebuild, restart containers, and prune old images
   logs       Follow logs from the container
   status     Show container status
   remove     Completely remove containers, volumes, network, and images
@@ -83,21 +83,11 @@ case "$CMD" in
     $COMPOSE_CMD up -d --build
 
     echo
-    sleep 1
+    sleep 5
 
-    echo
-    echo "Check site functionality and logs to verify everything looks healthy:"
-    echo
-    echo "  ./$(basename "${BASH_SOURCE[0]}") logs"
-    echo
-    read -p "Does everything look good? Type 'yes' to remove old images: " confirm
-
-    if [[ "$confirm" == "yes" ]]; then
-      echo "Removing unused Docker images..."
-      docker image prune -f
-      echo "Old images cleaned up."
-    else
-      echo "Skipping cleanup — old images retained."
+    echo "Removing unused Docker images..."
+    docker image prune -f
+    echo "Old images cleaned up."
     fi
     ;;
 
