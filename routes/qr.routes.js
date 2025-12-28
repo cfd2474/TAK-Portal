@@ -6,7 +6,30 @@ const fs = require("fs");
 const Jimp = require("jimp");
 const settingsSvc = require("../services/settings.service");
 
+// Prefer TAK_URL from settings.json, fall back to .env if needed
+function getTakUrl() {
+  try {
+    const settings = settingsSvc.getSettings() || {};
+    if (
+      settings.TAK_URL &&
+      typeof settings.TAK_URL === "string" &&
+      settings.TAK_URL.trim()
+    ) {
+      return settings.TAK_URL.trim();
+    }
+  } catch (err) {
+    console.warn(
+      "Failed to read TAK_URL from settings.json:",
+      err?.message || err
+    );
+  }
 
+  if (process.env.TAK_URL && process.env.TAK_URL.trim()) {
+    return process.env.TAK_URL.trim();
+  }
+
+  return null;
+}
 
 // Overlay branding logo (if configured) onto the center of a QR PNG buffer.
 async function addLogoToPng(pngBuffer) {
@@ -64,37 +87,40 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Missing username or password" });
     }
 
-    const takUrl = process.env.TAK_URL;
+    const takUrl = getTakUrl();
     if (!takUrl) {
-      return res.status(500).json({ error: "TAK_URL not set in .env" });
+      return res.status(500).json({
+        error:
+          "TAK_URL is not configured. Set it in Settings (TAK URL) or via the TAK_URL environment variable.",
+      });
     }
 
     const host = new URL(takUrl).hostname;
 
-const enrollUrl =
-  `tak://com.atakmap.app/enroll?` +
-  `host=${host}` +
-  `&username=${encodeURIComponent(username)}` +
-  `&token=${encodeURIComponent(password)}`;
+    const enrollUrl =
+      `tak://com.atakmap.app/enroll?` +
+      `host=${host}` +
+      `&username=${encodeURIComponent(username)}` +
+      `&token=${encodeURIComponent(password)}`;
 
-const basePng = await QRCode.toBuffer(enrollUrl, {
-  errorCorrectionLevel: "H",
-  type: "png",
-  width: 512,     // Display size
-  margin: 2,
-  color: {
-    dark: "#000000",
-    light: "#FFFFFF"
-  }
-});
+    const basePng = await QRCode.toBuffer(enrollUrl, {
+      errorCorrectionLevel: "H",
+      type: "png",
+      width: 512, // Display size
+      margin: 2,
+      color: {
+        dark: "#000000",
+        light: "#FFFFFF",
+      },
+    });
 
-const finalPng = await addLogoToPng(basePng);
-const qrCode = "data:image/png;base64," + finalPng.toString("base64");
+    const finalPng = await addLogoToPng(basePng);
+    const qrCode = "data:image/png;base64," + finalPng.toString("base64");
 
-return res.json({
-  qrCode,
-  enrollUrl
-});
+    return res.json({
+      qrCode,
+      enrollUrl,
+    });
   } catch (err) {
     console.error("QR generation error:", err);
     return res.status(500).json({ error: "Failed to generate QR code" });
@@ -114,9 +140,13 @@ router.get("/download", async (req, res) => {
       return res.status(400).send("Missing username or token");
     }
 
-    const takUrl = process.env.TAK_URL;
+    const takUrl = getTakUrl();
     if (!takUrl) {
-      return res.status(500).send("TAK_URL not set in .env");
+      return res
+        .status(500)
+        .send(
+          "TAK_URL is not configured. Set it in Settings (TAK URL) or via the TAK_URL environment variable."
+        );
     }
 
     const host = new URL(takUrl).hostname;
@@ -127,13 +157,14 @@ router.get("/download", async (req, res) => {
       `&username=${encodeURIComponent(username)}` +
       `&token=${encodeURIComponent(token)}`;
 
-    // 🔥 High-resolution QR for download
+    // High-resolution QR for download
     const pngBuffer = await QRCode.toBuffer(enrollUrl, {
       errorCorrectionLevel: "H",
       type: "png",
-      width: 1200,   // Much higher than display
-      margin: 3
+      width: 1200, // Much higher than display
+      margin: 3,
     });
+
     const finalPng = await addLogoToPng(pngBuffer);
 
     const safeUser =
