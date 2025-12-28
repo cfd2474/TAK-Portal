@@ -21,7 +21,7 @@ body.theme-dark-blue {
     --btn: #2b6cff;
 }
 
-body.theme-slate {
+body.theme-dark {
     --bg: #0b0b0b;
     --panel: #121212;
     --card: #1c1c1e;
@@ -31,14 +31,15 @@ body.theme-slate {
     --btn: #0a84ff;
 }
 
-body.theme-maroon {
-    --bg: #0d090b;
-    --panel: #160f12;
-    --card: #1c1215;
-    --text: #fce8eb;
-    --muted: #a3898f;
-    --line: #36242a;
-    --btn: #dc143c;
+body.theme-light {
+    --bg: #f7f7f8;
+    --panel: #ffffff;
+    --card: #fdfdfd;
+    --text: #111827;
+    --muted: #9ca3af;
+    --line: #e6e6eb;
+    --btn: #0a84ff;
+
 }
 
 body.theme-green {
