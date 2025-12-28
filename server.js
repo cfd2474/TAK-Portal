@@ -119,7 +119,24 @@ app.post(
     { name: "BRAND_LOGO_UPLOAD", maxCount: 1 },
   ]),
   (req, res) => {
-    const bodySettings = req.body.settings || {};
+    const rawBody = req.body || {};
+    const bodySettings = {};
+
+    // 1) If there's a nested "settings" object (non-multipart case), copy it
+    if (rawBody.settings && typeof rawBody.settings === "object") {
+      Object.keys(rawBody.settings).forEach((key) => {
+        bodySettings[key] = rawBody.settings[key];
+      });
+    }
+
+    // 2) Also support flat fields like "settings[BRAND_THEME]"
+    Object.keys(rawBody).forEach((key) => {
+      const match = key.match(/^settings\[(.+)\]$/);
+      if (match) {
+        bodySettings[match[1]] = rawBody[key];
+      }
+    });
+
     const patch = {};
 
     // Copy over simple settings from the form
