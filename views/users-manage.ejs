@@ -551,27 +551,43 @@ window.editUser = async (userPk) => {
     if (u) break;
   }
   if (!u) {
-    console.warn("editUser: user not found for pk", userPk, { sourceLengths: sourceLists.map(l => l.length) });
+    console.warn("editUser: user not found for pk", userPk, {
+      sourceLengths: sourceLists.map(l => l.length),
+    });
     return;
   }
 
   selectedUser = { ...u };
-  userTitle.textContent = `User ${selectedUser.username}`;
-  usernameSpan.textContent = `${selectedUser.username} — ${selectedUser.name || ""}`;
-  emailInput.value = selectedUser.email || "";
+
+  if (userTitle) {
+    userTitle.textContent = `User ${selectedUser.username}`;
+  }
+
+  if (usernameSpan) {
+    usernameSpan.textContent = `${selectedUser.username} — ${
+      selectedUser.name || ""
+    }`;
+  }
+
+  if (emailInput) {
+    emailInput.value = selectedUser.email || "";
+  }
 
   const { first, last } = splitName(selectedUser.name || "");
-  firstNameInput.value = first;
-  lastNameInput.value = last;
-  setMsgEl(nameMsg, "");
-  setMsgEl(actionMsg, "");
+  if (firstNameInput) firstNameInput.value = first;
+  if (lastNameInput) lastNameInput.value = last;
+
+  if (nameMsg) setMsgEl(nameMsg, "");
+  if (actionMsg) setMsgEl(actionMsg, "");
 
   renderGroupChips(selectedUser);
 
   pickedGroupIds = new Set((selectedUser.groups || []).map(x => String(x)));
   renderGroupsBox();
 
-  toggleBtn.textContent = selectedUser.is_active ? "Disable User" : "Enable User";
+  if (toggleBtn) {
+    toggleBtn.textContent = selectedUser.is_active ? "Disable User" : "Enable User";
+  }
 
   await loadTemplatesForAgency(
     (selectedUser &&
