@@ -669,7 +669,11 @@ async function importUsersFromCsvBuffer(buffer, opts = {}) {
 }
 // Search users
 // - If no q provided -> returns all users (already filtered by folder)
+<<<<<<< HEAD
 async function findUsers({ q, forceRefresh = false } = {}) {
+=======
+async async function findUsers({ q, forceRefresh = false } = {}) {
+>>>>>>> 567166e37bb832a94d47891493303c1c162155f0
   // Legacy helper kept for backwards compatibility:
   // fetches all users (honoring folder/prefix filters), then filters in-memory.
   let users = await getAllUsers({ forceRefresh });
