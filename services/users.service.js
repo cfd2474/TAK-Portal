@@ -669,7 +669,14 @@ async function importUsersFromCsvBuffer(buffer, opts = {}) {
 }
 // Search users
 // - If no q provided -> returns all users (already filtered by folder)
+<<<<<<< HEAD
 async function findUsers({ q, forceRefresh = false } = {}) {
+<<<<<<< HEAD
+=======
+=======
+async async function findUsers({ q, forceRefresh = false } = {}) {
+>>>>>>> 567166e37bb832a94d47891493303c1c162155f0
+>>>>>>> 7104bb2998e9b3ae017f28c8ff2cfeffeac620a7
   // Legacy helper kept for backwards compatibility:
   // fetches all users (honoring folder/prefix filters), then filters in-memory.
   let users = await getAllUsers({ forceRefresh });
@@ -901,7 +908,11 @@ function invalidateGroupsCache() {
   // no-op – kept so existing callers still work
 }
 
+<<<<<<< HEAD
 let USERS_CACHE = null;
+=======
+async let USERS_CACHE = null;
+>>>>>>> 7104bb2998e9b3ae017f28c8ff2cfeffeac620a7
 let USERS_CACHE_TS = 0;
 // TTL in seconds; defaults to 30s. Use 0 to disable caching and always hit Authentik.
 const USERS_CACHE_TTL_MS = (getInt("USERS_CACHE_TTL_SECONDS", 30) || 0) * 1000;
