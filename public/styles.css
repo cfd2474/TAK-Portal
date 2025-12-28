@@ -42,16 +42,6 @@ body.theme-light {
 
 }
 
-body.theme-green {
-    --bg: #080a08;
-    --panel: #0e1411;
-    --card: #131b17;
-    --text: #e6f2ee;
-    --muted: #8a9c94;
-    --line: #222e28;
-    --btn: #1a8a58;
-}
-
 
 /* Logo Handling */
 .brand {

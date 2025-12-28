@@ -34,39 +34,60 @@ function getTakUrl() {
 // Overlay branding logo (if configured) onto the center of a QR PNG buffer.
 async function addLogoToPng(pngBuffer) {
   try {
-    const settings = settingsSvc.getSettings();
+    const settings = settingsSvc.getSettings() || {};
     const logoUrl = settings.BRAND_LOGO_URL;
 
-    if (!logoUrl) {
+    if (!logoUrl || typeof logoUrl !== "string") {
       return pngBuffer;
     }
 
-    const logoFsPath = path.join(
-      __dirname,
-      "..",
-      "public",
-      logoUrl.replace(/^\//, "")
-    );
+    // BRAND_LOGO_URL is like "/branding/logo.png"
+    // Files are stored under /data/branding and served via app.use("/branding", ...)
+    const logoUrlPath = logoUrl.replace(/^\//, ""); // "branding/logo.png"
+    const logoFsPath = path.join(__dirname, "..", "data", logoUrlPath);
 
     if (!fs.existsSync(logoFsPath)) {
       return pngBuffer;
     }
 
-    const [qrImage, logoImage] = await Promise.all([
+    const [qrImage, logoImageOriginal] = await Promise.all([
       Jimp.read(pngBuffer),
       Jimp.read(logoFsPath),
     ]);
 
     const qrWidth = qrImage.getWidth();
     const qrHeight = qrImage.getHeight();
+
+    // Max logo size: 25% of QR's smaller dimension (safe for error-correction H)
     const logoMaxSize = Math.floor(Math.min(qrWidth, qrHeight) * 0.25);
 
+    // Clone and resize logo
+    const logoImage = logoImageOriginal.clone();
     logoImage.contain(logoMaxSize, logoMaxSize);
 
-    const x = Math.floor((qrWidth - logoImage.getWidth()) / 2);
-    const y = Math.floor((qrHeight - logoImage.getHeight()) / 2);
+    // White background "badge" behind logo
+    const padding = Math.floor(logoMaxSize * 0.12); // 12% padding around logo
+    const bgWidth = logoImage.getWidth() + padding * 2;
+    const bgHeight = logoImage.getHeight() + padding * 2;
 
-    qrImage.composite(logoImage, x, y);
+    // Position of the white background (centered)
+    const bgX = Math.floor((qrWidth - bgWidth) / 2);
+    const bgY = Math.floor((qrHeight - bgHeight) / 2);
+
+    // Fill a white rectangle directly onto the QR image
+    qrImage.scan(bgX, bgY, bgWidth, bgHeight, function (x, y, idx) {
+      // RGBA = 255, 255, 255, 255
+      this.bitmap.data[idx + 0] = 255; // R
+      this.bitmap.data[idx + 1] = 255; // G
+      this.bitmap.data[idx + 2] = 255; // B
+      this.bitmap.data[idx + 3] = 255; // A
+    });
+
+    // Now center the logo on top of that white rectangle
+    const logoX = bgX + padding;
+    const logoY = bgY + padding;
+
+    qrImage.composite(logoImage, logoX, logoY);
 
     return await qrImage.getBufferAsync(Jimp.MIME_PNG);
   } catch (err) {
@@ -163,6 +184,10 @@ router.get("/download", async (req, res) => {
       type: "png",
       width: 1200, // Much higher than display
       margin: 3,
+      color: {
+        dark: "#000000",
+        light: "#FFFFFF",
+      },
     });
 
     const finalPng = await addLogoToPng(pngBuffer);
