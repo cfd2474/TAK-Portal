@@ -61,7 +61,6 @@
   <div class="card">
     <div class="row" style="justify-content: space-between;">
       <h2 style="margin:0;">Current Agencies</h2>
-      <button class="btn" id="refreshBtn" type="button">Reload</button>
     </div>
 
     <table class="table" id="agencyTable">
@@ -273,7 +272,7 @@ addForm.onsubmit = async (e) => {
   loadAgenciesWithCounts();
 };
 
-refreshBtn.onclick = () => loadAgenciesWithCounts();
+if (refreshBtn) refreshBtn.onclick = () => loadAgenciesWithCounts();
 
 // click-to-sort + keyboard support (Enter/Space)
 agencyTable.querySelectorAll("thead th[data-sort]").forEach(th => {

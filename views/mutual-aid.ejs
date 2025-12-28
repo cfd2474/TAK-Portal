@@ -907,7 +907,7 @@ async function loadList(){
   setMsg(maListMsg, `Loaded ${allItems.length} item(s).`, true);
 }
 
-maReloadBtn.onclick = () => loadList();
+if (maReloadBtn) maReloadBtn.onclick = () => loadList();
 maFilter.oninput = () => renderList();
 
 async function deleteItem(item){
