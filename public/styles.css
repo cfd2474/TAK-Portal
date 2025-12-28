@@ -93,7 +93,7 @@ body {
 
 .sidebar {
     width: 240px;
-    padding: 18px;
+    padding: 10px;
     background: var(--panel);
     border-right: 1px solid var(--line);
 
