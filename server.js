@@ -5,7 +5,6 @@ const fs = require("fs");
 const multer = require("multer");
 const settingsSvc = require("./services/settings.service");
 
-
 const { getString } = require("./services/env");
 const pkg = require("./package.json");
 const mutualAidSvc = require("./services/mutualAid.service");
@@ -14,6 +13,7 @@ const app = express();
 
 // Expose version to all EJS views (e.g. sidebar)
 app.locals.APP_VERSION = pkg.version || "dev";
+
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
@@ -24,7 +24,10 @@ const uploadStorage = multer.diskStorage({
     try {
       let targetDir;
 
-      if (file.fieldname === "TAK_API_P12_UPLOAD" || file.fieldname === "TAK_CA_UPLOAD") {
+      if (
+        file.fieldname === "TAK_API_P12_UPLOAD" ||
+        file.fieldname === "TAK_CA_UPLOAD"
+      ) {
         targetDir = path.join(__dirname, "data", "certs");
       } else if (file.fieldname === "BRAND_LOGO_UPLOAD") {
         targetDir = path.join(__dirname, "public", "branding");
@@ -74,7 +77,10 @@ app.use((req, res, next) => {
     res.locals.brandTheme = settings.BRAND_THEME || "dark-blue";
     res.locals.brandLogoUrl = settings.BRAND_LOGO_URL || "";
   } catch (err) {
-    console.warn("Failed to load settings for request:", err?.message || err);
+    console.warn(
+      "Failed to load settings for request:",
+      err?.message || err
+    );
     res.locals.settings = {};
     res.locals.brandTheme = "dark-blue";
     res.locals.brandLogoUrl = "";
@@ -169,6 +175,7 @@ app.post(
 
     settingsSvc.updateSettings(patch);
 
+    // After saving, redirect back to the settings page
     res.redirect("/settings");
   }
 );
@@ -183,7 +190,10 @@ app.get("/settings/export-data", (req, res) => {
   }
 
   res.setHeader("Content-Type", "application/zip");
-  res.setHeader("Content-Disposition", 'attachment; filename="tak-portal-data.zip"');
+  res.setHeader(
+    "Content-Disposition",
+    'attachment; filename="tak-portal-data.zip"'
+  );
 
   const archive = archiver("zip", { zlib: { level: 9 } });
 
@@ -195,10 +205,6 @@ app.get("/settings/export-data", (req, res) => {
   archive.pipe(res);
   archive.directory(dataDir, "data");
   archive.finalize();
-});
-
-  // After saving, redirect back to the settings page
-  res.redirect("/settings");
 });
 
 const port = process.env.WEB_UI_PORT || 3000;
