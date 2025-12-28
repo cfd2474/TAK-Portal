@@ -1,5 +1,6 @@
 const { getString } = require("./env");
 const api = require("./authentik");
+const usersService = require("./users.service");
 const templatesStore = require("./templates.service");
 
 // ---------------- Action-lock helpers ----------------
@@ -222,8 +223,8 @@ async function getDeleteImpact(groupId) {
   const group = await getGroupById(id);
   const groupName = String(group.name || "").trim();
 
-  // Users affected (computed via full user list)
-  const users = await getAllUsers();
+  // Users affected (computed via full user list; reuse users.service cache)
+  const users = await usersService.getAllUsers();
   const usersAffected = users.filter(u => {
     const gs = Array.isArray(u.groups) ? u.groups.map(x => String(x)) : [];
     return gs.includes(id);

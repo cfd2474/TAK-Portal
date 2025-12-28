@@ -457,7 +457,8 @@ window.editGroupName = async (groupId) => {
 
 // Delete w/ impact
 window.deleteGroup = async (groupId) => {
-  setMsg(listMsg, "");
+  // Give immediate feedback so the user sees something while impact is computed
+  setMsg(listMsg, "Calculating delete impact...", true);
 
   const g = (groupsCache || []).find(x => String(x.pk) === String(groupId));
   const name = String(g?.name || "").trim();
@@ -498,7 +499,8 @@ window.deleteGroup = async (groupId) => {
 
   if(!ok) return;
 
-  const delRes = await fetch("/api/groups/" + encodeURIComponent(groupId), { method:"DELETE" });
+  const delRes = await fetch("/api/groups/" +
+    encodeURIComponent(groupId), { method:"DELETE" });
   const out = await delRes.json();
 
   if(!delRes.ok){
@@ -514,6 +516,7 @@ window.deleteGroup = async (groupId) => {
 
   await loadGroups();
 };
+
 
 function showMassModal(show){
   massOverlay.style.display = show ? "flex" : "none";
