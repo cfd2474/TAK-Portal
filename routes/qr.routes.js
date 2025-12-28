@@ -96,6 +96,48 @@ async function addLogoToPng(pngBuffer) {
   }
 }
 
+// Add username label underneath the QR image (for downloaded image only)
+async function addUsernameLabel(pngBuffer, username) {
+  try {
+    const qrImage = await Jimp.read(pngBuffer);
+
+    // Load a black sans-serif font (looks bold enough for labels)
+    const font = await Jimp.loadFont(Jimp.FONT_SANS_32_BLACK);
+
+    const text = String(username || "").trim() || "user";
+    const textBlockHeight = 70; // space reserved under QR for label
+
+    // New canvas: same width, extra height for text
+    const combined = new Jimp(
+      qrImage.getWidth(),
+      qrImage.getHeight() + textBlockHeight,
+      0xffffffff // solid white background
+    );
+
+    // Paste the QR code at the top
+    combined.composite(qrImage, 0, 0);
+
+    // Print centered text near the bottom
+    combined.print(
+      font,
+      0,
+      qrImage.getHeight() + 10, // 10px padding from QR bottom
+      {
+        text,
+        alignmentX: Jimp.HORIZONTAL_ALIGN_CENTER,
+        alignmentY: Jimp.VERTICAL_ALIGN_TOP,
+      },
+      combined.getWidth(),
+      textBlockHeight
+    );
+
+    return await combined.getBufferAsync(Jimp.MIME_PNG);
+  } catch (err) {
+    console.error("Failed to add username label to QR:", err);
+    return pngBuffer;
+  }
+}
+
 /**
  * Generate QR for on-page display (medium resolution)
  * POST /api/qr
@@ -190,7 +232,11 @@ router.get("/download", async (req, res) => {
       },
     });
 
-    const finalPng = await addLogoToPng(pngBuffer);
+    // 1) Add logo in the center (with white badge)
+    let finalPng = await addLogoToPng(pngBuffer);
+
+    // 2) Add username label underneath
+    finalPng = await addUsernameLabel(finalPng, username);
 
     const safeUser =
       username.toLowerCase().replace(/[^a-z0-9_-]/g, "") || "user";
