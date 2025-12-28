@@ -83,8 +83,8 @@ case "$CMD" in
     $COMPOSE_CMD up -d --build
 
     echo
-    echo "Waiting 10 seconds for the app to start..."
-    sleep 10
+    echo "Waiting 5 seconds for the app to start..."
+    sleep 5
 
     echo
     echo "Check site functionality and logs to verify everything looks healthy:"
