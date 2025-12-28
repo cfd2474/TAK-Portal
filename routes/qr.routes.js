@@ -6,8 +6,6 @@ const fs = require("fs");
 const Jimp = require("jimp");
 const settingsSvc = require("../services/settings.service");
 
-
-
 // Overlay branding logo (if configured) onto the center of a QR PNG buffer.
 async function addLogoToPng(pngBuffer) {
   try {
@@ -56,7 +54,6 @@ async function addLogoToPng(pngBuffer) {
  * Generate QR for on-page display (medium resolution)
  * POST /api/qr
  */
-
 router.post("/", async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -72,30 +69,30 @@ router.post("/", async (req, res) => {
 
     const host = new URL(takUrl).hostname;
 
-const enrollUrl =
-  `tak://com.atakmap.app/enroll?` +
-  `host=${host}` +
-  `&username=${encodeURIComponent(username)}` +
-  `&token=${encodeURIComponent(password)}`;
+    const enrollUrl =
+      `tak://com.atakmap.app/enroll?` +
+      `host=${host}` +
+      `&username=${encodeURIComponent(username)}` +
+      `&token=${encodeURIComponent(password)}`;
 
-const basePng = await QRCode.toBuffer(enrollUrl, {
-  errorCorrectionLevel: "H",
-  type: "png",
-  width: 512,     // Display size
-  margin: 2,
-  color: {
-    dark: "#000000",
-    light: "#FFFFFF"
-  }
-});
+    const basePng = await QRCode.toBuffer(enrollUrl, {
+      errorCorrectionLevel: "H",
+      type: "png",
+      width: 512, // Display size
+      margin: 2,
+      color: {
+        dark: "#000000",
+        light: "#FFFFFF",
+      },
+    });
 
-const finalPng = await addLogoToPng(basePng);
-const qrCode = "data:image/png;base64," + finalPng.toString("base64");
+    const finalPng = await addLogoToPng(basePng);
+    const qrCode = "data:image/png;base64," + finalPng.toString("base64");
 
-return res.json({
-  qrCode,
-  enrollUrl
-});
+    return res.json({
+      qrCode,
+      enrollUrl,
+    });
   } catch (err) {
     console.error("QR generation error:", err);
     return res.status(500).json({ error: "Failed to generate QR code" });
@@ -132,10 +129,11 @@ router.get("/download", async (req, res) => {
     const pngBuffer = await QRCode.toBuffer(enrollUrl, {
       errorCorrectionLevel: "H",
       type: "png",
-      width: 1200,   // Much higher than display
-    const finalPng = await addLogoToPng(pngBuffer);
-      margin: 3
+      width: 1200, // Much higher than display
+      margin: 3,
     });
+
+    const finalPng = await addLogoToPng(pngBuffer);
 
     const safeUser =
       username.toLowerCase().replace(/[^a-z0-9_-]/g, "") || "user";
