@@ -127,6 +127,9 @@ app.post(
     const rawBody = req.body || {};
     const bodySettings = {};
 
+    // Grab current settings so we can preserve existing values if needed
+    const currentSettings = settingsSvc.getSettings() || {};
+
     // Nested "settings" object (for non-multipart cases)
     if (rawBody.settings && typeof rawBody.settings === "object") {
       Object.keys(rawBody.settings).forEach((key) => {
@@ -171,11 +174,18 @@ app.post(
       const f = logoFiles[0];
       const webPath = "/branding/" + path.basename(f.path);
       patch.BRAND_LOGO_URL = webPath.replace(/\\/g, "/");
+    } else {
+      // ❗ No new logo uploaded – keep the existing one if present
+      if (
+        typeof currentSettings.BRAND_LOGO_URL === "string" &&
+        currentSettings.BRAND_LOGO_URL.trim()
+      ) {
+        patch.BRAND_LOGO_URL = currentSettings.BRAND_LOGO_URL;
+      }
     }
 
     settingsSvc.updateSettings(patch);
 
-    // After saving, redirect back to the settings page
     res.redirect("/settings");
   }
 );
