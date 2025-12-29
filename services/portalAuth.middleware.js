@@ -12,12 +12,7 @@ const { getBool, getString } = require("./env");
  *       - require X-Authentik-Username header (from Caddy + Authentik)
  *       - require membership in at least one configured admin group
  *         if any are configured.
- *   - some routes (home, logout) remain public.
  */
-
-const PUBLIC_PATHS = new Set([
-  "/", // Welcome / home page
-]);
 
 function parseGroupList(raw) {
   if (!raw) return [];

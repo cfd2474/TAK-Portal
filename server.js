@@ -150,8 +150,7 @@ app.use("/dashboard", require("./routes/dashboard.routes"));
 
 // Welcome page as public home
 app.get("/", (req, res) => {
-  const authUser = res.locals.authUser || null;
-  res.render("welcome", { authUser });
+  res.render("dashboard");
 });
 
 app.get("/users/create", (req, res) => res.render("users-create"));
