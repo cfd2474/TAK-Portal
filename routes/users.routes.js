@@ -229,42 +229,78 @@ router.get("/search", async (req, res) => {
       return res.json(result);
     }
 
-    // Agency admins: build a fully filtered result set so that
-    // pagination totals reflect only users they are allowed to see.
+    // Agency admins: we want reasonably fast pages that still feel correct.
+    // We sample a limited number of Authentik pages, filter them, and
+    // estimate a total based on the observed ratio of matches.
     const apiPageSize = 50;
+    const MAX_API_PAGES = 8;
+
+    const targetStart = (page - 1) * pageSize;
+    const targetEnd = page * pageSize;
+
     let apiPage = 1;
     let hasNext = true;
-    const MAX_API_PAGES = 100;
 
-    let allFiltered = [];
+    let collected = [];
+    let filteredSeen = 0;
+    let rawSeen = 0;
+    let globalTotal = null;
 
-    while (hasNext && apiPage <= MAX_API_PAGES) {
+    while (hasNext && apiPage <= MAX_API_PAGES && filteredSeen < targetEnd) {
       const batch = await users.searchUsersPaged({ q, page: apiPage, pageSize: apiPageSize });
       const items = Array.isArray(batch.users) ? batch.users : [];
+
+      if (globalTotal == null && typeof batch.total === "number") {
+        globalTotal = batch.total;
+      }
 
       if (!items.length) {
         hasNext = false;
         break;
       }
 
-      const filteredPage = items.filter((u) =>
+      rawSeen += items.length;
+
+      const filteredBatch = items.filter((u) =>
         accessSvc.isUsernameInAllowedAgencies(authUser, u.username)
       );
 
-      allFiltered = allFiltered.concat(filteredPage);
+      const prevFiltered = filteredSeen;
+      filteredSeen += filteredBatch.length;
+
+      // If this batch overlaps our requested page window, append those items.
+      if (filteredSeen > targetStart) {
+        const windowStartIdx = Math.max(0, targetStart - prevFiltered);
+        const windowEndIdx = Math.min(filteredBatch.length, targetEnd - prevFiltered);
+        if (windowEndIdx > windowStartIdx) {
+          collected = collected.concat(filteredBatch.slice(windowStartIdx, windowEndIdx));
+        }
+      }
+
       hasNext = !!batch.hasNext;
       apiPage += 1;
     }
 
-    const filteredTotal = allFiltered.length;
-    const totalPages = filteredTotal ? Math.ceil(filteredTotal / pageSize) : 0;
-    const startIdx = (page - 1) * pageSize;
-    const endIdx = startIdx + pageSize;
-    const pageItems = allFiltered.slice(startIdx, endIdx);
+    // Estimate total:
+    // - If we have a global total and we've seen some raw items, scale it by
+    //   the observed ratio of filtered/raw.
+    // - Always at least the number we've actually seen.
+    let estimatedTotal = filteredSeen;
+    if (globalTotal != null && rawSeen > 0) {
+      const ratio = filteredSeen / rawSeen;
+      const scaled = Math.round(ratio * globalTotal);
+      if (scaled > estimatedTotal) estimatedTotal = scaled;
+    } else if (hasNext && filteredSeen >= targetEnd) {
+      // We know there may be more, so avoid under-reporting too badly.
+      estimatedTotal = filteredSeen + pageSize;
+    }
+
+    const totalPages = estimatedTotal ? Math.ceil(estimatedTotal / pageSize) : 0;
+    const pageItems = collected.slice(0, pageSize);
 
     res.json({
       users: pageItems,
-      total: filteredTotal,
+      total: estimatedTotal,
       page,
       pageSize,
       hasNext: page < totalPages,
@@ -307,6 +343,10 @@ router.put("/:userId/groups", async (req, res) => {
     const groupIds = Array.isArray(req.body?.groupIds) ? req.body.groupIds : [];
     await users.setUserGroups(req.params.userId, groupIds);
     res.json({ success: true, groups: groupIds });
+  } catch (err) {
+    res.status(400).json({ error: toErrorPayload(err) });
+  }
+});
 
 router.post("/:userId/groups", async (req, res) => {
   try {
@@ -319,11 +359,6 @@ router.post("/:userId/groups", async (req, res) => {
 });
 
 // Add groups
-
-  } catch (err) {
-    res.status(400).json({ error: toErrorPayload(err) });
-  }
-});
 
 // Add groups
 router.post("/:userId/groups/add", async (req, res) => {
