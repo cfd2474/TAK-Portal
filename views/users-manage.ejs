@@ -439,6 +439,54 @@ async function loadGroups(){
   renderGroupsBox();
 }
 
+
+async function applyGroupChange(groupId, shouldBeMember){
+  if (!selectedUser) return;
+  const url = shouldBeMember
+    ? `/api/users/${selectedUser.pk}/groups/add`
+    : `/api/users/${selectedUser.pk}/groups/remove`;
+
+  setMsgEl(actionMsg, "Updating groups...", true);
+
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ groupIds: [String(groupId)] }),
+    });
+  } catch (err) {
+    setMsgEl(actionMsg, "Network error while updating groups", false);
+    return;
+  }
+
+  const out = await res.json();
+  if (!res.ok) {
+    setMsgEl(actionMsg, out.error || "Update groups failed", false);
+    // Revert UI back to server-known state
+    pickedGroupIds = new Set((selectedUser.groups || []).map(x => String(x)));
+    renderGroupsBox();
+    return;
+  }
+
+  // Backend returns full groups array for the user; prefer that.
+  const newGroups = Array.isArray(out.groups) ? out.groups : Array.from(pickedGroupIds);
+  selectedUser.groups = newGroups;
+  pickedGroupIds = new Set((newGroups || []).map(x => String(x)));
+
+  // Update chips + table row
+  renderGroupChips(selectedUser);
+
+  const patch = (u) => String(u.pk) === String(selectedUser.pk)
+    ? { ...u, groups: selectedUser.groups }
+    : u;
+  allUsers = (allUsers || []).map(patch);
+  const updatedVisible = (window.__lastUsers || []).map(patch);
+  applySortAndRender(updatedVisible);
+
+  setMsgEl(actionMsg, "Groups updated.", true);
+}
+
 function renderGroupsBox(){
   const allGroupsArray = Array.from(groupIndex.entries()).map(([id,name]) => ({id,name}));
 
@@ -461,8 +509,14 @@ function renderGroupsBox(){
   Array.from(groupsBox.querySelectorAll("input[type=checkbox]")).forEach(cb => {
     cb.addEventListener("change", () => {
       const id = String(cb.value);
-      if(cb.checked) pickedGroupIds.add(id);
-      else pickedGroupIds.delete(id);
+      if (cb.checked) {
+        pickedGroupIds.add(id);
+      } else {
+        pickedGroupIds.delete(id);
+      }
+      // Auto-apply this single group change immediately, to match the
+      // original behavior where checking/unchecking saved on change.
+      applyGroupChange(id, cb.checked);
     });
   });
 }
