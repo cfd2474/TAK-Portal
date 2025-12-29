@@ -1,38 +1,62 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Mutual Aid Created</title>
+  <title>Mutual Aid {{type}} Created</title>
 </head>
-<body style="font-family: Arial, Helvetica, sans-serif; line-height: 1.45; color: #111;">
-  <h2 style="margin: 0 0 12px 0;">Mutual Aid Created</h2>
+<body style="margin:0; padding:0; background:#f4f4f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; color:#111827; line-height:1.5;">
+  <div style="width:100%; padding:24px 0;">
+    <div style="max-width:600px; margin:0 auto; background:#ffffff; border-radius:8px; border:1px solid #e5e7eb; padding:24px 24px 18px;">
+      <h2 style="margin:0 0 12px; font-size:20px; color:#111827;">
+        Mutual Aid {{type}} Created
+      </h2>
 
-  <p style="margin: 0 0 12px 0;">
-    A new Mutual Aid <strong>{{type}}</strong> was created.
-  </p>
+      <p style="margin:0 0 12px; font-size:14px;">
+        A new Mutual Aid {{type}} has been created. The details are below.
+      </p>
 
-  <div style="margin: 0 0 12px 0; padding: 12px; border: 1px solid #ddd; border-radius: 6px;">
-    <div><strong>Type:</strong> {{type}}</div>
-    <div><strong>Name:</strong> {{title}}</div>
-    <div><strong>Group:</strong> {{groupName}}</div>
-    <div><strong>Username:</strong> {{username}}</div>
-    <div><strong>Password:</strong> {{password}}</div>
+      <div style="margin:0 0 14px; padding:12px; border:1px solid #e5e7eb; border-radius:6px; background:#f9fafb; font-size:13px;">
+        <div style="margin:0 0 6px;">
+          <strong>Type:</strong> {{type}}
+        </div>
+        <div style="margin:0 0 6px;">
+          <strong>Name:</strong> {{title}}
+        </div>
+        <div style="margin:0 0 6px;">
+          <strong>Group:</strong> {{groupName}}
+        </div>
+        <div style="margin:0 0 6px;">
+          <strong>Username:</strong> {{username}}
+        </div>
+        <div>
+          <strong>Password:</strong> {{password}}
+        </div>
+      </div>
+
+      <p style="margin:0 0 10px; font-size:14px;">
+        <strong>Enroll URL:</strong><br />
+        <a href="{{enrollUrl}}" style="color:#2563eb; word-break:break-all;" target="_blank" rel="noopener noreferrer">
+          {{enrollUrl}}
+        </a>
+      </p>
+
+      <p style="margin:10px 0 6px; font-size:14px;">
+        <strong>Enrollment QR Code:</strong>
+      </p>
+
+      <p style="margin:0 0 12px; text-align:center;">
+        <img
+          src="{{qrDataUrl}}"
+          alt="TAK Enrollment QR"
+          style="max-width:420px; width:100%; height:auto; border:1px solid #e5e7eb; border-radius:8px;"
+        />
+      </p>
+      
+    </div>
+
+    <div style="max-width:600px; margin:8px auto 0; text-align:center; font-size:11px; color:#9ca3af;">
+      This message was sent by the TAK Portal. Please do not reply to this email.
+    </div>
   </div>
-
-  <p style="margin: 0 0 12px 0;">
-    <strong>Enroll URL:</strong><br />
-    <a href="{{enrollUrl}}">{{enrollUrl}}</a>
-  </p>
-
-  <p style="margin: 0 0 12px 0;"><strong>Enrollment QR Code:</strong></p>
-  <p style="margin: 0 0 12px 0;">
-    <img src="{{qrDataUrl}}" alt="TAK Enrollment QR" style="max-width: 420px; width: 100%; height: auto;" />
-  </p>
-
-  <hr />
-  <p style="color: #666; font-size: 12px; margin: 12px 0 0 0;">
-    Sent by TAK User Admin Portal
-  </p>
 </body>
 </html>
