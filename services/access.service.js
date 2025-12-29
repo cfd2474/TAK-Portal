@@ -146,6 +146,94 @@ function isUsernameInAllowedAgencies(authUser, username) {
     .some((sfx) => sfx && un.endsWith(sfx));
 }
 
+
+/**
+ * Compute the agency and county prefixes that the current user is allowed to see.
+ *
+ * agencyPrefixes: e.g. ["CPD", "CFD"]
+ * countyPrefixes: e.g. ["HAMILTON", "BRADLEY"]
+ */
+function getAgencyAndCountyPrefixesForUser(authUser) {
+  const access = getAgencyAccess(authUser);
+  if (access.isGlobalAdmin) {
+    // null means "no restriction"
+    return { agencyPrefixes: null, countyPrefixes: null };
+  }
+
+  const allowed = Array.isArray(access.allowedAgencySuffixes)
+    ? access.allowedAgencySuffixes.map(normalizeSuffix).filter(Boolean)
+    : [];
+  if (!allowed.length) {
+    return { agencyPrefixes: [], countyPrefixes: [] };
+  }
+
+  const allowedSet = new Set(allowed);
+  const agencies = agenciesStore.load();
+
+  const agencyPrefixes = [];
+  const countyPrefixes = [];
+
+  for (const agency of agencies) {
+    const sfx = normalizeSuffix(agency && agency.suffix);
+    if (!sfx || !allowedSet.has(sfx)) continue;
+
+    const gp = String(agency.groupPrefix || "").trim().toUpperCase();
+    if (gp && !agencyPrefixes.includes(gp)) {
+      agencyPrefixes.push(gp);
+    }
+
+    const county = String(agency.county || "").trim().toUpperCase();
+    if (county && !countyPrefixes.includes(county)) {
+      countyPrefixes.push(county);
+    }
+  }
+
+  return { agencyPrefixes, countyPrefixes };
+}
+
+/**
+ * Filter a list of Authentik groups for the current user.
+ *
+ * - Global admins: see all groups (after GROUPS_HIDDEN_PREFIXES is applied).
+ * - Agency admins: see
+ *   - their agency-specific groups (name starts with agency groupPrefix + "-"),
+ *   - their county groups (name starts with COUNTY + "-"),
+ *   - "global" groups with no prefix (no "-").
+ */
+function filterGroupsForUser(authUser, groups) {
+  const access = getAgencyAccess(authUser);
+  const list = Array.isArray(groups) ? groups : [];
+
+  if (access.isGlobalAdmin) {
+    return list;
+  }
+
+  const { agencyPrefixes, countyPrefixes } = getAgencyAndCountyPrefixesForUser(authUser);
+
+  const hasAgencyPrefixes = Array.isArray(agencyPrefixes) && agencyPrefixes.length > 0;
+  const hasCountyPrefixes = Array.isArray(countyPrefixes) && countyPrefixes.length > 0;
+
+  return list.filter((g) => {
+    const name = String(g && g.name ? g.name : "").trim();
+    if (!name) return false;
+
+    const upper = name.toUpperCase();
+    const dashIdx = upper.indexOf("-");
+    if (dashIdx > 0) {
+      const prefix = upper.slice(0, dashIdx);
+      if (hasAgencyPrefixes && agencyPrefixes.includes(prefix)) return true;
+      if (hasCountyPrefixes && countyPrefixes.includes(prefix)) return true;
+      // other agency/county prefixes are hidden
+      return false;
+    }
+
+    // No dash: treat as global/unprefixed.
+    // Whether it is visible at all is already controlled by GROUPS_HIDDEN_PREFIXES
+    // in groups.service.getAllGroups; here we keep such groups.
+    return true;
+  });
+}
+
 module.exports = {
   normalizeSuffix,
   normalizeGroupList,
@@ -155,4 +243,6 @@ module.exports = {
   filterAgenciesForUser,
   isSuffixAllowed,
   isUsernameInAllowedAgencies,
+  getAgencyAndCountyPrefixesForUser,
+  filterGroupsForUser,
 };

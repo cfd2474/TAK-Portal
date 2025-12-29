@@ -13,7 +13,10 @@ function toErrorPayload(err) {
 router.get("/", async (req, res) => {
   try {
     const forceRefresh = req.query.forceRefresh === "true";
-    res.json(await groups.getAllGroups({ forceRefresh }));
+    const all = await groups.getAllGroups({ forceRefresh });
+    const authUser = req.authentikUser || null;
+    const filtered = accessSvc.filterGroupsForUser(authUser, all);
+    res.json(filtered);
   } catch (err) {
     res.status(500).json({ error: toErrorPayload(err) });
   }

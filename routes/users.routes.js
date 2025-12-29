@@ -52,7 +52,10 @@ router.get("/meta", async (req, res) => {
 
 router.get("/groups", async (req, res) => {
   try {
-    res.json(await groupsSvc.getAllGroups({}));
+    const authUser = req.authentikUser || null;
+    const all = await groupsSvc.getAllGroups({});
+    const filtered = accessSvc.filterGroupsForUser(authUser, all);
+    res.json(filtered);
   } catch (err) {
     res.status(500).json({ error: toErrorPayload(err) });
   }
@@ -208,23 +211,61 @@ router.get("/search", async (req, res) => {
     const page = parseInt(req.query.page, 10) || 1;
     const pageSize = parseInt(req.query.pageSize, 10) || 50;
 
-    const result = await users.searchUsersPaged({ q, page, pageSize });
     const authUser = req.authentikUser || null;
     const access = accessSvc.getAgencyAccess(authUser);
 
-    let usersList = Array.isArray(result.users) ? result.users : [];
-
-    if (!access.isGlobalAdmin) {
-      usersList = usersList.filter((u) =>
-        accessSvc.isUsernameInAllowedAgencies(authUser, u.username)
-      );
+    // Global admins use the original Authentik-backed pagination unchanged.
+    if (access.isGlobalAdmin) {
+      const result = await users.searchUsersPaged({ q, page, pageSize });
+      return res.json(result);
     }
 
+    // Agency admins: we want pages that are "full" from the perspective of
+    // their filtered view, *and* a total that reflects only the users they
+    // are allowed to see.
+    const targetStart = (page - 1) * pageSize;
+    const targetEnd = page * pageSize;
+
+    let collected = [];
+    let filteredTotal = 0;
+    let apiPage = 1;
+    const apiPageSize = 50; // reasonable fetch size against Authentik
+    let hasNext = true;
+
+    // Safety cap to avoid unbounded loops in pathological cases
+    const MAX_API_PAGES = 100;
+
+    while (hasNext && apiPage <= MAX_API_PAGES && filteredTotal < targetEnd) {
+      const batch = await users.searchUsersPaged({ q, page: apiPage, pageSize: apiPageSize });
+      const items = Array.isArray(batch.users) ? batch.users : [];
+
+      if (!items.length) {
+        hasNext = false;
+        break;
+      }
+
+      const filteredPage = items.filter((u) =>
+        accessSvc.isUsernameInAllowedAgencies(authUser, u.username)
+      );
+
+      filteredTotal += filteredPage.length;
+      collected = collected.concat(filteredPage);
+
+      hasNext = !!batch.hasNext;
+      apiPage += 1;
+    }
+
+    // We may have fetched more than we need for this page; slice down.
+    const pageItems = collected.slice(targetStart, targetEnd);
+    const totalPages = filteredTotal ? Math.ceil(filteredTotal / pageSize) : 0;
+
     res.json({
-      ...result,
-      users: usersList,
-      // Keep result.total from searchUsersPaged so pagination labels remain accurate
-      // relative to the underlying Authentik search results.
+      users: pageItems,
+      total: filteredTotal,
+      page,
+      pageSize,
+      hasNext: page < totalPages,
+      hasPrev: page > 1,
     });
   } catch (err) {
     res.status(500).json({ error: toErrorPayload(err) });
