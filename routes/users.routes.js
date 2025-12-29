@@ -223,7 +223,8 @@ router.get("/search", async (req, res) => {
     res.json({
       ...result,
       users: usersList,
-      total: usersList.length,
+      // Keep result.total from searchUsersPaged so pagination labels remain accurate
+      // relative to the underlying Authentik search results.
     });
   } catch (err) {
     res.status(500).json({ error: toErrorPayload(err) });

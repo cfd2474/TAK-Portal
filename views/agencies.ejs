@@ -52,6 +52,13 @@
           <option value="Other">Other</option>
         </select>
       </label>
+      <!-- 6) Agency admin groups -->
+      <label>Agency Admin Groups
+        <input
+          name="adminGroups"
+          placeholder="Comma-separated Authentik groups (e.g. agency-hs-admins)"
+        />
+      </label>
       <label> <br>
       <button class="btn">Create Agency</button></label>
     </form>
@@ -71,6 +78,7 @@
           <th data-sort="suffix" role="button" tabindex="0" title="Sort by Username Suffix">Username Suffix</th>
           <th data-sort="county" role="button" tabindex="0" title="Sort by County">County</th>
           <th data-sort="type" role="button" tabindex="0" title="Sort by Type">Type</th>
+          <th>Admin Groups</th>
           <th>Actions</th>
         </tr>
       </thead>
