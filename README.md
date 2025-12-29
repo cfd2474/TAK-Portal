@@ -1,44 +1,70 @@
 <h1 align='center'>TAK Portal</h1>
 
-<p align='center'>A lightweight user management portal designed to integrate with Authentik and TAK Server for streamlined user management.</p>
+<p align="center">
+A lightweight, modern user-management portal designed to integrate seamlessly with
+<strong>Authentik</strong> and <strong>TAK Server</strong> for streamlined certificate and account control. Built for administrators and agencies who need reliability, simplicity, and security.
 
+
+
+## Features
+
+- Authentik-driven identity and access management  
+- Automatic certificate handling with TAK Server  
+- Simple agency and user organization model  
+- Clean, intuitive web UI  
+- Packaged for Docker — fast to deploy and easy to maintain  
+
+---
 
 ## Prerequisites
-> [!NOTE]
-> This docker container relies on Authentik for its user management and 
-> a working TAK Server for proper certificate management.  TAK Portal will function without a connection to the TAK Server, but will not revoke certificates should a user be disabled or deleted.
 
+> [!NOTE]  
+> TAK Portal relies on your local:
+>
+> - Authentik Server — used for identity and user management  
+> - TAK Server — used for certificate revocation  
+>
+> TAK Portal will run without TAK Server connected, but certificates will **not** be revoked when users are disabled or deleted.
+
+---
 
 ## Installation
-On an Unbuntu machine perform the following commands
+
+On an Ubuntu machine, run:
 
 ```
 git clone https://github.com/AdventureSeeker423/TAK-Portal
 cd TAK-Portal
 ```
 
-(Optional) To customize the port that the UI uses
+(Optional) Customize the UI Port
 
 ```
 ./takportal config
 ```
 
-To start TAK Portal
+Start TAK Portal
 
 ```
 ./takportal start
 ```
-
+---
 
 ## Configuration
 
-1. Navigate to the TAK Portal UI using the IP address your docker instance is running on and the assigned port number.  By default this is port 3000.  (ex. 192.168.1.150:3000)
-2. Navigate to "Server Settings" found at the bottom of the sidebar.
-3. Here you should set the URL to your Authentik instance as well as enter your Authentik API Token.
-4. If connecting to a TAK server, enter your TAK URL, ensuring the proper port and leaving /Marti at the end.  You will also need to upload a webadmin.p12, tak-ca.pem cert, and the password for webadmin.  (Default is usually atakatka)
-5. Click save at the bottom of the page
+1. Open your browser and navigate to the docker host IP and port. <br>
+    &emsp; Default: http://<server-ip>:3000 <br>
+    &emsp; Example: http://192.168.1.150:3000
+2. Open Server Settings (bottom of the sidebar).
+3. Set the Authentik URL & Authentik API Token
+4. Configure TAK Server (optional but recommended): <br>
+    &emsp; - Set your TAK URL (ensure the correct port and keep /Marti at the end) <br>
+    &emsp; - Upload webadmin.p12 and tak-ca.pem
+    &emsp; - Provide the webadmin password (default is usually atakatak)
+5. Scroll to the bottom and click Save.
 
 
 ## Getting Started
 
-1. Start by navigating to the "Manage Agencies" tab in the sidebar and by creating your first agency.
+1. Open Manage Agencies.
+2. Create your first agency.
