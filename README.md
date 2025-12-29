@@ -70,3 +70,6 @@ Start TAK Portal - This will install any dependencies and start the Docker conta
 1. Navigate to `Manage Agencies` and create your first agency.
 2. Navigate to `Agency Templates` and begin creating templates for your users (You may need to visit `Manage Groups` if there are no existing groups.)
 3. Navigate to `Create Users` and create your first user
+
+## Random Advanced Configuration
+Link to configure reset password portal - https://www.youtube.com/watch?v=NKJkYz0BIlA

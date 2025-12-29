@@ -1,6 +1,6 @@
 {
   "name": "tak-portal",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "",
   "main": "server.js",
   "scripts": {
@@ -12,16 +12,16 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@tak-ps/node-tak": "^9.0.1",
+    "@tak-ps/node-tak": "^11.20.2",
     "axios": "^1.13.2",
     "dotenv": "^17.2.3",
     "ejs": "^3.1.10",
     "express": "^5.2.1",
-    "nodemailer": "^6.9.16",
+    "nodemailer": "^7.0.12",
     "p12-pem": "^1.0.5",
     "qrcode": "^1.5.4",
-    "multer": "^1.4.5-lts.1",
-    "jimp": "^0.22.12",
+    "multer": "^2.0.2",
+    "jimp": "^1.6.0",
     "archiver": "^7.0.1"
   }
 }
