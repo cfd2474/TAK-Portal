@@ -64,9 +64,10 @@ async function getAllGroupsRaw() {
       : null;
   }
 
-  // Hide internal Authentik groups from this portal UI
-  // Comma-separated list: GROUPS_HIDDEN_PREFIXES=authentik-,internal-
-  const prefixes = String(process.env.GROUPS_HIDDEN_PREFIXES)
+  // Hide internal Authentik groups from this portal UI.
+  // We read GROUPS_HIDDEN_PREFIXES via getString so settings.json and env both work.
+  // Example: GROUPS_HIDDEN_PREFIXES=authentik-,internal-
+  const prefixes = String(getString("GROUPS_HIDDEN_PREFIXES", ""))
     .split(",")
     .map(p => String(p || "").trim().toLowerCase())
     .filter(Boolean);
