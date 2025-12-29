@@ -39,6 +39,20 @@ router.get("/meta", async (req, res) => {
     }
 
     const dynamic = users.getTemplatesForAgency(agencySuffix);
+    const allGroups = await groupsSvc.getAllGroups({});
+    const groups = accessSvc.filterGroupsForUser(authUser, allGroups);
+
+    res.json({
+      groups,
+      templates: [{ name: "Manual Group Selection", groups: [] }, ...dynamic],
+    });
+  } catch (err) {
+    res.status(500).json({ error: toErrorPayload(err) });
+  }
+});
+    }
+
+    const dynamic = users.getTemplatesForAgency(agencySuffix);
     const groups = await groupsSvc.getAllGroups({});
 
     res.json({
@@ -83,8 +97,12 @@ router.post("/import-csv", upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "No CSV file uploaded" });
     }
 
+    const authUser = req.authentikUser || null;
+    const access = accessSvc.getAgencyAccess(authUser);
+    const allowedAgencySuffixes = access.isGlobalAdmin ? null : (access.allowedAgencySuffixes || []);
+
     const startedAt = Date.now();
-    const result = await users.importUsersFromCsvBuffer(req.file.buffer);
+    const result = await users.importUsersFromCsvBuffer(req.file.buffer, { allowedAgencySuffixes });
     const durationMs = Date.now() - startedAt;
     res.json({
       success: true,
@@ -103,6 +121,10 @@ router.post("/import-csv/start", upload.single("file"), async (req, res) => {
     if (!req.file || !req.file.buffer) {
       return res.status(400).json({ error: "No CSV file uploaded" });
     }
+
+    const authUser = req.authentikUser || null;
+    const access = accessSvc.getAgencyAccess(authUser);
+    const allowedAgencySuffixes = access.isGlobalAdmin ? null : (access.allowedAgencySuffixes || []);
 
     const jobId = newJobId();
     const startedAt = Date.now();
@@ -221,8 +243,9 @@ router.get("/search", async (req, res) => {
     }
 
     // Agency admins: we want pages that are "full" from the perspective of
-    // their filtered view, *and* a total that reflects only the users they
-    // are allowed to see.
+    // their filtered view, without having to scan the entire Authentik result
+    // set on every request. We trade a perfectly exact "total" for much better
+    // responsiveness.
     const targetStart = (page - 1) * pageSize;
     const targetEnd = page * pageSize;
 
@@ -235,7 +258,7 @@ router.get("/search", async (req, res) => {
     // Safety cap to avoid unbounded loops in pathological cases
     const MAX_API_PAGES = 100;
 
-    while (hasNext && apiPage <= MAX_API_PAGES) {
+    while (hasNext && apiPage <= MAX_API_PAGES && filteredTotal < targetEnd) {
       const batch = await users.searchUsersPaged({ q, page: apiPage, pageSize: apiPageSize });
       const items = Array.isArray(batch.users) ? batch.users : [];
 
@@ -248,20 +271,15 @@ router.get("/search", async (req, res) => {
         accessSvc.isUsernameInAllowedAgencies(authUser, u.username)
       );
 
-      // Count them all, even beyond the current page window, so that total
-      // reflects *all* accessible users.
+      const prevTotal = filteredTotal;
       filteredTotal += filteredPage.length;
 
-      // Only collect what we need for the requested page window.
-      if (filteredTotal > targetStart && collected.length < targetEnd) {
-        // Determine slice of this filteredPage that belongs in [targetStart, targetEnd)
-        const alreadyBefore = Math.max(0, targetStart - (filteredTotal - filteredPage.length));
-        const upTo = Math.min(
-          filteredPage.length,
-          targetEnd - (filteredTotal - filteredPage.length)
-        );
-        if (upTo > alreadyBefore) {
-          collected = collected.concat(filteredPage.slice(alreadyBefore, upTo));
+      // If this batch overlaps our requested page window, append those items.
+      if (filteredTotal > targetStart) {
+        const windowStartIdx = Math.max(0, targetStart - prevTotal);
+        const windowEndIdx = Math.min(filteredPage.length, targetEnd - prevTotal);
+        if (windowEndIdx > windowStartIdx) {
+          collected = collected.concat(filteredPage.slice(windowStartIdx, windowEndIdx));
         }
       }
 
@@ -269,12 +287,20 @@ router.get("/search", async (req, res) => {
       apiPage += 1;
     }
 
-    const totalPages = filteredTotal ? Math.ceil(filteredTotal / pageSize) : 0;
+    // We might not know the true total without scanning all pages.
+    // Use filteredTotal as "at least this many", and if Authentik has more
+    // pages we conservatively assume there may be another page worth of users.
+    let estimatedTotal = filteredTotal;
+    if (hasNext && filteredTotal >= targetEnd) {
+      estimatedTotal = filteredTotal + pageSize;
+    }
+
+    const totalPages = estimatedTotal ? Math.ceil(estimatedTotal / pageSize) : 0;
     const pageItems = collected.slice(0, pageSize);
 
     res.json({
       users: pageItems,
-      total: filteredTotal,
+      total: estimatedTotal,
       page,
       pageSize,
       hasNext: page < totalPages,
@@ -283,8 +309,7 @@ router.get("/search", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: toErrorPayload(err) });
   }
-});
-router.post("/:userId/reset-password", async (req, res) => {
+});router.post("/:userId/reset-password", async (req, res) => {
   try {
     await users.resetPassword(req.params.userId, req.body?.password);
     res.json({ success: true });
