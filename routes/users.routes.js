@@ -50,19 +50,6 @@ router.get("/meta", async (req, res) => {
     res.status(500).json({ error: toErrorPayload(err) });
   }
 });
-    }
-
-    const dynamic = users.getTemplatesForAgency(agencySuffix);
-    const groups = await groupsSvc.getAllGroups({});
-
-    res.json({
-      groups,
-      templates: [{ name: "Manual Group Selection", groups: [] }, ...dynamic],
-    });
-  } catch (err) {
-    res.status(500).json({ error: toErrorPayload(err) });
-  }
-});
 
 router.get("/groups", async (req, res) => {
   try {
