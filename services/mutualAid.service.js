@@ -1,5 +1,8 @@
 const crypto = require("crypto");
 const QRCode = require("qrcode");
+const Jimp = require("jimp");
+const path = require("path");
+const fs = require("fs");
 
 const api = require("./authentik");
 const groupsSvc = require("./groups.service");
@@ -176,26 +179,145 @@ function enrollUrlForCreds(username, token) {
   );
 }
 
+async function addLogoToPng(pngBuffer) {
+  try {
+    const settings = settingsSvc.getSettings ? settingsSvc.getSettings() || {} : {};
+    const logoUrl = settings.BRAND_LOGO_URL;
+
+    if (!logoUrl || typeof logoUrl !== "string") {
+      return pngBuffer;
+    }
+
+    // BRAND_LOGO_URL is like "/branding/logo.png"
+    // Files are stored under /data/branding and served via app.use("/branding", ...)
+    const logoUrlPath = logoUrl.replace(/^\//, ""); // "branding/logo.png"
+    const logoFsPath = path.join(__dirname, "..", "data", logoUrlPath);
+
+    if (!fs.existsSync(logoFsPath)) {
+      console.warn("[MUTUAL AID] BRAND_LOGO_URL file not found at", logoFsPath);
+      return pngBuffer;
+    }
+
+    const [qrImage, logoImageOriginal] = await Promise.all([
+      Jimp.read(pngBuffer),
+      Jimp.read(logoFsPath),
+    ]);
+
+    const qrWidth = qrImage.getWidth();
+    const qrHeight = qrImage.getHeight();
+
+    // Max logo size: 25% of QR's smaller dimension (safe for error-correction H)
+    const logoMaxSize = Math.floor(Math.min(qrWidth, qrHeight) * 0.25);
+
+    // Clone and resize logo
+    const logoImage = logoImageOriginal.clone();
+    logoImage.contain(logoMaxSize, logoMaxSize);
+
+    // White background "badge" behind logo
+    const padding = Math.floor(logoMaxSize * 0.12); // 12% padding around logo
+    const bgWidth = logoImage.getWidth() + padding * 2;
+    const bgHeight = logoImage.getHeight() + padding * 2;
+
+    // Position of the white background (centered)
+    const bgX = Math.floor((qrWidth - bgWidth) / 2);
+    const bgY = Math.floor((qrHeight - bgHeight) / 2);
+
+    // Fill a white rectangle directly onto the QR image
+    qrImage.scan(bgX, bgY, bgWidth, bgHeight, function (x, y, idx) {
+      // RGBA = 255, 255, 255, 255
+      this.bitmap.data[idx + 0] = 255; // R
+      this.bitmap.data[idx + 1] = 255; // G
+      this.bitmap.data[idx + 2] = 255; // B
+      this.bitmap.data[idx + 3] = 255; // A
+    });
+
+    // Now center the logo on top of that white rectangle
+    const logoX = bgX + padding;
+    const logoY = bgY + padding;
+
+    qrImage.composite(logoImage, logoX, logoY);
+
+    return await qrImage.getBufferAsync(Jimp.MIME_PNG);
+  } catch (err) {
+    console.error("[MUTUAL AID] Failed to add logo to QR:", err);
+    return pngBuffer;
+  }
+}
+
+async function addUsernameLabel(pngBuffer, username) {
+  try {
+    const qrImage = await Jimp.read(pngBuffer);
+
+    // Bold-looking font
+    const font = await Jimp.loadFont(Jimp.FONT_SANS_64_BLACK);
+
+    // FORCE ALL CAPS
+    const text = (String(username || "").trim() || "USER").toUpperCase();
+
+    const textBlockHeight = 80; // a little extra space for text
+
+    // New canvas: same width, extra height for text
+    const combined = new Jimp(
+      qrImage.getWidth(),
+      qrImage.getHeight() + textBlockHeight,
+      0xffffffff // white background
+    );
+
+    // Paste the QR code at the top
+    combined.composite(qrImage, 0, 0);
+
+    // Center text under QR
+    combined.print(
+      font,
+      0,
+      qrImage.getHeight() + 10,
+      {
+        text,
+        alignmentX: Jimp.HORIZONTAL_ALIGN_CENTER,
+        alignmentY: Jimp.VERTICAL_ALIGN_TOP,
+      },
+      combined.getWidth(),
+      textBlockHeight
+    );
+
+    return combined.getBufferAsync(Jimp.MIME_PNG);
+  } catch (err) {
+    console.error("[MUTUAL AID] Failed to add username label to QR:", err);
+    return pngBuffer;
+  }
+}
+
 async function qrDataUrl(username, token) {
   const enrollUrl = enrollUrlForCreds(username, token);
-  const qrCode = await QRCode.toDataURL(enrollUrl, {
+  const basePng = await QRCode.toBuffer(enrollUrl, {
     errorCorrectionLevel: "H",
-    type: "image/png",
+    type: "png",
     width: 512,
     margin: 2,
     color: { dark: "#000000", light: "#FFFFFF" },
   });
+  const finalPng = await addLogoToPng(basePng);
+  const qrCode = "data:image/png;base64," + finalPng.toString("base64");
   return { enrollUrl, qrCode };
 }
 
 async function qrPngBuffer(username, token) {
   const enrollUrl = enrollUrlForCreds(username, token);
-  return QRCode.toBuffer(enrollUrl, {
+  const pngBuffer = await QRCode.toBuffer(enrollUrl, {
     errorCorrectionLevel: "H",
     type: "png",
     width: 1200,
     margin: 3,
+    color: { dark: "#000000", light: "#FFFFFF" },
   });
+
+  // 1) Add logo in the center (with white badge)
+  let finalPng = await addLogoToPng(pngBuffer);
+
+  // 2) Add username label underneath
+  finalPng = await addUsernameLabel(finalPng, username);
+
+  return finalPng;
 }
 
 function list() {
