@@ -144,6 +144,7 @@ function renderAgencies(){
       <td>${esc(a.suffix)}</td>
       <td>${esc(a.county)}</td>
       <td>${esc(a.type)}</td>
+      <td>${esc(a.adminGroups || "")}</td>
       <td>
         <button class="btn danger" onclick="delAgency('${esc(a._id ?? a.id ?? "")}')">Delete</button>
       </td>

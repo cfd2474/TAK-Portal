@@ -1,5 +1,6 @@
 const router = require("express").Router();
 const store = require("../services/agencies.service");
+const accessSvc = require("../services/access.service");
 const usersService = require("../services/users.service");
 
 function normalizeAgency(a) {
@@ -8,7 +9,10 @@ function normalizeAgency(a) {
     type: String(a.type || "").trim(),            // Fire, EMS, Law, etc
     county: String(a.county || "").trim(),
     suffix: String(a.suffix || "").trim().toLowerCase(),
-    groupPrefix: String(a.groupPrefix || "").trim().toUpperCase()
+    groupPrefix: String(a.groupPrefix || "").trim().toUpperCase(),
+    // Comma/semicolon separated list of Authentik groups that
+    // should be treated as admins for this agency.
+    adminGroups: String(a.adminGroups || "").trim(),
   };
 }
 
@@ -20,14 +24,19 @@ function validateAgency(a) {
 }
 
 // Basic agencies list (raw)
-router.get("/", (req, res) => res.json(store.load()));
+router.get("/", (req, res) => {
+  const agencies = store.load();
+  const filtered = accessSvc.filterAgenciesForUser(req.authentikUser, agencies);
+  res.json(filtered);
+});
 
 // Agencies (no user counts anymore)
 router.get("/with-counts", async (req, res) => {
   try {
     const agencies = store.load();
+    const visible = accessSvc.filterAgenciesForUser(req.authentikUser, agencies);
 
-    const result = agencies.map((a, index) => {
+    const result = visible.map((a, index) => {
       const id = index;
       return { ...a, id, _id: id };
     });

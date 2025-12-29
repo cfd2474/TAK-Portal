@@ -1,5 +1,6 @@
 // services/portalAuth.middleware.js
 const { getBool, getString } = require("./env");
+const accessSvc = require("./access.service");
 
 /**
  * Optional Authentik-based access control with role levels.
@@ -73,20 +74,20 @@ function portalAuthMiddleware(req, res, next) {
   const globalGroupsStr = getString("PORTAL_AUTH_REQUIRED_GROUP", "").trim();
   const globalGroups = parseGroupList(globalGroupsStr);
 
-  // Agency Admin groups (new setting)
-  const agencyGroupsStr = getString("PORTAL_AUTH_AGENCY_ADMIN_GROUPS", "").trim();
-  const agencyGroups = parseGroupList(agencyGroupsStr);
-
   const isGlobalAdmin =
     globalGroups.length > 0 &&
     globalGroups.some((needed) => userGroupsLower.includes(needed));
 
+  // Agency admin status now comes purely from the Agencies config. Any
+  // agency that lists one of the user's groups in its "adminGroups"
+  // field will treat this user as an agency admin for that agency.
+  const agencySuffixesForUser =
+    accessSvc.getAllowedAgencySuffixesForGroups(userGroupsLower);
   const isAgencyAdmin =
-    agencyGroups.length > 0 &&
-    agencyGroups.some((needed) => userGroupsLower.includes(needed));
+    Array.isArray(agencySuffixesForUser) && agencySuffixesForUser.length > 0;
 
   const anyAdminGroupConfigured =
-    globalGroups.length > 0 || agencyGroups.length > 0;
+    globalGroups.length > 0 || accessSvc.hasAnyAgencyAdminsConfigured();
 
   // If no admin groups are configured at all, any authenticated user is allowed.
   const hasAnyRequired =

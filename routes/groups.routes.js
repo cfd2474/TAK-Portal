@@ -1,6 +1,8 @@
 const router = require("express").Router();
 const groups = require("../services/groups.service");
 const mutualAid = require("../services/mutualAid.service");
+const agencies = require("../services/agencies.service");
+const accessSvc = require("../services/access.service");
 
 function toErrorPayload(err) {
   const data = err?.response?.data;
@@ -19,7 +21,39 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const out = await groups.createGroup(req.body?.name);
+    const rawName = String(req.body?.name || "").trim();
+    if (!rawName) {
+      return res.status(400).json({ error: "Group name is required" });
+    }
+
+    const authUser = req.authentikUser || null;
+    const access = accessSvc.getAgencyAccess(authUser);
+
+    if (!access.isGlobalAdmin) {
+      const allowedSuffixes = access.allowedAgencySuffixes || [];
+      if (!allowedSuffixes.length) {
+        return res.status(403).json({ error: "You do not have permission to create groups." });
+      }
+
+      const allAgencies = agencies.load();
+      const allowedPrefixes = allAgencies
+        .filter((a) => allowedSuffixes.includes(String(a.suffix || "").trim().toLowerCase()))
+        .map((a) => String(a.groupPrefix || "").trim().toUpperCase())
+        .filter(Boolean);
+
+      const upperName = rawName.toUpperCase();
+      const canCreateForAny = allowedPrefixes.some((prefix) =>
+        upperName.startsWith(prefix + "-")
+      );
+
+      if (!canCreateForAny) {
+        return res.status(403).json({
+          error: "You may only create agency-specific groups for your own agency.",
+        });
+      }
+    }
+
+    const out = await groups.createGroup(rawName);
     res.json({ success: true, group: out });
   } catch (err) {
     res.status(400).json({ error: toErrorPayload(err) });

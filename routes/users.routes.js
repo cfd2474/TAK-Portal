@@ -3,6 +3,7 @@ const multer = require("multer");
 const upload = multer({ storage: multer.memoryStorage() });
 const users = require("../services/users.service");
 const groupsSvc = require("../services/groups.service");
+const accessSvc = require("../services/access.service");
 
 // -------------------- CSV import progress (in-memory) --------------------
 // Lightweight job store for progress reporting.
@@ -31,6 +32,12 @@ function toErrorPayload(err) {
 router.get("/meta", async (req, res) => {
   try {
     const agencySuffix = req.query.agencySuffix || "";
+    const authUser = req.authentikUser || null;
+
+    if (agencySuffix && !accessSvc.isSuffixAllowed(authUser, agencySuffix)) {
+      return res.status(403).json({ error: "You do not have access to that agency." });
+    }
+
     const dynamic = users.getTemplatesForAgency(agencySuffix);
     const groups = await groupsSvc.getAllGroups({});
 
@@ -54,6 +61,12 @@ router.get("/groups", async (req, res) => {
 router.post("/", async (req, res) => {
   try {
     const payload = req.body || {};
+    const authUser = req.authentikUser || null;
+
+    if (payload.agencySuffix && !accessSvc.isSuffixAllowed(authUser, payload.agencySuffix)) {
+      return res.status(403).json({ error: "You do not have access to that agency." });
+    }
+
     const result = await users.createUser(payload);
     res.json({ success: true, ...result });
   } catch (err) {
@@ -196,7 +209,22 @@ router.get("/search", async (req, res) => {
     const pageSize = parseInt(req.query.pageSize, 10) || 50;
 
     const result = await users.searchUsersPaged({ q, page, pageSize });
-    res.json(result);
+    const authUser = req.authentikUser || null;
+    const access = accessSvc.getAgencyAccess(authUser);
+
+    let usersList = Array.isArray(result.users) ? result.users : [];
+
+    if (!access.isGlobalAdmin) {
+      usersList = usersList.filter((u) =>
+        accessSvc.isUsernameInAllowedAgencies(authUser, u.username)
+      );
+    }
+
+    res.json({
+      ...result,
+      users: usersList,
+      total: usersList.length,
+    });
   } catch (err) {
     res.status(500).json({ error: toErrorPayload(err) });
   }

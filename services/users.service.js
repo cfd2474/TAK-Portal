@@ -406,6 +406,10 @@ async function importUsersFromCsvBuffer(buffer, opts = {}) {
 
   const onProgress = typeof opts.onProgress === "function" ? opts.onProgress : null;
 
+  const allowedAgencySuffixes = Array.isArray(opts.allowedAgencySuffixes)
+    ? opts.allowedAgencySuffixes.map((s) => String(s || "").trim().toLowerCase())
+    : null;
+
   // Throttle progress callbacks to avoid taxing the system.
   let _lastProgressAt = 0;
   function reportProgress(payload) {
@@ -518,6 +522,16 @@ async function importUsersFromCsvBuffer(buffer, opts = {}) {
         errors.push({ line: lineNum, message: `Unknown agency "${agencyRaw}"` });
       } else {
         agencySuffix = String(agency.suffix || "").trim();
+
+        if (allowedAgencySuffixes && allowedAgencySuffixes.length) {
+          const sfxLower = String(agencySuffix || "").trim().toLowerCase();
+          if (!allowedAgencySuffixes.includes(sfxLower)) {
+            errors.push({
+              line: lineNum,
+              message: `You do not have access to agency "${agencyRaw}"`,
+            });
+          }
+        }
       }
     }
 
