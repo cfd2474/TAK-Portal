@@ -1,9 +1,10 @@
-<h1 align='center'>TAK Portal</h1>
+<h1 align="center">TAK Portal</h1>
 
 <p align="center">
-TAK Portal is a lightweight, modern user-management portal designed to integrate seamlessly with <strong>Authentik</strong> and <strong>TAK Server</strong> for streamlined certificate and account control. Built specifically for agencies who need reliability, simplicity, and security.
+TAK Portal is a lightweight, modern user-management portal designed to integrate seamlessly with <strong>Authentik</strong> and <strong>TAK Server</strong> for streamlined certificate and account control. Built for agencies who need reliability, simplicity, and security.
+</p>
 
-
+---
 
 ## Features
 
@@ -15,30 +16,44 @@ TAK Portal is a lightweight, modern user-management portal designed to integrate
 
 ---
 
+## Architecture Overview
+
+TAK Portal typically sits in front of:
+
+- **Authentik** – Identity provider (users, groups, SSO)
+- **TAK Server** – Certificate generation and revocation
+- **Caddy (optional)** – Reverse proxy / TLS termination
+
 ## Prerequisites
 
 > [!NOTE]  
-> TAK Portal relies on your *EXISTING* local:
+> TAK Portal relies on your *existing* local:
 >
-> - Authentik Server — used for identity and user management  
-> - TAK Server — used for certificate revocation  
+> - **Authentik Server** — used for identity and user management  
+> - **TAK Server** — used for certificate revocation  
 >
-> TAK Portal will run without TAK Server connected, but certificates will ***not*** be revoked when users are disabled or deleted.
+> TAK Portal will run without TAK Server connected, but certificates will **not** be revoked when users are disabled or deleted.
 
-*MORE INSTRUCTIONS NEED TO GO HERE FOR AUTHENTIK SETUP*
+Before installing, you should have:
+
+- A running **Authentik** instance  
+  - [Authentik Setup Guide](docs/authentik-setup.md)
+  - [Authentik LDAP Setup](docs/authentik-ldap.md)
+- A running **TAK Server**  
+  - [Connecting TAK Server to Authentik LDAP](docs/authentik-tak-server.md)
+- (Optional) **Caddy** or another reverse proxy  
+  - [Caddy + TLS setup](docs/caddy-setup.md)
 
 ---
 
-## Installation
+## Quick Start
 
 On an Ubuntu machine, run:
 
-```
+```bash
 git clone https://github.com/AdventureSeeker423/TAK-Portal
 cd TAK-Portal
-```
 
-(Optional) Customize the UI Port
 
 ```
 ./takportal config
@@ -71,5 +86,5 @@ Start TAK Portal - This will install any dependencies and start the Docker conta
 2. Navigate to `Agency Templates` and begin creating templates for your users (You may need to visit `Manage Groups` if there are no existing groups.)
 3. Navigate to `Create Users` and create your first user
 
-## Random Advanced Configuration
-Link to configure reset password portal - https://www.youtube.com/watch?v=NKJkYz0BIlA
+## Additional Guides
+- [Authentik Password Reset / Self service](https://www.youtube.com/watch?v=NKJkYz0BIlA)
