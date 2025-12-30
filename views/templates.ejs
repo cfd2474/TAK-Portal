@@ -14,7 +14,7 @@
 
     <form id="form" class="grid3" autocomplete="off">
       <label>Template Name
-        <input id="name" placeholder="Template Name Here (ex. Patrol, Medic, etc...)"required />
+        <input id="name" placeholder="Template Name Here (ex. Patrol, Medic, etc...)" required />
       </label>
 
       <label>Agency
@@ -23,13 +23,12 @@
         </select>
       </label>
 
-<label>Default Template
-  <select id="isDefault">
-    <option value="no">No</option>
-    <option value="yes">Yes</option>
-  </select>
-</label>
-
+      <label>Default Template
+        <select id="isDefault">
+          <option value="no">No</option>
+          <option value="yes">Yes</option>
+        </select>
+      </label>
 
       <div style="grid-column:1/-1;">
         <label>Groups
@@ -38,10 +37,11 @@
             <button class="btn" type="button" id="selectAllBtn">Select All</button>
             <button class="btn" type="button" id="clearAllBtn">Clear</button>
           </div>
+
+          <!-- SCROLLABLE OUTER BOX + MULTICOL INNER WRAPPER -->
           <div id="groupsBox" class="groupsBox">
             <div id="groupsInner" class="groupsInner"></div>
           </div>
-
         </label>
       </div>
 
@@ -86,6 +86,7 @@ const groupSearch = document.getElementById("groupSearch");
 const groupsBox = document.getElementById("groupsBox");
 const selectAllBtn = document.getElementById("selectAllBtn");
 const clearAllBtn = document.getElementById("clearAllBtn");
+const groupsInner = document.getElementById("groupsInner"); // NEW: inner multicol wrapper
 
 let allGroups = [];       // Authentik groups: [{pk,name,...}]
 let allTemplates = [];    // templates from JSON
@@ -125,7 +126,8 @@ function renderGroups(filterText = ""){
     .sort((a,b)=>a.localeCompare(b))
     .filter(name => !q || name.toLowerCase().includes(q));
 
-  groupsBox.innerHTML = list.map(name => `
+  // IMPORTANT: render into the INNER wrapper (multicol), not the scroll box
+  groupsInner.innerHTML = list.map(name => `
     <label class="groupItem">
       <input type="checkbox" value="${esc(name)}" />
       <span>${esc(name)}</span>
@@ -278,8 +280,7 @@ form.onsubmit = async (e) => {
   setMsg(isEdit ? "Template updated" : "Template created", true);
   await loadTemplates();
 
-  // after save, remain in edit mode (common UX) or return to create mode
-  // I�m returning to create mode to avoid accidental overwrites:
+  // after save, go back to create mode
   setCreateMode();
 };
 
@@ -305,7 +306,7 @@ form.onsubmit = async (e) => {
   padding: 10px;
 
   max-height: 320px;
-  overflow-y: auto;
+  overflow-y: auto;   /* scrollable vertically */
   overflow-x: hidden;
 }
 
@@ -313,12 +314,10 @@ form.onsubmit = async (e) => {
 .groupsInner {
   column-width: 310px;
   column-gap: 14px;
-
-  /* limit to 4 columns max */
-  column-count: 4;
+  column-count: 4;    /* max 4 columns */
 }
 
-/* your existing item styles */
+/* group items */
 .groupItem{
   display: flex;
   flex-direction: row;
@@ -348,9 +347,6 @@ form.onsubmit = async (e) => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 </style>
-
-
 
 </div></body></html>
