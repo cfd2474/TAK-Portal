@@ -6,7 +6,6 @@
 
   <form method="post" action="/settings" autocomplete="off" enctype="multipart/form-data">
     <% 
-      // Helper to render a single field
       const BOOL_KEYS = new Set([
         "TAK_REVOKE_ON_DISABLE",
         "TAK_DEBUG",
@@ -108,43 +107,19 @@
       const otherKeys = keys.filter(k => !knownKeys.has(k));
     %>
 
-    <!-- Authentik / Portal -->
+    <!-- Authentik -->
     <div class="card">
       <details class="settings-section">
         <summary class="settings-summary">Authentik</summary>
 
         <div class="settings-body">
           <div class="grid2">
-            <% renderField(
-              "AUTHENTIK_URL",
-              "Authentik Internal URL",
-              "Base URL of your Authentik instance (e.g. http://authentik:9000)"
-            ); %>
-            <% renderField(
-              "AUTHENTIK_TOKEN",
-              "Authentik API Token",
-              "API token with permission to manage users and groups."
-            ); %>
-            <% renderField(
-              "USERS_HIDDEN_PREFIXES",
-              "Hidden User Prefixes",
-              "Comma-separated prefixes of usernames to hide from the UI."
-            ); %>
-            <% renderField(
-              "GROUPS_HIDDEN_PREFIXES",
-              "Hidden Group Prefixes",
-              "Comma-separated prefixes of groups to hide from the UI."
-            ); %>
-            <% renderField(
-              "USERS_ACTIONS_HIDDEN_PREFIXES",
-              "User Action-Lock Prefixes",
-              "Users whose name starts with these prefixes cannot be modified from the portal."
-            ); %>
-            <% renderField(
-              "GROUPS_ACTIONS_HIDDEN_PREFIXES",
-              "Group Action-Lock Prefixes",
-              "Groups whose name starts with these prefixes cannot be modified from the portal."
-            ); %>
+            <% renderField("AUTHENTIK_URL","Authentik Internal URL","Base URL of your Authentik instance (e.g. http://authentik:9000)"); %>
+            <% renderField("AUTHENTIK_TOKEN","Authentik API Token","API token with permission to manage users and groups."); %>
+            <% renderField("USERS_HIDDEN_PREFIXES","Hidden User Prefixes","Comma-separated prefixes of usernames to hide from the UI."); %>
+            <% renderField("GROUPS_HIDDEN_PREFIXES","Hidden Group Prefixes","Comma-separated prefixes of groups to hide from the UI."); %>
+            <% renderField("USERS_ACTIONS_HIDDEN_PREFIXES","User Action-Lock Prefixes","Users whose name starts with these prefixes cannot be modified from the portal."); %>
+            <% renderField("GROUPS_ACTIONS_HIDDEN_PREFIXES","Group Action-Lock Prefixes","Groups whose name starts with these prefixes cannot be modified from the portal."); %>
           </div>
         </div>
       </details>
@@ -157,108 +132,33 @@
 
         <div class="settings-body">
           <div class="grid2">
-            <% renderField(
-              "TAK_URL",
-              "TAK URL",
-              "Full Marti URL, e.g. https://tak.example.gov:8443/Marti."
-            ); %>
+            <% renderField("TAK_URL","TAK URL","Full Marti URL, e.g. https://tak.example.gov:8443/Marti."); %>
 
             <label class="settings-field">
               <span class="settings-label">Client P12 Certificate</span>
-              <input
-                type="file"
-                name="TAK_API_P12_UPLOAD"
-                accept=".p12,.pfx,application/x-pkcs12"
-              />
+              <input type="file" name="TAK_API_P12_UPLOAD" accept=".p12,.pfx,application/x-pkcs12" />
               <% if (settings.TAK_API_P12_PATH) { %>
-                <small class="settings-help">
-                  Currently stored at:
-                  <code><%= settings.TAK_API_P12_PATH %></code>
-                </small>
+                <small class="settings-help">Currently stored at: <code><%= settings.TAK_API_P12_PATH %></code></small>
               <% } else { %>
-                <small class="settings-help">
-                  Upload the client .p12/.pfx file. It will be stored under
-                  <code>data/certs/</code> inside the container.
-                </small>
+                <small class="settings-help">Stored under <code>data/certs/</code> inside the container.</small>
               <% } %>
             </label>
 
-            <% renderField(
-              "TAK_API_P12_PASSPHRASE",
-              "Client P12 Passphrase",
-              "Passphrase for the client .p12 file (may be empty)."
-            ); %>
+            <% renderField("TAK_API_P12_PASSPHRASE","Client P12 Passphrase","Passphrase for the client .p12 file (may be empty)."); %>
 
             <label class="settings-field">
               <span class="settings-label">TAK CA Certificate</span>
-              <input
-                type="file"
-                name="TAK_CA_UPLOAD"
-                accept=".pem,.crt,.cer,.der"
-              />
+              <input type="file" name="TAK_CA_UPLOAD" accept=".pem,.crt,.cer,.der" />
               <% if (settings.TAK_CA_PATH) { %>
-                <small class="settings-help">
-                  Currently stored at:
-                  <code><%= settings.TAK_CA_PATH %></code>
-                </small>
+                <small class="settings-help">Currently stored at: <code><%= settings.TAK_CA_PATH %></code></small>
               <% } else { %>
-                <small class="settings-help">
-                  Upload the TAK CA certificate. It will be stored under
-                  <code>data/certs/</code> inside the container.
-                </small>
+                <small class="settings-help">Stored under <code>data/certs/</code>.</small>
               <% } %>
             </label>
 
-            <% renderField(
-              "TAK_REVOKE_ON_DISABLE",
-              "Revoke on Disable",
-              "If true, revokes TAK certs when a user is disabled."
-            ); %>
-            <% renderField(
-              "TAK_DEBUG",
-              "TAK Debug",
-              "If true, enables verbose TAK debug logging."
-            ); %>
-            <% renderField(
-              "TAK_BYPASS_ENABLED",
-              "Bypass TAK",
-              "If true, disables all outbound TAK calls (for testing)."
-            ); %>
-          </div>
-        </div>
-      </details>
-    </div>
-
-    <!-- Portal Access Control -->
-    <div class="card">
-      <details class="settings-section">
-        <summary class="settings-summary">Portal Access Control</summary>
-
-        <div class="settings-body">
-          <div class="grid2">
-            <% renderField(
-              "PORTAL_AUTH_ENABLED",
-              "Require Authentik login",
-              "When true, this portal only works behind an Authentik forward_auth / Caddy setup."
-            ); %>
-
-            <% renderField(
-              "PORTAL_AUTH_REQUIRED_GROUP",
-              "Global Admin group(s)",
-              "Comma-separated Authentik group names that should have full access, including Server Settings and Agency Templates."
-            ); %>
-
-            <% renderField(
-              "PORTAL_AUTH_AGENCY_ADMIN_GROUPS",
-              "Agency Admin group(s)",
-              "Optional. Comma-separated Authentik group names that should have limited admin access (no Server Settings or Agency Templates)."
-            ); %>
-
-            <% renderField(
-              "AUTHENTIK_PUBLIC_URL",
-              "Authentik Public URL",
-              "URL users see in the browser (e.g. https://authentik.yourdomain.com). Used for logout redirects."
-            ); %>
+            <% renderField("TAK_REVOKE_ON_DISABLE","Revoke on Disable","If true, revokes TAK certs when a user is disabled."); %>
+            <% renderField("TAK_DEBUG","TAK Debug","If true, enables verbose TAK debug logging."); %>
+            <% renderField("TAK_BYPASS_ENABLED","Bypass TAK","If true, disables all outbound TAK calls (for testing)."); %>
           </div>
         </div>
       </details>
@@ -271,61 +171,17 @@
 
         <div class="settings-body">
           <div class="grid2">
-            <% renderField(
-              "EMAIL_ENABLED",
-              "Email Enabled",
-              "true/false – whether email notifications are enabled."
-            ); %>
-            <% renderField(
-              "EMAIL_PROVIDER",
-              "Email Provider",
-              "Currently only 'smtp' is supported."
-            ); %>
-            <% renderField(
-              "SMTP_HOST",
-              "SMTP Host",
-              "SMTP server hostname."
-            ); %>
-            <% renderField(
-              "SMTP_PORT",
-              "SMTP Port",
-              "Port for your SMTP server (e.g. 587)."
-            ); %>
-            <% renderField(
-              "SMTP_SECURE",
-              "SMTP Secure",
-              "true for SMTPS/465, false for STARTTLS/587."
-            ); %>
-            <% renderField(
-              "SMTP_USER",
-              "SMTP Username",
-              "Username for SMTP authentication (if required)."
-            ); %>
-            <% renderField(
-              "SMTP_PASS",
-              "SMTP Password",
-              "Password for SMTP authentication (if required)."
-            ); %>
-            <% renderField(
-              "SMTP_FROM",
-              "From Address",
-              'Display name and email, e.g. "TAK Admin <admin@example.com>".'
-            ); %>
-            <% renderField(
-              "EMAIL_ALWAYS_CC",
-              "Always CC",
-              "Optional: comma-separated list of CC recipients."
-            ); %>
-            <% renderField(
-              "EMAIL_SEND_COPY_TO",
-              "Always BCC",
-              "Optional: comma-separated list of BCC recipients."
-            ); %>
-            <% renderField(
-              "EMAIL_FAIL_HARD",
-              "Fail Hard on Email Error",
-              "If true, user operations fail when email sending fails."
-            ); %>
+            <% renderField("EMAIL_ENABLED","Email Enabled","true/false – whether email notifications are enabled."); %>
+            <% renderField("EMAIL_PROVIDER","Email Provider","Currently only 'smtp' is supported."); %>
+            <% renderField("SMTP_HOST","SMTP Host","SMTP server hostname."); %>
+            <% renderField("SMTP_PORT","SMTP Port","SMTP port, e.g. 587."); %>
+            <% renderField("SMTP_SECURE","SMTP Secure","true for SMTPS/465, false for STARTTLS/587."); %>
+            <% renderField("SMTP_USER","SMTP Username","Username for SMTP authentication."); %>
+            <% renderField("SMTP_PASS","SMTP Password","Password for SMTP authentication."); %>
+            <% renderField("SMTP_FROM","From Address",'e.g. "TAK Admin <admin@example.com>".'); %>
+            <% renderField("EMAIL_ALWAYS_CC","Always CC","Optional comma-separated list."); %>
+            <% renderField("EMAIL_SEND_COPY_TO","Always BCC","Optional comma-separated list."); %>
+            <% renderField("EMAIL_FAIL_HARD","Fail Hard on Email Error","If true, user actions fail when email fails."); %>
           </div>
         </div>
       </details>
@@ -340,20 +196,11 @@
           <div class="grid2">
             <label class="settings-field">
               <span class="settings-label">Portal Logo</span>
-              <input
-                type="file"
-                name="BRAND_LOGO_UPLOAD"
-                accept="image/*"
-              />
+              <input type="file" name="BRAND_LOGO_UPLOAD" accept="image/*" />
               <% if (settings.BRAND_LOGO_URL) { %>
-                <small class="settings-help">
-                  Current logo path:
-                  <code><%= settings.BRAND_LOGO_URL %></code>
-                </small>
+                <small class="settings-help">Current: <code><%= settings.BRAND_LOGO_URL %></code></small>
               <% } else { %>
-                <small class="settings-help">
-                  Upload a logo to show at the top of the sidebar and centered on generated QR codes.
-                </small>
+                <small class="settings-help">Shown in sidebar and QR codes.</small>
               <% } %>
             </label>
 
@@ -361,51 +208,50 @@
               <span class="settings-label">Color Theme</span>
               <% const currentTheme = settings.BRAND_THEME || "dark-blue"; %>
               <select name="settings[BRAND_THEME]">
-                <option value="dark-blue" <%= currentTheme === "dark-blue" ? "selected" : "" %>>
-                  Default – Dark Blue
-                </option>
-                <option value="dark" <%= currentTheme === "dark" ? "selected" : "" %>>
-                  Dark Mode
-                </option>
-                <option value="light" <%= currentTheme === "light" ? "selected" : "" %>>
-                  Light Mode
-                </option>
+                <option value="dark-blue" <%= currentTheme === "dark-blue" ? "selected" : "" %>>Default – Dark Blue</option>
+                <option value="dark" <%= currentTheme === "dark" ? "selected" : "" %>>Dark Mode</option>
+                <option value="light" <%= currentTheme === "light" ? "selected" : "" %>>Light Mode</option>
               </select>
-              <small class="settings-help">
-                Choose the main color theming for the site.
-              </small>
             </label>
           </div>
         </div>
       </details>
     </div>
 
-    <!-- Bookmarks -->
+    <!-- Dashboard Bookmarks -->
     <div class="card">
       <details class="settings-section">
         <summary class="settings-summary">Dashboard Bookmarks</summary>
 
         <div class="settings-body">
-          <p>These appear on the dashboard as quick links.</p>
+          <p>These appear as quick links on the dashboard.</p>
           <div class="grid2">
             <% for (let i = 1; i <= 8; i++) { %>
-              <% renderField(
-                `BOOKMARK${i}_TITLE`,
-                `Bookmark ${i} Title`,
-                ""
-              ); %>
-              <% renderField(
-                `BOOKMARK${i}_URL`,
-                `Bookmark ${i} URL`,
-                ""
-              ); %>
+              <% renderField(`BOOKMARK${i}_TITLE`, `Bookmark ${i} Title`, ""); %>
+              <% renderField(`BOOKMARK${i}_URL`, `Bookmark ${i} URL`, ""); %>
             <% } %>
           </div>
         </div>
       </details>
     </div>
 
-    <!-- Any other keys (future-proof) -->
+    <!-- 🔻 MOVED HERE -->
+    <div class="card">
+      <details class="settings-section">
+        <summary class="settings-summary">Portal Access Control</summary>
+
+        <div class="settings-body">
+          <div class="grid2">
+            <% renderField("PORTAL_AUTH_ENABLED","Require Authentik login","Requires Authentik forward_auth / Caddy."); %>
+            <% renderField("PORTAL_AUTH_REQUIRED_GROUP","Global Admin group(s)","Groups with full access."); %>
+            <% renderField("PORTAL_AUTH_AGENCY_ADMIN_GROUPS","Agency Admin group(s)","Limited admin access."); %>
+            <% renderField("AUTHENTIK_PUBLIC_URL","Authentik Public URL","Used for logout redirects."); %>
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <!-- Other -->
     <% if (otherKeys.length) { %>
       <div class="card">
         <details class="settings-section">
@@ -413,18 +259,16 @@
 
           <div class="settings-body">
             <div class="grid2">
-              <% otherKeys.forEach(function(key) { %>
-                <% renderField(key, key, "") %>
-              <% }); %>
+              <% otherKeys.forEach(k => renderField(k, k, "")); %>
             </div>
           </div>
         </details>
       </div>
     <% } %>
 
-    <div style="margin-top: 1rem; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+    <div style="margin-top:1rem;display:flex;gap:.75rem;flex-wrap:wrap;">
       <button type="submit" class="btn">Save Settings</button>
       <a href="/settings/export-data" class="btn">Export Data</a>
-    </div>    
+    </div>
   </form>
 </main>
