@@ -51,12 +51,12 @@
       <% } %>
 
       <small class="version-text">
-        <%= _displayName %>
+        <%= _displayName %> <br>
         <% if (_isGlobalAdmin) { %>
           Global Admin
         <% } else if (_isAgencyAdmin) { %>
           Agency Admin
-        <% } %>
+        <% } %> <br>
         Version <%= APP_VERSION %>
       </small>
     </div>
