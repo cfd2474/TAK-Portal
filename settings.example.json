@@ -3,8 +3,8 @@
   "AUTHENTIK_URL": "http://your-authentik-url:9000",
   "AUTHENTIK_TOKEN": "your-real-token-here",
   "USERS_HIDDEN_PREFIXES": "ak-,adm_,nodered-",
-  "GROUPS_HIDDEN_PREFIXES": "authentik, EVENT-, INCIDENT-",
-  "USERS_ACTIONS_HIDDEN_PREFIXES": "incident-,event-",
+  "GROUPS_HIDDEN_PREFIXES": "authentik, MA -",
+  "USERS_ACTIONS_HIDDEN_PREFIXES": "ma-",
   "GROUPS_ACTIONS_HIDDEN_PREFIXES": "",
 
   "PORTAL_AUTH_ENABLED": "false",         

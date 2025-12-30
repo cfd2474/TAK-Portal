@@ -99,21 +99,15 @@ function sanitizeUsernameSlug(title) {
 }
 
 function buildMutualAidUsername(type, title) {
-  const t = String(type || "").trim().toLowerCase();
   const slug = sanitizeUsernameSlug(title);
   if (!slug) return "";
-  if (t !== "incident" && t !== "event") return slug;
-  return `${t}-${slug}`;
+  return `ma-${slug}`;
 }
 
 function buildGroupName(type, title) {
-  const t = String(type || "").trim().toUpperCase();
-  if (t !== "INCIDENT" && t !== "EVENT") {
-    throw new Error("Type must be INCIDENT or EVENT");
-  }
   const name = sanitizeTitle(title);
   if (!name) throw new Error("Name is required");
-  return `${t}-${name}`;
+  return `MA - ${name}`;
 }
 
 function randomPassword(length = 18) {
