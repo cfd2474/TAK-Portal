@@ -116,7 +116,10 @@
               </small>
             </div>
 
-            <div class="groupsBox" id="groupsBox"></div>
+            <!-- OUTER SCROLL BOX + INNER MULTICOL WRAPPER -->
+            <div class="groupsBox" id="groupsBox">
+              <div class="groupsInner" id="groupsInner"></div>
+            </div>
 
             <div class="row" style="gap:10px; margin-top:10px; align-items:flex-end;">
               <label style="flex:1; max-width:320px;">
@@ -177,6 +180,7 @@ const deleteBtn = document.getElementById("deleteBtn");
 const groupChips = document.getElementById("groupChips");
 const groupFilter = document.getElementById("groupFilter");
 const groupsBox = document.getElementById("groupsBox");
+const groupsInner = document.getElementById("groupsInner"); // NEW: inner multicol wrapper
 const saveGroupsBtn = document.getElementById("saveGroupsBtn");
 
 // Name edit
@@ -222,6 +226,10 @@ let currentPage = 1;       // 1-based
 let totalUsers = 0;        // total number of matches across all pages
 let currentPageUsers = []; // users for the currently loaded page
 let currentSearch = "";    // current search string
+
+// track next/prev from backend
+let hasNextPage = false;
+let hasPrevPage = false;
 
 function setMsgEl(el, text, ok=true){
   el.textContent = text || "";
@@ -439,7 +447,6 @@ async function loadGroups(){
   renderGroupsBox();
 }
 
-
 async function applyGroupChange(groupId, shouldBeMember){
   if (!selectedUser) return;
   const url = shouldBeMember
@@ -495,7 +502,8 @@ function renderGroupsBox(){
     ? allGroupsArray.filter(g => String(g.name || "").toLowerCase().includes(filterText))
     : allGroupsArray;
 
-  groupsBox.innerHTML = filteredGroups.map(g => {
+  // IMPORTANT: render into the INNER wrapper, not the scroll box
+  groupsInner.innerHTML = filteredGroups.map(g => {
     const id = String(g.id);
     const checked = pickedGroupIds.has(id) ? "checked" : "";
     return `
@@ -514,8 +522,7 @@ function renderGroupsBox(){
       } else {
         pickedGroupIds.delete(id);
       }
-      // Auto-apply this single group change immediately, to match the
-      // original behavior where checking/unchecking saved on change.
+      // Auto-apply this single group change immediately
       applyGroupChange(id, cb.checked);
     });
   });
@@ -540,8 +547,6 @@ if (saveGroupsBtn) saveGroupsBtn.onclick = async () => {
   const selected = Array.from(pickedGroupIds);
   let payload = { groupIds: selected };
 
-  // If an agency template is selected AND we have cached templates,
-  // we pass that along so the backend can apply its group logic.
   const selectedTemplateKey = templateApplySelect && templateApplySelect.value || "";
   if (selectedTemplateKey && Array.isArray(agencyTemplatesCache) && agencyTemplatesCache.length) {
     payload.templateKey = selectedTemplateKey;
@@ -563,20 +568,16 @@ if (saveGroupsBtn) saveGroupsBtn.onclick = async () => {
   if(!res.ok){
     setMsgEl(actionMsg, out.error || "Update groups failed", false);
 
-    // Revert UI back to server-known state (selectedUser.groups)
     pickedGroupIds = new Set((selectedUser.groups || []).map(x => String(x)));
     renderGroupsBox();
     return;
   }
 
-  // Keep local state in sync. If backend returns groups, prefer it.
   selectedUser.groups = Array.isArray(out.groups) ? out.groups : selected;
   pickedGroupIds = new Set((selectedUser.groups || []).map(x => String(x)));
 
-  // Update chips + table row
   renderGroupChips(selectedUser);
 
-  // Patch current page
   const patch = (u) => String(u.pk) === String(selectedUser.pk)
     ? { ...u, groups: selectedUser.groups }
     : u;
@@ -591,7 +592,6 @@ if (saveGroupsBtn) saveGroupsBtn.onclick = async () => {
 let selectedUser = null;
 
 window.editUser = async (userPk) => {
-  // Try several sources in case __lastUsers is empty or out of sync.
   const pkStr = String(userPk);
   const sourceLists = [
     window.__lastUsers || [],
@@ -668,13 +668,11 @@ window.toggleUserFromTable = async (userPk) => {
   const out = await res.json();
   if(!res.ok) return setMsgEl(msg, out.error || "Toggle failed", false);
 
-  // Update both caches
   const flip = (row) => (String(row.pk) === String(u.pk) ? { ...row, is_active: !row.is_active } : row);
 
   allUsers = (allUsers || []).map(flip);
   const updatedVisible = (window.__lastUsers || []).map(flip);
 
-  // Keep modal state consistent if the same user is currently open
   if (selectedUser && String(selectedUser.pk) === String(u.pk)) {
     selectedUser.is_active = !selectedUser.is_active;
     toggleBtn.textContent = selectedUser.is_active ? "Disable User" : "Enable User";
@@ -700,13 +698,11 @@ window.deleteUserFromTable = async (userPk) => {
   const out = await res.json();
   if(!res.ok) return setMsgEl(msg, out.error || "Delete failed", false);
 
-  // If modal is open on this user, close it
   if (selectedUser && String(selectedUser.pk) === String(u.pk)) {
     selectedUser = null;
     closeModal();
   }
 
-  // Remove from both caches
   allUsers = (allUsers || []).filter(row => String(row.pk) !== String(u.pk));
   const remainingVisible = (window.__lastUsers || []).filter(row => String(row.pk) !== String(u.pk));
 
@@ -715,16 +711,6 @@ window.deleteUserFromTable = async (userPk) => {
 };
 
 // ---------- LIVE filter ----------
-function matchesUser(u, needleLower){
-  if (!needleLower) return true;
-  const hay = [
-    u.username || "",
-    u.email || "",
-    u.name || ""
-  ].join(" ").toLowerCase();
-  return hay.includes(needleLower);
-}
-
 function applyFilterSortRender(){
   currentSearch = String(q.value || "").trim();
   currentPage = 1;
@@ -736,10 +722,8 @@ function scheduleFilter(){
   filterTimer = setTimeout(applyFilterSortRender, 120);
 }
 
-// Live filtering as you type (now server-side, but still debounced)
 q.addEventListener("input", scheduleFilter);
 
-// Optional: Esc clears search + shows all
 q.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     q.value = "";
@@ -748,11 +732,7 @@ q.addEventListener("keydown", (e) => {
 });
 
 function renderCurrentPage() {
-  // Always sort the current page before rendering so header clicks
-  // re-order what is visible without needing another API call.
   const sorted = stableSortedCopy(currentPageUsers.slice(), sortState.key, sortState.dir);
-
-  // Keep last rendered set handy for callers that patch rows then re-render.
   window.__lastUsers = sorted;
   renderResults(sorted);
   updatePaginationControls();
@@ -793,7 +773,6 @@ function updatePaginationControls() {
   });
 }
 
-// Pagination button handlers
 [prevPageBtnTop, prevPageBtnBottom].forEach(btn => {
   if (!btn) return;
   btn.addEventListener("click", () => {
@@ -818,7 +797,6 @@ function applySortAndRender(users){
   const base = Array.isArray(users) ? users.slice() : currentPageUsers.slice();
   const sorted = stableSortedCopy(base, sortState.key, sortState.dir);
 
-  // Keep full page-level list in sync for callers that patch rows.
   window.__lastUsers = sorted;
   currentPageUsers = sorted;
   allUsers = sorted;
@@ -827,7 +805,6 @@ function applySortAndRender(users){
   updateSortIndicators();
 }
 
-// Click-to-sort on any column header
 thead.addEventListener("click", (e) => {
   const th = e.target && e.target.closest ? e.target.closest("th.sortable") : null;
   if (!th) return;
@@ -857,7 +834,6 @@ saveNameBtn.onclick = async () => {
     return setMsgEl(nameMsg, "Enter a name or cancel.", false);
   }
 
-  // We'll continue to store as "Last, First"
   const newName = last ? `${last}, ${first}` : first;
   const res = await fetch(`/api/users/${selectedUser.pk}/name`, {
     method:"POST",
@@ -870,9 +846,10 @@ saveNameBtn.onclick = async () => {
   }
 
   selectedUser.name = newName;
-  usernameSpan.textContent = `${selectedUser.username} — ${selectedUser.name || ""}`;
+  if (usernameSpan) {
+    usernameSpan.textContent = `${selectedUser.username} — ${selectedUser.name || ""}`;
+  }
 
-  // Patch current page caches
   const patch = (u) => String(u.pk) === String(selectedUser.pk) ? { ...u, name: selectedUser.name} : u;
   allUsers = (allUsers || []).map(patch);
   const updatedVisible = (window.__lastUsers || []).map(patch);
@@ -970,11 +947,9 @@ deleteBtn.onclick = async () => {
   setMsgEl(actionMsg, "User deleted.", true);
   closeModal();
 
-  // remove from both caches
   allUsers = (allUsers || []).filter(u => String(u.pk) !== String(selectedUser.pk));
   selectedUser = null;
 
-  // after delete, re-apply current page (reload from server)
   applyFilterSortRender();
 };
 
@@ -1005,7 +980,7 @@ async function loadAllUsers(){
   hasNextPage = !!out.hasNext;
   hasPrevPage = !!out.hasPrev;
   currentPageUsers = users.slice();
-  allUsers = users.slice(); // keep page-level cache in sync for callers that patch it
+  allUsers = users.slice();
 
   renderCurrentPage();
 
@@ -1024,7 +999,6 @@ async function loadAllUsers(){
   }
 }
 
-// Replace "search submit hits API" with "submit just filters"
 searchForm.onsubmit = (e) => {
   e.preventDefault();
   applyFilterSortRender();
@@ -1033,8 +1007,8 @@ searchForm.onsubmit = (e) => {
 (async () => {
   try {
     await loadGroups();
-    updateSortIndicators(); // show initial default sort indicator
-    await loadAllUsers();   // fetch first page, then paginate/search via API
+    updateSortIndicators();
+    await loadAllUsers();
   } catch (err) {
     setMsgEl(msg, err.message || "Failed to load page", false);
   }
@@ -1117,20 +1091,26 @@ th.sortedDesc .sortIndicator{
   font-weight: 700;
 }
 
-/* Groups picker - match templates page */
+/* Groups picker: OUTER scroll box + INNER multicol (max 4 columns, fill down first) */
 .groupsBox{
   margin-top: 10px;
   border: 1px solid var(--line);
   background: var(--panel);
   border-radius: 12px;
   padding: 10px;
-  max-height: 320px;
-  overflow: auto;
 
-  /* 🌟 vertical flow with max 3 columns */
-  columns: 3;              /* max number of columns */
-  column-gap: 14px;
+  max-height: 320px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
+
+/* inner multicol wrapper */
+.groupsInner{
+  column-width: 310px;
+  column-gap: 14px;
+  column-count: 4;   /* max 4 columns */
+}
+
 .groupItem{
   display: flex !important;
   flex-direction: row !important;
@@ -1180,7 +1160,7 @@ tr.row-disabled td {
   margin: 12px 0 6px;
   display: flex;
   align-items: center;
-  justify-content: center;   /* center the whole pagination block */
+  justify-content: center;
   gap: 8px;
   font-size: 14px;
 }
@@ -1216,3 +1196,5 @@ tr.row-disabled td {
   font-size: 12px;
 }
 </style>
+
+</div></body></html>
