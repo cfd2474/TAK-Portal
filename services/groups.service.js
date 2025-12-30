@@ -144,13 +144,17 @@ async function createGroup(name, opts = {}) {
   const n = String(name || "").trim();
   if (!n) throw new Error("Group name is required");
 
-  const description = String(opts.description || "").trim();
   const payload = { name: n };
 
+  // Merge description (if provided) with any attributes passed in opts
+  const attributes = Object.assign({}, opts.attributes || {});
+  const description = String(opts.description || "").trim();
   if (description) {
-    payload.attributes = {
-      description,
-    };
+    attributes.description = description;
+  }
+
+  if (Object.keys(attributes).length > 0) {
+    payload.attributes = attributes;
   }
 
   const res = await api.post("/core/groups/", payload);
