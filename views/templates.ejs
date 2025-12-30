@@ -38,7 +38,10 @@
             <button class="btn" type="button" id="selectAllBtn">Select All</button>
             <button class="btn" type="button" id="clearAllBtn">Clear</button>
           </div>
-          <div id="groupsBox" class="groupsBox"></div>
+          <div id="groupsBox" class="groupsBox">
+            <div id="groupsInner" class="groupsInner"></div>
+          </div>
+
         </label>
       </div>
 
@@ -301,22 +304,24 @@ form.onsubmit = async (e) => {
   border-radius: 12px;
   padding: 10px;
 
-  /* OPTIONAL: cap height & scroll; remove this if you want it to just grow */
   max-height: 320px;
   overflow-y: auto;
   overflow-x: hidden;
-
-  /* use grid instead of multicol */
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
-  column-gap: 14px;
-  row-gap: 4px;
 }
 
-/* Force checkbox + text inline */
+/* columns go on the INNER wrapper */
+.groupsInner {
+  column-width: 310px;
+  column-gap: 14px;
+
+  /* limit to 4 columns max */
+  column-count: 4;
+}
+
+/* your existing item styles */
 .groupItem{
-  display: flex !important;
-  flex-direction: row !important;
+  display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 8px;
 
@@ -343,6 +348,7 @@ form.onsubmit = async (e) => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
 </style>
 
 
