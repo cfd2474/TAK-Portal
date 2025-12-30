@@ -1129,9 +1129,8 @@ th.sortedDesc .sortIndicator{
 
   /* COMPACT MULTI-COLUMN LIST */
   display: grid;
-  grid-auto-flow: column;                 /* fill down, then new column */
-  grid-template-rows: repeat(7, auto);    /* <<< change this number to adjust height */
-  grid-auto-columns: minmax(200px, 1fr);
+  grid-auto-flow: row;                 /* fill down, then new column */
+  grid-template-columns: repeat(3, minmax(200px, 1fr));
   gap: 6px 14px;
 }
 .groupItem{

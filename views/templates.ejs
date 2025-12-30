@@ -305,7 +305,7 @@ form.onsubmit = async (e) => {
 
   /* COMPACT MULTI-COLUMN LIST */
   display: grid;
-  grid-auto-flow: column;                 /* fill down, then new column */
+  grid-auto-flow: row;                 /* fill down, then new column */
   grid-template-rows: repeat(7, auto);    /* <<< CHANGE THIS NUMBER */
   grid-auto-columns: minmax(200px, 1fr);
   gap: 6px 14px;
