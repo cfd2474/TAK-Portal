@@ -44,8 +44,6 @@
             class="passwordToggle"
             aria-label="Show password"
           >
-
-
             👁
           </button>
         </div>
@@ -68,7 +66,10 @@
             <button class="btn" id="clearAllBtn" type="button">Clear</button>
           </div>
 
-          <div id="groupsBox" class="groupsBox"></div>
+          <!-- OUTER SCROLL BOX + INNER MULTICOL WRAPPER -->
+          <div id="groupsBox" class="groupsBox">
+            <div id="groupsInner" class="groupsInner"></div>
+          </div>
         </label>
       </div>
 
@@ -91,6 +92,7 @@ const groupFilter = document.getElementById("groupFilter");
 const groupsBox = document.getElementById("groupsBox");
 const selectAllBtn = document.getElementById("selectAllBtn");
 const clearAllBtn = document.getElementById("clearAllBtn");
+const groupsInner = document.getElementById("groupsInner"); // NEW inner wrapper
 
 const msg = document.getElementById("msg");
 const form = document.getElementById("form");
@@ -216,7 +218,8 @@ function renderGroupsBox() {
       )
     : sorted;
 
-  groupsBox.innerHTML = filtered
+  // IMPORTANT: render into the INNER wrapper (multicol), not the scroll box
+  groupsInner.innerHTML = filtered
     .map((g) => {
       const id = String(g.pk);
       const name = String(g.name || "");
@@ -532,24 +535,28 @@ if (csvBtn && csvFileInput) {
   outline-offset: 2px;
 }
 
-/* Manual groups checkbox picker */
+/* Manual groups checkbox picker: OUTER scroll box */
 .groupsBox {
   margin-top: 10px;
   border: 1px solid var(--line);
   background: var(--panel);
   border-radius: 12px;
   padding: 10px;
-  max-height: 320px;
-  overflow: auto;
 
-  display: grid;
-  grid-auto-flow: column;
-  grid-template-rows: repeat(7, auto);
-  grid-auto-columns: minmax(200px, 1fr);
-  gap: 6px 14px;
+  max-height: 320px;
+  overflow-y: auto;   /* vertical scroll only */
+  overflow-x: hidden;
 }
 
-.groupItem {
+/* INNER multicol wrapper: max 4 columns, fill down first */
+.groupsInner {
+  column-width: 310px;
+  column-gap: 14px;
+  column-count: 4;    /* max 4 columns */
+}
+
+/* group items */
+.groupItem{
   display: flex !important;
   flex-direction: row !important;
   align-items: center;
@@ -562,18 +569,18 @@ if (csvBtn && csvFileInput) {
   white-space: nowrap;
 }
 
-.groupItem:hover {
-  background: rgba(255, 255, 255, 0.06);
+.groupItem:hover{
+  background: rgba(255,255,255,.06);
 }
 
-.groupItem input {
+.groupItem input{
   margin: 0;
   width: 16px;
   height: 16px;
   flex: 0 0 auto;
 }
 
-.groupItem span {
+.groupItem span{
   display: inline-block;
   overflow: hidden;
   text-overflow: ellipsis;
