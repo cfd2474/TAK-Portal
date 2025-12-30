@@ -301,12 +301,16 @@ form.onsubmit = async (e) => {
   border-radius: 12px;
   padding: 10px;
   max-height: 320px;
-  overflow: auto;
 
-  /* 🌟 dynamic columns based on width */
-  column-width: 310px;     /* target width per column */
+  /* only scroll vertically */
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  /* dynamic columns */
+  column-width: 310px;
   column-gap: 14px;
 }
+
 /* Force checkbox + text inline */
 .groupItem{
   display: flex !important;
