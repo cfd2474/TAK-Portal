@@ -85,8 +85,6 @@
             <% if (isGlobalAdmin) { %>
             <option value="county">County-Specific Group</option>
             <option value="generic">Global Group</option>
-            <% } else { %>
-            <option value="generic">Global Group</option>
             <% } %>
           </select>
 
@@ -162,7 +160,7 @@
 
       <!-- Group mode -->
       <div id="massGroupPane" style="display:none; margin-top:14px;">
-        <div class="row" style="justify-content:space-between; align-items:center;">
+        <div class="row" style="justify-content:space-between; align-items:center%;">
           <input id="sourceGroupSearch" placeholder="Search groups..." style="min-width: 360px;" />
           <div class="row" style="gap:10px;">
             <button class="btn" id="groupSelectAll" type="button">Select All</button>
@@ -271,6 +269,9 @@ const editType = document.getElementById("editType");
 const editAgencyPrefixSelect = document.getElementById("editAgencyPrefixSelect");
 const editCountySelect = document.getElementById("editCountySelect");
 const editBehaviorSelect = document.getElementById("editBehaviorSelect");
+
+// Global admin flag for JS logic
+const IS_GLOBAL_ADMIN = <%= isGlobalAdmin ? 'true' : 'false' %>;
 
 let groupsCache = [];
 let agenciesCache = [];
@@ -469,7 +470,7 @@ function isGroupEditable(name){
   const dashIdx = n.indexOf("-");
   if (dashIdx <= 0) return false;
 
-  // 🔧 NEW: trim, so "CPD " becomes "CPD"
+  // trim, so "CPD " becomes "CPD"
   const prefix = n.slice(0, dashIdx).trim().toUpperCase();
 
   // Agency-specific groups: editable only if the prefix matches one of the
@@ -661,9 +662,7 @@ createBtn.onclick = async () => {
   await loadGroups();
 };
 
-// ---- existing code below updated ----
-
-// Edit Group modal
+// ---- Edit Group modal ----
 const editGroupOverlay = document.getElementById("editGroupOverlay");
 const editGroupCloseBtn = document.getElementById("editGroupCloseBtn");
 const editGroupNameInput = document.getElementById("editGroupName");
@@ -674,6 +673,7 @@ const editGroupMsg = document.getElementById("editGroupMsg");
 let editGroupCurrentId = null;
 let editGroupCurrentName = "";
 let editGroupCurrentDescription = "";
+let editGroupOriginalType = null; // used to prevent agency->global for non-global admins
 
 // Rename (Edit Name)
 window.editGroupName = async (groupId) => {
@@ -694,10 +694,16 @@ window.editGroupName = async (groupId) => {
 
   // Break apart the current name into structured fields
   const parsed = parseGroupName(currentName);
+  editGroupOriginalType = parsed.type || "generic";
 
   // Type
   if (editType) {
-    editType.value = parsed.type || "generic";
+    // If not global admin and this is an agency group, force type=agency
+    if (!IS_GLOBAL_ADMIN && editGroupOriginalType === "agency") {
+      editType.value = "agency";
+    } else {
+      editType.value = parsed.type || "generic";
+    }
     if (editType.onchange) editType.onchange();
   }
 
@@ -1003,6 +1009,12 @@ editGroupSaveBtn.onclick = async () => {
 
   if (!baseName) {
     setMsg(editGroupMsg, "Group name cannot be empty.", false);
+    return;
+  }
+
+  // IMPORTANT: prevent agency admins from changing agency groups to global/county
+  if (!IS_GLOBAL_ADMIN && editGroupOriginalType === "agency" && type !== "agency") {
+    setMsg(editGroupMsg, "You are not allowed to change an agency group to a different type.", false);
     return;
   }
 
