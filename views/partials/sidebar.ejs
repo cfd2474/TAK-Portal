@@ -2,6 +2,14 @@
   const _isGlobalAdmin = typeof isGlobalAdmin !== "undefined" ? !!isGlobalAdmin : false;
   const _isAgencyAdmin = typeof isAgencyAdmin !== "undefined" ? !!isAgencyAdmin : false;
 
+  // Current user's display name from Authentik (via res.locals.authUser)
+  const _displayName =
+    typeof authUser !== "undefined" &&
+    authUser &&
+    authUser.displayName
+      ? authUser.displayName
+      : "";
+
   // Only Global Admins can see these
   const canSeeSettings = _isGlobalAdmin;
 %>
@@ -43,6 +51,12 @@
       <% } %>
 
       <small class="version-text">
+        <%= _displayName %>
+        <% if (_isGlobalAdmin) { %>
+          Global Admin
+        <% } else if (_isAgencyAdmin) { %>
+          Agency Admin
+        <% } %>
         Version <%= APP_VERSION %>
       </small>
     </div>
