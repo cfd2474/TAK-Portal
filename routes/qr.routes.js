@@ -126,19 +126,8 @@ async function addUsernameLabel(pngBuffer, username) {
     // Paste the QR code at the top
     combined.composite(qrImage, 0, 0);
 
-    // Center text under QR
-    combined.print(
-      font,
-      0,
-      qrHeight + 10,
-      {
-        text,
-        alignmentX: Jimp.HORIZONTAL_ALIGN_CENTER,
-        alignmentY: Jimp.VERTICAL_ALIGN_TOP,
-      },
-      qrWidth,
-      textBlockHeight
-    );
+    // Simple print signature: (font, x, y, text, maxWidth, maxHeight)
+    combined.print(font, 0, qrHeight + 10, text, qrWidth, textBlockHeight);
 
     return combined.getBufferAsync(Jimp.MIME_PNG);
   } catch (err) {
