@@ -3,6 +3,7 @@ const QRCode = require("qrcode");
 const path = require("path");
 const fs = require("fs");
 const { Jimp, loadFont } = require("jimp");
+const font = await loadFont(Jimp.FONT_SANS_64_BLACK);
 
 const api = require("./authentik");
 const groupsSvc = require("./groups.service");
@@ -243,7 +244,7 @@ async function addUsernameLabel(pngBuffer, username) {
     const qrImage = await Jimp.read(pngBuffer);
 
     // Bold-looking font
-    const font = await loadFont(Jimp.FONT_SANS_64_BLACK);
+    const font = await loadFont(SANS_64_BLACK);
 
     // FORCE ALL CAPS
     const text = (String(username || "").trim() || "USER").toUpperCase();
