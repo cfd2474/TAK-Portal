@@ -6,19 +6,9 @@ TAK Portal is a lightweight, modern user-management portal designed to integrate
 
 ---
 
-## Features
-
-- Authentik-driven identity and access management  
-- Automatic certificate handling with TAK Server  
-- Simple agency and user organization model  
-- Clean, intuitive web UI  
-- Packaged for Docker — fast to deploy and easy to maintain  
-
----
-
 ## Architecture Overview
 
-TAK Portal typically sits in front of:
+TAK Portal runs in Docker and is designed to interface with:
 
 - **Authentik** – Identity provider (users, groups, SSO)
 - **TAK Server** – Certificate generation and revocation
@@ -26,34 +16,29 @@ TAK Portal typically sits in front of:
 
 ## Prerequisites
 
-> [!NOTE]  
-> TAK Portal relies on your *existing* local:
->
-> - **Authentik Server** — used for identity and user management  
-> - **TAK Server** — used for certificate revocation  
->
-> TAK Portal will run without TAK Server connected, but certificates will **not** be revoked when users are disabled or deleted.
+TAK Portal will run without TAK Server connected, but certificates will **not** be revoked when users are disabled or deleted.
 
 Before installing, you should have:
 
-- A running **Authentik** instance  
+- Access to a Linux/Ubuntu machine running Docker
+- Access to an instance of **Authentik**
   - [Authentik Setup Guide](docs/authentik-setup.md)
   - [Authentik LDAP Setup](docs/authentik-ldap.md)
-- A running **TAK Server**  
+- Access to a **TAK Server**  
   - [Connecting TAK Server to Authentik LDAP](docs/authentik-tak-server.md)
-- (Optional) **Caddy** or another reverse proxy  
+- (Optional) **Caddy** or another reverse proxy service  
   - [Caddy + TLS setup](docs/caddy-setup.md)
 
 ---
 
 ## Quick Start
 
-On an Ubuntu machine, run:
+On your docker machine, run:
 
 ```bash
 git clone https://github.com/AdventureSeeker423/TAK-Portal
 cd TAK-Portal
-
+```
 
 ```
 ./takportal config
