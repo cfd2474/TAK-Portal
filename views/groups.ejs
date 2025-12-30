@@ -35,13 +35,13 @@
 
       <button class="btn" id="createBtn" type="button">Create New Group</button>
     </div>
-<div class="row" style="margin-top:8px;">
-  <input
-    id="groupDescription"
-    placeholder="One-line description for this group (optional)"
-    style="flex: 1; min-width: 360px;"
-  />
-</div>
+    <div class="row" style="margin-top:8px;">
+      <input
+        id="groupDescription"
+        placeholder="One-line description for this group (optional)"
+        style="flex: 1; min-width: 360px;"
+      />
+    </div>
     <div id="createMsg" class="msg"></div>
   </div>
 
@@ -77,12 +77,42 @@
       <div class="card" style="margin:0;">
         <h2 style="margin-top:0;">Edit Group</h2>
 
+        <!-- Row that mirrors Create Group -->
         <div class="row">
+          <!-- Type selector -->
+          <select id="editType">
+            <option value="agency">Agency-Specific Group</option>
+            <% if (isGlobalAdmin) { %>
+            <option value="county">County-Specific Group</option>
+            <option value="generic">Global Group</option>
+            <% } else { %>
+            <option value="generic">Global Group</option>
+            <% } %>
+          </select>
+
+          <!-- Agency dropdown -->
+          <select id="editAgencyPrefixSelect" style="display:none; width:260px;">
+            <option value="">Select Agency</option>
+          </select>
+
+          <!-- County dropdown -->
+          <select id="editCountySelect" style="display:none; width:260px;">
+            <option value="">Select County</option>
+          </select>
+
+          <!-- Base group name (no prefix, no _READ/_WRITE) -->
           <input
             id="editGroupName"
-            placeholder="Group Name"
-            style="min-width: 360px;"
+            placeholder="Group name"
+            style="min-width: 210px;"
           />
+
+          <!-- Behavior dropdown -->
+          <select id="editBehaviorSelect" style="min-width: 160px;">
+            <option value="both">BOTH - Send and Recieve (default)</option>
+            <option value="read">READ - Recieve Only</option>
+            <option value="write">WRITE - Send Only</option>
+          </select>
         </div>
 
         <div class="row" style="margin-top:8px;">
@@ -236,6 +266,12 @@ const userList = document.getElementById("userList");
 const userSelectAll = document.getElementById("userSelectAll");
 const userClearAll = document.getElementById("userClearAll");
 
+// Edit Group controls (mirror Create Group controls)
+const editType = document.getElementById("editType");
+const editAgencyPrefixSelect = document.getElementById("editAgencyPrefixSelect");
+const editCountySelect = document.getElementById("editCountySelect");
+const editBehaviorSelect = document.getElementById("editBehaviorSelect");
+
 let groupsCache = [];
 let agenciesCache = [];
 
@@ -282,6 +318,13 @@ async function loadAgencies(){
     agenciesCache = [];
     agencyPrefixSelect.innerHTML = `<option value="">No agencies loaded</option>`;
     countySelect.innerHTML = `<option value="">No counties loaded</option>`;
+    // Mirror into edit selects even in error case
+    if (editAgencyPrefixSelect) {
+      editAgencyPrefixSelect.innerHTML = agencyPrefixSelect.innerHTML;
+    }
+    if (editCountySelect) {
+      editCountySelect.innerHTML = countySelect.innerHTML;
+    }
     return;
   }
 
@@ -313,6 +356,14 @@ async function loadAgencies(){
     `<option value="">Select County</option>` +
     countyList.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join("");
 
+  // Mirror options into Edit modal dropdowns
+  if (editAgencyPrefixSelect) {
+    editAgencyPrefixSelect.innerHTML = agencyPrefixSelect.innerHTML;
+  }
+  if (editCountySelect) {
+    editCountySelect.innerHTML = countySelect.innerHTML;
+  }
+
   renderAgencyList();
 }
 
@@ -327,25 +378,106 @@ function agencyItems(){
     });
 }
 
-  function isGroupEditable(name){
-    <% if (isGlobalAdmin) { %>
-    // Global admins can always rename/delete groups (subject to action locks).
-    return true;
-    <% } %>
+// Parse a full group name into type/prefix/county/baseName/behavior
+function parseGroupName(fullName) {
+  let name = String(fullName || "").trim();
+  let behavior = "both";
 
-    const n = String(name || "");
-    const dashIdx = n.indexOf("-");
-    if (dashIdx <= 0) return false;
-
-    // 🔧 NEW: trim, so "CPD " becomes "CPD"
-    const prefix = n.slice(0, dashIdx).trim().toUpperCase();
-
-    // Agency-specific groups: editable only if the prefix matches one of the
-    // current user's agency groupPrefixes (from agenciesCache).
-    return agenciesCache.some(a =>
-      String(a.groupPrefix || "").trim().toUpperCase() === prefix
-    );
+  // Strip behavior suffix first
+  if (name.endsWith("_READ")) {
+    behavior = "read";
+    name = name.slice(0, -5);
+  } else if (name.endsWith("_WRITE")) {
+    behavior = "write";
+    name = name.slice(0, -6);
   }
+
+  let type = "generic";
+  let agencyPrefix = "";
+  let county = "";
+  let baseName = name;
+
+  // Try to split on " - "
+  const dashIdx = name.indexOf(" - ");
+  if (dashIdx > 0) {
+    const left = name.slice(0, dashIdx).trim();
+    const right = name.slice(dashIdx + 3).trim();
+    const leftUpper = left.toUpperCase();
+
+    // Check for agency prefix
+    const agencyMatch = (agenciesCache || []).find(a =>
+      String(a.groupPrefix || "").trim().toUpperCase() === leftUpper
+    );
+
+    if (agencyMatch) {
+      type = "agency";
+      agencyPrefix = leftUpper;
+      baseName = right || "";
+    } else {
+      // Try County (compare uppercase)
+      const countySet = new Set(
+        (agenciesCache || [])
+          .map(a => String(a.county || "").trim())
+          .filter(Boolean)
+          .map(c => c.toUpperCase())
+      );
+      if (countySet.has(leftUpper)) {
+        type = "county";
+        county = left; // keep original case for the dropdown
+        baseName = right || "";
+      } else {
+        // Fallback: treat everything as base name
+        baseName = name;
+      }
+    }
+  } else {
+    baseName = name;
+  }
+
+  return { type, agencyPrefix, county, baseName, behavior };
+}
+
+// Build a full group name from broken-out fields
+function buildGroupNameFromParts({ type, baseName, behavior, prefix, county }) {
+  let name = String(baseName || "").trim();
+  if (!name) return "";
+
+  const b = String(behavior || "both").toLowerCase();
+  if (b === "read") name += "_READ";
+  else if (b === "write") name += "_WRITE";
+
+  if (type === "agency") {
+    const p = String(prefix || "").trim().toUpperCase();
+    if (!p) return "";
+    name = `${p} - ${name}`;
+  } else if (type === "county") {
+    const c = String(county || "").trim();
+    if (!c) return "";
+    name = `${c.toUpperCase()} - ${name}`;
+  }
+
+  return name;
+}
+
+function isGroupEditable(name){
+  <% if (isGlobalAdmin) { %>
+  // Global admins can always rename/delete groups (subject to action locks).
+  return true;
+  <% } %>
+
+  const n = String(name || "");
+  const dashIdx = n.indexOf("-");
+  if (dashIdx <= 0) return false;
+
+  // 🔧 NEW: trim, so "CPD " becomes "CPD"
+  const prefix = n.slice(0, dashIdx).trim().toUpperCase();
+
+  // Agency-specific groups: editable only if the prefix matches one of the
+  // current user's agency groupPrefixes (from agenciesCache).
+  return agenciesCache.some(a =>
+    String(a.groupPrefix || "").trim().toUpperCase() === prefix
+  );
+}
 
 function renderAgencyList(){
   const needle = String(agencySearch.value || "").trim().toLowerCase();
@@ -377,6 +509,22 @@ createType.onchange = () => {
   agencyPrefixSelect.style.display = isAgency ? "block" : "none";
   countySelect.style.display = isCounty ? "block" : "none";
 };
+
+// Show/hide edit agency / county selects based on type
+if (editType) {
+  editType.onchange = () => {
+    const v = editType.value;
+    const isAgency = v === "agency";
+    const isCounty = v === "county";
+
+    if (editAgencyPrefixSelect) {
+      editAgencyPrefixSelect.style.display = isAgency ? "block" : "none";
+    }
+    if (editCountySelect) {
+      editCountySelect.style.display = isCounty ? "block" : "none";
+    }
+  };
+}
 
 function renderGroups(){
   const needle = String(filter.value || "").trim().toLowerCase();
@@ -463,42 +611,42 @@ createBtn.onclick = async () => {
   }
   // type === "generic" just uses the base name + behavior suffix
 
-if (!confirm(`Create group "${name}"?`)) return;
+  if (!confirm(`Create group "${name}"?`)) return;
 
-// Derive group type metadata for auditing
-let groupType = "Global";
-let groupTypeDetail = null;
+  // Derive group type metadata for auditing
+  let groupType = "Global";
+  let groupTypeDetail = null;
 
-if (type === "agency") {
-  groupType = "Agency";
-  const prefix = String(agencyPrefixSelect.value || "").trim().toUpperCase();
-  const agencyObj = (agenciesCache || []).find(a => {
-    const p = String(a.groupPrefix || "").trim().toUpperCase();
-    return p === prefix;
+  if (type === "agency") {
+    groupType = "Agency";
+    const prefix = String(agencyPrefixSelect.value || "").trim().toUpperCase();
+    const agencyObj = (agenciesCache || []).find(a => {
+      const p = String(a.groupPrefix || "").trim().toUpperCase();
+      return p === prefix;
+    });
+    if (agencyObj && agencyObj.name) {
+      groupTypeDetail = String(agencyObj.name);
+    } else if (prefix) {
+      groupTypeDetail = prefix;
+    }
+  } else if (type === "county") {
+    groupType = "County";
+    const county = String(countySelect.value || "").trim();
+    if (county) {
+      groupTypeDetail = county;
+    }
+  }
+
+  const res = await fetch("/api/groups", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      name,
+      description: String(groupDescription.value || "").trim() || null,
+      groupType,
+      groupTypeDetail,
+    })
   });
-  if (agencyObj && agencyObj.name) {
-    groupTypeDetail = String(agencyObj.name);
-  } else if (prefix) {
-    groupTypeDetail = prefix;
-  }
-} else if (type === "county") {
-  groupType = "County";
-  const county = String(countySelect.value || "").trim();
-  if (county) {
-    groupTypeDetail = county;
-  }
-}
-
-const res = await fetch("/api/groups", {
-  method: "POST",
-  headers: {"Content-Type":"application/json"},
-  body: JSON.stringify({
-    name,
-    description: String(groupDescription.value || "").trim() || null,
-    groupType,
-    groupTypeDetail,
-  })
-});
 
   const out = await res.json();
   if(!res.ok){
@@ -513,7 +661,19 @@ const res = await fetch("/api/groups", {
   await loadGroups();
 };
 
-// ---- existing code below unchanged ----
+// ---- existing code below updated ----
+
+// Edit Group modal
+const editGroupOverlay = document.getElementById("editGroupOverlay");
+const editGroupCloseBtn = document.getElementById("editGroupCloseBtn");
+const editGroupNameInput = document.getElementById("editGroupName");
+const editGroupDescriptionInput = document.getElementById("editGroupDescription");
+const editGroupSaveBtn = document.getElementById("editGroupSaveBtn");
+const editGroupMsg = document.getElementById("editGroupMsg");
+
+let editGroupCurrentId = null;
+let editGroupCurrentName = "";
+let editGroupCurrentDescription = "";
 
 // Rename (Edit Name)
 window.editGroupName = async (groupId) => {
@@ -532,7 +692,32 @@ window.editGroupName = async (groupId) => {
   editGroupCurrentName = currentName;
   editGroupCurrentDescription = currentDescription;
 
-  editGroupNameInput.value = currentName;
+  // Break apart the current name into structured fields
+  const parsed = parseGroupName(currentName);
+
+  // Type
+  if (editType) {
+    editType.value = parsed.type || "generic";
+    if (editType.onchange) editType.onchange();
+  }
+
+  // Agency / county
+  if (editAgencyPrefixSelect) {
+    editAgencyPrefixSelect.value = parsed.agencyPrefix || "";
+  }
+  if (editCountySelect) {
+    editCountySelect.value = parsed.county || "";
+  }
+
+  // Base name (no prefix, no behavior suffix)
+  editGroupNameInput.value = parsed.baseName || "";
+
+  // Behavior dropdown
+  if (editBehaviorSelect) {
+    editBehaviorSelect.value = parsed.behavior || "both";
+  }
+
+  // Description
   editGroupDescriptionInput.value = currentDescription;
 
   setMsg(editGroupMsg, "");
@@ -601,7 +786,6 @@ window.deleteGroup = async (groupId) => {
   await loadGroups();
 };
 
-
 function showMassModal(show){
   massOverlay.style.display = show ? "flex" : "none";
   document.body.classList.toggle("noScroll", !!show);
@@ -626,18 +810,6 @@ function updateMassPanes(){
   massUsersPane.style.display = mode === "users" ? "block" : "none";
   setMsg(massMsg, "");
 }
-
-// Edit Group modal
-const editGroupOverlay = document.getElementById("editGroupOverlay");
-const editGroupCloseBtn = document.getElementById("editGroupCloseBtn");
-const editGroupNameInput = document.getElementById("editGroupName");
-const editGroupDescriptionInput = document.getElementById("editGroupDescription");
-const editGroupSaveBtn = document.getElementById("editGroupSaveBtn");
-const editGroupMsg = document.getElementById("editGroupMsg");
-
-let editGroupCurrentId = null;
-let editGroupCurrentName = "";
-let editGroupCurrentDescription = "";
 
 function showEditGroupModal(show){
   editGroupOverlay.style.display = show ? "flex" : "none";
@@ -815,16 +987,51 @@ window.removeUserFromGroup = async (userPk) => {
 editGroupSaveBtn.onclick = async () => {
   setMsg(editGroupMsg, "");
 
-  const newName = String(editGroupNameInput.value || "").trim();
-  const newDescription = String(editGroupDescriptionInput.value || "").trim();
-
   if (!editGroupCurrentId) {
     setMsg(editGroupMsg, "No group selected.", false);
     return;
   }
 
-  if (!newName) {
+  const type = editType ? editType.value : "generic";
+  const baseName = String(editGroupNameInput.value || "").trim();
+  const behavior = editBehaviorSelect
+    ? String(editBehaviorSelect.value || "both").toLowerCase()
+    : "both";
+
+  let prefix = "";
+  let county = "";
+
+  if (!baseName) {
     setMsg(editGroupMsg, "Group name cannot be empty.", false);
+    return;
+  }
+
+  if (type === "agency") {
+    prefix = String(editAgencyPrefixSelect?.value || "").trim().toUpperCase();
+    if (!prefix) {
+      setMsg(editGroupMsg, "Select an agency prefix.", false);
+      return;
+    }
+  } else if (type === "county") {
+    county = String(editCountySelect?.value || "").trim();
+    if (!county) {
+      setMsg(editGroupMsg, "Select a county.", false);
+      return;
+    }
+  }
+
+  const newName = buildGroupNameFromParts({
+    type,
+    baseName,
+    behavior,
+    prefix,
+    county,
+  });
+
+  const newDescription = String(editGroupDescriptionInput.value || "").trim();
+
+  if (!newName) {
+    setMsg(editGroupMsg, "Invalid group name.", false);
     return;
   }
 
@@ -1114,6 +1321,7 @@ if (reloadBtn) reloadBtn.onclick = loadGroups;
 
 (async () => {
   createType.onchange();
+  if (editType) editType.onchange();
   await loadAgencies();
   await loadGroups();
 })();
