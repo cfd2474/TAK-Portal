@@ -113,8 +113,8 @@
       <details class="settings-section">
         <summary class="settings-summary">
           <h2>Authentik</h2>
-          <span class="settings-summary-hint">Click to expand</span>
         </summary>
+
         <div class="settings-body">
           <div class="grid2">
             <% renderField(
@@ -157,8 +157,8 @@
       <details class="settings-section">
         <summary class="settings-summary">
           <h2>TAK Server</h2>
-          <span class="settings-summary-hint">Click to expand</span>
         </summary>
+
         <div class="settings-body">
           <div class="grid2">
             <% renderField(
@@ -167,7 +167,6 @@
               "Full Marti URL, e.g. https://tak.example.gov:8443/Marti."
             ); %>
 
-            <!-- Client P12 Upload -->
             <label class="settings-field">
               <span class="settings-label">Client P12 Certificate</span>
               <input
@@ -194,7 +193,6 @@
               "Passphrase for the client .p12 file (may be empty)."
             ); %>
 
-            <!-- TAK CA Upload -->
             <label class="settings-field">
               <span class="settings-label">TAK CA Certificate</span>
               <input
@@ -240,8 +238,8 @@
       <details class="settings-section">
         <summary class="settings-summary">
           <h2>Portal Access Control</h2>
-          <span class="settings-summary-hint">Click to expand</span>
         </summary>
+
         <div class="settings-body">
           <div class="grid2">
             <% renderField(
@@ -277,8 +275,8 @@
       <details class="settings-section">
         <summary class="settings-summary">
           <h2>Email</h2>
-          <span class="settings-summary-hint">Click to expand</span>
         </summary>
+
         <div class="settings-body">
           <div class="grid2">
             <% renderField(
@@ -346,11 +344,10 @@
       <details class="settings-section">
         <summary class="settings-summary">
           <h2>Appearance</h2>
-          <span class="settings-summary-hint">Click to expand</span>
         </summary>
+
         <div class="settings-body">
           <div class="grid2">
-            <!-- Logo upload -->
             <label class="settings-field">
               <span class="settings-label">Portal Logo</span>
               <input
@@ -370,7 +367,6 @@
               <% } %>
             </label>
 
-            <!-- Theme selection -->
             <label class="settings-field">
               <span class="settings-label">Color Theme</span>
               <% const currentTheme = settings.BRAND_THEME || "dark-blue"; %>
@@ -399,8 +395,8 @@
       <details class="settings-section">
         <summary class="settings-summary">
           <h2>Dashboard Bookmarks</h2>
-          <span class="settings-summary-hint">Click to expand</span>
         </summary>
+
         <div class="settings-body">
           <p>These appear on the dashboard as quick links.</p>
           <div class="grid2">
@@ -427,8 +423,8 @@
         <details class="settings-section">
           <summary class="settings-summary">
             <h2>Other Settings</h2>
-            <span class="settings-summary-hint">Click to expand</span>
           </summary>
+
           <div class="settings-body">
             <div class="grid2">
               <% otherKeys.forEach(function(key) { %>
