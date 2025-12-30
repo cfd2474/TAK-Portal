@@ -67,7 +67,8 @@ router.post("/", async (req, res) => {
       }
     }
 
-    const out = await groups.createGroup(rawName);
+    const description = String(req.body?.description || "").trim() || null;
+    const out = await groups.createGroup(rawName, { description });
     res.json({ success: true, group: out });
   } catch (err) {
     res.status(400).json({ error: toErrorPayload(err) });

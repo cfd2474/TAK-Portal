@@ -324,7 +324,15 @@ async function createUser(
   },
   opts = {}
 ) {
-  const { skipExistenceCheck = false } = opts;
+  const {
+    skipExistenceCheck = false,
+    createdBy = null,
+    creationMethod = "manual",
+  } = opts;
+
+  const createdAt = new Date().toISOString();
+  let templateNameUsed = null;
+
   const badgeErr = validateBadgeNumber(badge);
   if (badgeErr) throw new Error(badgeErr);
 
@@ -367,6 +375,7 @@ async function createUser(
 
   // Index 0 = Manual Group Selection
   if (Number.isInteger(tIdx) && tIdx === 0) {
+    templateNameUsed = "Manual Group Selection";
     const raw = Array.isArray(manualGroupIds) ? manualGroupIds : [];
 
     // Allow UI to send either PKs or names
@@ -397,7 +406,9 @@ async function createUser(
     const dynTemplates = getTemplatesForAgency(agency.suffix);
     const selectedTemplate = dynTemplates[tIdx - 1]; // subtract 1 because index 0 is manual
 
-    if (selectedTemplate) {
+if (selectedTemplate) {
+  templateNameUsed = String(selectedTemplate.name || "") || null;
+
       selectedGroups = (selectedTemplate.groups || [])
         .map(n =>
           byNameLower.get(String(n).trim().toLowerCase())
@@ -412,18 +423,37 @@ async function createUser(
   ];
 
   // Build payload
+  const attributes = {
+    agency: agency.suffix,
+    agency_name: agency.name,
+  };
+
+  // who created the user
+  if (createdBy && createdBy.username) {
+    attributes.portal_created_by_username = String(createdBy.username);
+  }
+  if (createdBy && createdBy.displayName) {
+    attributes.portal_created_by_display_name = String(createdBy.displayName);
+  }
+
+  // when / how / from which template
+  attributes.portal_created_at = createdAt;
+  if (templateNameUsed) {
+    attributes.portal_created_template = templateNameUsed;
+  }
+  if (creationMethod) {
+    attributes.portal_created_method = String(creationMethod);
+  }
+
   const payload = {
     username,
     email: mail,
     name,
     is_active: true,
-    attributes: {
-      agency: agency.suffix,
-      agency_name: agency.name,
-    },
+    attributes,
   };
 
-  // Ensure created users land in the correct "folder" (path)
+// Ensure created users land in the correct "folder" (path)
   const folderRaw = String(getString("AUTHENTIK_USER_PATH", "")).trim();
   if (folderRaw) payload.path = normalizePath(folderRaw);
 
@@ -476,6 +506,9 @@ async function importUsersFromCsvBuffer(buffer, opts = {}) {
   const allowedAgencySuffixes = Array.isArray(opts.allowedAgencySuffixes)
     ? opts.allowedAgencySuffixes.map((s) => String(s || "").trim().toLowerCase())
     : null;
+
+const createdBy = opts.createdBy || null;
+const creationMethod = opts.creationMethod || "csv";
 
   // Throttle progress callbacks to avoid taxing the system.
   let _lastProgressAt = 0;
@@ -723,7 +756,11 @@ async function importUsersFromCsvBuffer(buffer, opts = {}) {
           manualGroupIds: [],
           allGroups,
         },
-        { skipExistenceCheck: true }
+        {
+          skipExistenceCheck: true,
+          createdBy,
+          creationMethod,
+        }
       );
 
       const createdUsername =

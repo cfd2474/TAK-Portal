@@ -70,8 +70,12 @@ router.post("/", async (req, res) => {
     if (payload.agencySuffix && !accessSvc.isSuffixAllowed(authUser, payload.agencySuffix)) {
       return res.status(403).json({ error: "You do not have access to that agency." });
     }
+      : null;
 
-    const result = await users.createUser(payload);
+    const result = await users.createUser(payload, {
+      createdBy,
+      creationMethod: "manual",
+    });
     res.json({ success: true, ...result });
   } catch (err) {
     res.status(400).json({ error: toErrorPayload(err) });
@@ -88,8 +92,19 @@ router.post("/import-csv", upload.single("file"), async (req, res) => {
     const access = accessSvc.getAgencyAccess(authUser);
     const allowedAgencySuffixes = access.isGlobalAdmin ? null : (access.allowedAgencySuffixes || []);
 
+    const createdBy = authUser
+      ? {
+          username: authUser.username,
+          displayName: authUser.username,
+        }
+      : null;
+
     const startedAt = Date.now();
-    const result = await users.importUsersFromCsvBuffer(req.file.buffer, { allowedAgencySuffixes });
+    const result = await users.importUsersFromCsvBuffer(req.file.buffer, {
+      allowedAgencySuffixes,
+      createdBy,
+      creationMethod: "csv",
+    });
     const durationMs = Date.now() - startedAt;
     res.json({
       success: true,
@@ -112,6 +127,14 @@ router.post("/import-csv/start", upload.single("file"), async (req, res) => {
     const authUser = req.authentikUser || null;
     const access = accessSvc.getAgencyAccess(authUser);
     const allowedAgencySuffixes = access.isGlobalAdmin ? null : (access.allowedAgencySuffixes || []);
+
+    const createdBy = authUser
+      ? {
+          username: authUser.username,
+          displayName: authUser.username,
+        }
+      : null;
+
 
     const jobId = newJobId();
     const startedAt = Date.now();
@@ -137,6 +160,9 @@ router.post("/import-csv/start", upload.single("file"), async (req, res) => {
     (async () => {
       try {
         const result = await users.importUsersFromCsvBuffer(req.file.buffer, {
+          allowedAgencySuffixes,
+          createdBy,
+          creationMethod: "csv",
           onProgress: (p) => {
             const job = importJobs.get(jobId);
             if (!job || job.status !== "running") return;

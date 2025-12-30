@@ -35,6 +35,13 @@
 
       <button class="btn" id="createBtn" type="button">Create New Group</button>
     </div>
+<div class="row" style="margin-top:8px;">
+  <input
+    id="groupDescription"
+    placeholder="One-line description for this group (optional)"
+    style="flex: 1; min-width: 360px;"
+  />
+</div>
     <div id="createMsg" class="msg"></div>
   </div>
 
@@ -154,6 +161,7 @@ const createType = document.getElementById("createType");
 const agencyPrefixSelect = document.getElementById("agencyPrefixSelect");
 const countySelect = document.getElementById("countySelect");
 const groupName = document.getElementById("groupName");
+const groupDescription = document.getElementById("groupDescription");
 
 // Behavior dropdown
 const behaviorSelect = document.getElementById("behaviorSelect");
@@ -343,10 +351,12 @@ function renderGroups(){
   tbody.innerHTML = filtered.map(g => {
     const locked = groupActionsLocked(g.name);
     const editable = !locked && isGroupEditable(g.name);
+    const desc = String(g?.attributes?.description || "").trim();
     return `
     <tr>
       <td style="max-width:320px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
         ${esc(g.name)}
+        ${desc ? `<div class="muted" style="font-size: 11px; margin-top:2px; white-space:normal;">${esc(desc)}</div>` : ""}
       </td>
       <td style="min-width:460px;">
         <div class="row" style="gap:8px; flex-wrap:wrap; align-items:center;">
@@ -422,7 +432,10 @@ createBtn.onclick = async () => {
   const res = await fetch("/api/groups", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ name })
+    body: JSON.stringify({
+      name,
+      description: String(groupDescription.value || "").trim() || null,
+    })
   });
 
   const out = await res.json();
@@ -433,6 +446,7 @@ createBtn.onclick = async () => {
 
   setMsg(createMsg, `Created "${name}"`, true);
   groupName.value = "";
+  groupDescription.value = "";
   behaviorSelect.value = "both";
   await loadGroups();
 };

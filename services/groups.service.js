@@ -140,10 +140,20 @@ async function getAllUsersRaw() {
 }
 
 // ---------------- Group CRUD ----------------
-async function createGroup(name) {
+async function createGroup(name, opts = {}) {
   const n = String(name || "").trim();
   if (!n) throw new Error("Group name is required");
-  const res = await api.post("/core/groups/", { name: n });
+
+  const description = String(opts.description || "").trim();
+  const payload = { name: n };
+
+  if (description) {
+    payload.attributes = {
+      description,
+    };
+  }
+
+  const res = await api.post("/core/groups/", payload);
   invalidateGroupsCache();
   return res.data;
 }
