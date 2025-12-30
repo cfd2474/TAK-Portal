@@ -86,22 +86,36 @@ router.post("/", async (req, res) => {
 
     const createdAt = new Date().toISOString();
 
-    const attributes = {
-      created_at: createdAt,
-      created_type: groupType,
-      created_type_detail: groupTypeDetail,
-    };
+    // Build attributes in deterministic order
+// 1) created_at
+// 2) description
+// 3) created_type
+// 4) created_type_detail
+// 5) created_by_username
+// 6) created_by_display_name
 
-    if (description) {
-      attributes.description = description;
-    }
+const attributes = {};
 
-    if (createdBy) {
-      attributes.created_by_username = createdBy.username;
-      attributes.created_by_display_name = createdBy.displayName;
-    }
+// 1) created_at
+attributes.created_at = createdAt;
 
-    const out = await groups.createGroup(rawName, { attributes });
+// 2) description (if provided)
+if (description) {
+  attributes.description = description;
+}
+
+// 3) created_type
+attributes.created_type = groupType;
+
+// 4) created_type_detail
+attributes.created_type_detail = groupTypeDetail || null;
+
+// 5–6) created_by_*
+if (createdBy) {
+  attributes.created_by_username = createdBy.username;
+  attributes.created_by_display_name = createdBy.displayName;
+}
+const out = await groups.createGroup(rawName, { attributes });
     res.json({ success: true, group: out });
   } catch (err) {
     res.status(400).json({ error: toErrorPayload(err) });
