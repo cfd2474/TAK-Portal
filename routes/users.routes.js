@@ -74,7 +74,7 @@ router.post("/", async (req, res) => {
     const createdBy = authUser
       ? {
           username: authUser.username,
-          displayName: authUser.username,
+          displayName: authUser.displayName || authUser.username,
         }
       : null;
 
@@ -101,7 +101,7 @@ router.post("/import-csv", upload.single("file"), async (req, res) => {
     const createdBy = authUser
       ? {
           username: authUser.username,
-          displayName: authUser.username,
+          displayName: authUser.displayName || authUser.username,
         }
       : null;
 
@@ -137,7 +137,7 @@ router.post("/import-csv/start", upload.single("file"), async (req, res) => {
     const createdBy = authUser
       ? {
           username: authUser.username,
-          displayName: authUser.username,
+          displayName: authUser.displayName || authUser.username,
         }
       : null;
 

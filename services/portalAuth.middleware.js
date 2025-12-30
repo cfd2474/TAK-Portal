@@ -102,8 +102,14 @@ function portalAuthMiddleware(req, res, next) {
     });
   }
 
+const displayNameHeader =
+  req.headers["x-authentik-name"] || req.headers["x-authentik-display-name"];
+const displayName =
+  (displayNameHeader && String(displayNameHeader).trim()) || username;
+
   const authUser = {
     username,
+    displayName,
     groups: userGroups,
     isGlobalAdmin,
     isAgencyAdmin,
