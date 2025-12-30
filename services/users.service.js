@@ -430,19 +430,19 @@ if (selectedTemplate) {
 
   // who created the user
   if (createdBy && createdBy.username) {
-    attributes.portal_created_by_username = String(createdBy.username);
+    attributes.created_by_username = String(createdBy.username);
   }
   if (createdBy && createdBy.displayName) {
-    attributes.portal_created_by_display_name = String(createdBy.displayName);
+    attributes.created_by_display_name = String(createdBy.displayName);
   }
 
   // when / how / from which template
-  attributes.portal_created_at = createdAt;
+  attributes.created_at = createdAt;
   if (templateNameUsed) {
-    attributes.portal_created_template = templateNameUsed;
+    attributes.created_template = templateNameUsed;
   }
   if (creationMethod) {
-    attributes.portal_created_method = String(creationMethod);
+    attributes.created_method = String(creationMethod);
   }
 
   const payload = {
