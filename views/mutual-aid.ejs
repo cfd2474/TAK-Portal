@@ -14,8 +14,8 @@
         <option value="EVENT">EVENT</option>
       </select>
       </label>
-      <label>Name
-      <input id="maTitle" placeholder="Name (ex. County Fair, Search, etc...)" style="min-width: 360px;" /></label>
+      <label>Title
+      <input id="maTitle" placeholder="Title (ex. County Fair, Search, etc...)" style="min-width: 360px;" /></label>
 
       <label id="maExpireWrap" style="display:flex; align-items:center; gap:8px;">
         <span>Expires</span>
@@ -34,7 +34,7 @@
       <button class="btn" id="maCreateBtn" type="button">Create</button></label>
     </div>
     <small>
-      This will create a group named <strong>MA - xxxx</strong> and a matching user with an auto-generated 18-character password.
+      This will create a group named <strong>MA - TITLE</strong> and a matching user with an auto-generated 18-character password.
     </small>
     <div id="maCreateMsg" class="msg"></div>
   </div>
@@ -50,7 +50,7 @@
       <thead>
         <tr>
           <th style="width: 100px;">Type</th>
-          <th style="width: 140px;">Name</th>
+          <th style="width: 140px;">Title</th>
           <th style="width: 380px;">Actions</th>
         </tr>
       </thead>
