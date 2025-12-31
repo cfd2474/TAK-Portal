@@ -4,7 +4,7 @@ Setting up a self-service password reset portal
 
 Written instructions can be found here, however a great Youtube video that details this process can also be found below.
 
-<iframe width="993" height="567" src="https://www.youtube.com/embed/NKJkYz0BIlA" title="Authentik - Password Recovery Flow Setup" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+[![Authentik Password Recovery Flow](https://img.youtube.com/vi/NKJkYz0BIlA/hqdefault.jpg)](https://www.youtube.com/watch?v=NKJkYz0BIlA)
 
 ---
 
