@@ -14,6 +14,8 @@ TAK Portal runs as a lightweight Docker container and is designed to interface w
 - [**TAK Server**](https://tak.gov/) – Situational Awareness Tool
 - [**Caddy**](https://caddyserver.com/) – Reverse Proxy
 
+---
+
 ## Prerequisites
 
 *TAK Portal will run without a TAK Server connected, but certificates will **not** be revoked when users are disabled or deleted.*
@@ -65,6 +67,7 @@ Start TAK Portal - This will install any dependencies and start the Docker conta
     &emsp; - Provide the webadmin password (default is usually atakatak)
 5. Scroll to the bottom and click *Save*.
 
+---
 
 ## Getting Started
 
@@ -72,7 +75,9 @@ Start TAK Portal - This will install any dependencies and start the Docker conta
 2. Navigate to `Agency Templates` and begin creating templates for your users (You may need to visit `Manage Groups` if there are no existing groups.)
 3. Navigate to `Create Users` and create your first user
 
-## Additional TAK Portal Commands
+---
+
+## Additional Commands
 
 Additional commands are included with TAK Portal to assist you in keeping your docker container running and more importantly ***up-to-date*** with the latest version.  We encourage you to check reguarlly for updates that may address bugs and add additional features.
 
@@ -87,6 +92,8 @@ To update TAK Portal while retaining your current settings and configuration:
 cd TAK-Portal
 ./takportal update
 ```
+
+---
 
 ## Additional Guides
 - [Authentik Password Reset / Self service](docs/authentik-password-portal.md)
