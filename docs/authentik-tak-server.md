@@ -2,3 +2,13 @@
 
 
 Details go here...
+
+Will add more details later, but here is the core config that works for me:
+
+```
+    <auth default="ldap" x509groups="true" x509groupsDefaultRDN="true" x509addAnonymous="true" x509useGroupCache="true" x509checkRevocation="true">
+        <ldap url="ldap://10.0.30.12" userstring="cn={username},ou=users,dc=takldap" updateinterval="60" groupprefix="" ldapSecurityType="simple" serviceAccountDN="cn=ldapservice,ou=users,dc=takldap" serviceAccountCredential="ldapservice" groupObjectClass="group" groupBaseRDN="ou=groups" x509groups="true"/>
+        <File location="UserAuthenticationFile.xml"/>
+    </auth>
+
+```
