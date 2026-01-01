@@ -5,7 +5,6 @@ const fs = require("fs");
 const multer = require("multer");
 const settingsSvc = require("./services/settings.service");
 const axios = require("axios");   
-const { spawn } = require("child_process");
 
 const { getString } = require("./services/env");
 const { URL } = require("url");
@@ -289,38 +288,6 @@ app.post(
     res.redirect("/settings");
   }
 );
-
-app.post("/admin/update", portalAuth, (req, res) => {
-  // Only allow Global Admins to trigger an update
-  if (!res.locals || !res.locals.isGlobalAdmin) {
-    return res.status(403).send("Forbidden");
-  }
-
-  // Run ./takportal update from the TAK-Portal folder
-  const scriptCwd = __dirname;         // TAK-Portal directory
-  const scriptCmd = "./takportal";     // script you already have in the repo
-
-  console.log("Starting takportal update from web UI...");
-
-  const child = spawn(scriptCmd, ["update"], {
-    cwd: scriptCwd,
-    shell: true,       // allows ./takportal to be resolved by the shell
-    stdio: "inherit",  // pipe logs to the container/host logs
-  });
-
-  child.on("close", (code) => {
-    if (code === 0) {
-      console.log("takportal update completed successfully.");
-    } else {
-      console.error("takportal update failed with code", code);
-    }
-  });
-
-  // Don’t keep the user hanging – redirect back to dashboard
-  // (the update will continue in the background)
-  res.redirect("/");
-});
-
 
 // Export a zip of the data folder
 app.get("/settings/export-data", requireGlobalAdmin, (req, res) => {
