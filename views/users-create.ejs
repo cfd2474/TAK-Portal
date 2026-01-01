@@ -214,6 +214,19 @@ async function loadMeta() {
   }
 }
 
+// When agency changes, reload templates for that agency
+agencySelect.addEventListener("change", () => {
+  // Optional: clear manual group picks when switching agencies
+  pickedManualGroupIds.clear();
+  groupFilter.value = "";
+  renderGroupsBox();
+
+  loadMeta().catch((err) => {
+    console.error(err);
+    setMsg(err.message || "Failed to load templates", false);
+  });
+});
+
 
 
 // -------------------- Manual Groups --------------------
