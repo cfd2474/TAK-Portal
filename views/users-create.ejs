@@ -170,8 +170,16 @@ async function loadMeta() {
   const meta = await res.json();
   if (!res.ok) throw new Error(meta.error || "Failed to load templates");
 
-  const all = Array.isArray(meta.templates) ? meta.templates : [];
+  // NEW: normalize templates so we always have t.name
+  const raw = Array.isArray(meta.templates) ? meta.templates : [];
 
+  const all = raw.map((t, idx) => {
+    // Prefer existing name, otherwise use label, otherwise fallback
+    const name = t.name || t.label || `Template ${idx + 1}`;
+    return { ...t, name };
+  });
+
+  // Keep the first one as "manual" if it looks like it
   const manual =
     all[0] && String(all[0].name || "").toLowerCase().includes("manual")
       ? all[0]
@@ -184,6 +192,7 @@ async function loadMeta() {
 
   templatesCache = [manual, ...rest];
 
+  // Index in the <select> is still the templateIndex used elsewhere
   templateSelect.innerHTML = templatesCache
     .map((t, i) => `<option value="${i}">${esc(t.name)}</option>`)
     .join("");
@@ -200,9 +209,6 @@ async function loadMeta() {
   templateSelect.onchange();
 }
 
-agencySelect.onchange = async () => {
-  await loadMeta();
-};
 
 // -------------------- Manual Groups --------------------
 function renderGroupsBox() {
