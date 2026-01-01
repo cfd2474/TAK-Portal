@@ -80,14 +80,19 @@ cd ~/TAK-Portal && ./takportal start
 
 Additional commands are included with TAK Portal to assist you in keeping your docker container running and more importantly ***up-to-date*** with the latest version.  We encourage you to check reguarlly for updates that may address bugs and add additional features.
 
-To see all avaliable commands:
-```
-cd ~/TAK-Portal && ./takportal help
-```
-
 To update TAK Portal while retaining your current settings and configuration:
 ```
 cd ~/TAK-Portal && ./takportal update
+```
+
+To view TAK Portal Logs:
+```
+cd ~/TAK-Portal && ./takportal logs
+```
+
+To see all avaliable commands:
+```
+cd ~/TAK-Portal && ./takportal help
 ```
 
 ---
