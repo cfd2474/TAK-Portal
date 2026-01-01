@@ -4,6 +4,8 @@ const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
 const settingsSvc = require("./services/settings.service");
+const axios = require("axios");   
+const { spawn } = require("child_process");
 
 const { getString } = require("./services/env");
 const { URL } = require("url");
@@ -15,6 +17,54 @@ const app = express();
 
 // Expose version to all EJS views (e.g. sidebar)
 app.locals.APP_VERSION = pkg.version || "dev";
+app.locals.APP_LATEST_VERSION = pkg.version || "dev";
+app.locals.APP_UPDATE_AVAILABLE = false;
+
+// Simple semver compare: returns true if `latest` > `current`
+function isNewerVersion(latest, current) {
+  const toParts = (v) => String(v || "0.0.0")
+    .split(".")
+    .map((n) => parseInt(n, 10) || 0);
+
+  const [la, lb, lc] = toParts(latest);
+  const [ca, cb, cc] = toParts(current);
+
+  if (la !== ca) return la > ca;
+  if (lb !== cb) return lb > cb;
+  return lc > cc;
+}
+
+async function checkForUpdates() {
+  try {
+    // You can move this to an env var if you like
+    const repo = process.env.GITHUB_REPO || "AdventureSeeker423/TAK-Portal";
+
+    // Grab package.json from main and read its version
+    const url = `https://raw.githubusercontent.com/${repo}/main/package.json`;
+    const response = await axios.get(url, { timeout: 5000 });
+
+    const data =
+      typeof response.data === "string" ? JSON.parse(response.data) : response.data;
+
+    const latestVersion = data.version || app.locals.APP_VERSION;
+
+    app.locals.APP_LATEST_VERSION = latestVersion;
+    app.locals.APP_UPDATE_AVAILABLE = isNewerVersion(
+      latestVersion,
+      app.locals.APP_VERSION
+    );
+
+    console.log(
+      `[update-check] current=${app.locals.APP_VERSION} latest=${latestVersion} update=${app.locals.APP_UPDATE_AVAILABLE}`
+    );
+  } catch (err) {
+    console.warn("Failed to check for updates:", err.message || err);
+  }
+}
+
+// Run once on startup, then periodically (e.g. every 1 hour)
+checkForUpdates();
+setInterval(checkForUpdates, 60 * 60 * 1000);
 
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
@@ -74,7 +124,6 @@ const uploadStorage = multer.diskStorage({
 const upload = multer({ storage: uploadStorage });
 
 // Expose settings + theme/logo to all views
-// Expose settings + theme/logo to all views
 app.use((req, res, next) => {
   try {
     const settings = settingsSvc.getSettings();
@@ -93,7 +142,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// >>> NEW: enforce optional Authentik/group access control <<<
+// >>> Enforce optional Authentik/group access control <<<
 app.use(portalAuth);
 
 // Helper: only allow Global Admins to access certain routes (e.g. settings, templates)
@@ -240,6 +289,38 @@ app.post(
     res.redirect("/settings");
   }
 );
+
+app.post("/admin/update", portalAuth, (req, res) => {
+  // Only allow Global Admins to trigger an update
+  if (!res.locals || !res.locals.isGlobalAdmin) {
+    return res.status(403).send("Forbidden");
+  }
+
+  // Run ./takportal update from the TAK-Portal folder
+  const scriptCwd = __dirname;         // TAK-Portal directory
+  const scriptCmd = "./takportal";     // script you already have in the repo
+
+  console.log("Starting takportal update from web UI...");
+
+  const child = spawn(scriptCmd, ["update"], {
+    cwd: scriptCwd,
+    shell: true,       // allows ./takportal to be resolved by the shell
+    stdio: "inherit",  // pipe logs to the container/host logs
+  });
+
+  child.on("close", (code) => {
+    if (code === 0) {
+      console.log("takportal update completed successfully.");
+    } else {
+      console.error("takportal update failed with code", code);
+    }
+  });
+
+  // Don’t keep the user hanging – redirect back to dashboard
+  // (the update will continue in the background)
+  res.redirect("/");
+});
+
 
 // Export a zip of the data folder
 app.get("/settings/export-data", requireGlobalAdmin, (req, res) => {

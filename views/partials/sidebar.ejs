@@ -59,6 +59,19 @@
         <% } %> <br>
         Version <%= APP_VERSION %>
       </small>
+
+      <% // Show the update pill only for Global Admins and only if there's a newer version %>
+      <% if (_isGlobalAdmin && typeof APP_UPDATE_AVAILABLE !== "undefined" && APP_UPDATE_AVAILABLE) { %>
+        <form method="POST" action="/admin/update" class="update-available-form">
+          <button type="submit" class="update-available-pill">
+            ⬆️ Update Available
+            <% if (typeof APP_LATEST_VERSION !== "undefined" && APP_LATEST_VERSION) { %>
+              &nbsp;(v<%= APP_LATEST_VERSION %>)
+            <% } %>
+          </button>
+        </form>
+      <% } %>
     </div>
   </nav>
 </aside>
+
