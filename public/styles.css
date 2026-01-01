@@ -173,6 +173,62 @@ body {
     opacity: 0.9;
 }
 
+.update-modal {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.update-modal.is-open {
+    display: flex;
+}
+
+.update-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+}
+
+.update-modal-dialog {
+    position: relative;
+    max-width: 420px;
+    width: 90%;
+    background: #111827;
+    border-radius: 12px;
+    padding: 16px 18px 14px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.8);
+    z-index: 1;
+    font-size: 13px;
+}
+
+.update-modal-title {
+    margin: 0 0 8px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.update-modal-dialog pre {
+    margin: 6px 0 10px;
+    padding: 6px 8px;
+    background: rgba(15, 23, 42, 0.9);
+    border-radius: 6px;
+    font-size: 11px;
+    overflow-x: auto;
+}
+
+.update-modal-close-btn {
+    margin-top: 4px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: none;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+
   
 
 .brand {
