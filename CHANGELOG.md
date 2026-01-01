@@ -10,7 +10,7 @@ All notable changes to this project will be documented in this file.
 
 ## Version History
 
-###v1.1.13
-✏️ `Documentation` - Addition of Change Log file
-🎉 `New Feature` - Adds Update Avaliable pill in sidebar
-🐛 `Bug Fix` - Fixes issue with Templates not appearing in Manage Users
+### v1.1.13 - 1/1/26
+✏️ `Documentation` - Addition of Change Log file <br>
+🎉 `New Feature` - Adds Update Avaliable pill in sidebar<br>
+🐛 `Bug Fix` - Fixes issue with Templates not appearing in Manage Users<br>
