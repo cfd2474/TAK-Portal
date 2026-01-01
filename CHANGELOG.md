@@ -3,12 +3,16 @@
 All notable changes to this project will be documented in this file.
 
 <!-- 🎉 `New Feature` - -->
-<!-- 🚀 `Improvement` - -->
+<!-- ✨ `Improvement` - -->
 <!-- ✏️ `Documentation` - -->
 <!-- 🐛 `Bug Fix` - -->
 <!-- ⬆️ `Dependency` - -->
 
 ## Version History
+
+### v1.1.14 - 1/1/26
+✨ `Improvement` - All pages now 100% Mobile Friendly <br>
+🐛 `Bug Fix` - Fixes issue with Templates not appearing for Creating Users
 
 ### v1.1.13 - 1/1/26
 ✏️ `Documentation` - Addition of Change Log file <br>
