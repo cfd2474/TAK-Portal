@@ -36,7 +36,7 @@ Before installing, you should have:
 
 ## Quick Start
 
-On your docker machine, run:
+On your Docker machine, run:
 
 ```
 git clone https://github.com/AdventureSeeker423/TAK-Portal
@@ -55,7 +55,7 @@ cd ~/TAK-Portal && ./takportal start
 
 ## Quick Configuration
 
-1. Open your browser and navigate to the docker host IP and port. <br>
+1. Open your browser and navigate to the Docker host IP and port. <br>
     &emsp; Default: `http://<server-ip>:3000` <br>
     &emsp; Example: `http://192.168.1.150:3000`
 2. Open `Server Settings` (bottom of the sidebar).
@@ -78,7 +78,7 @@ cd ~/TAK-Portal && ./takportal start
 
 ## Additional Commands
 
-Additional commands are included with TAK Portal to assist you in keeping your docker container running and more importantly ***up-to-date*** with the latest version.  We encourage you to check reguarlly for updates that may address bugs and add additional features.
+Additional commands are included with TAK Portal to assist you in keeping your Docker container running and, more importantly, ***up-to-date*** with the latest version.  We encourage you to check regularly for updates that may address bugs and add additional features.  An update notification will show in the sidebar when updates are available.
 
 To update TAK Portal while retaining your current settings and configuration:
 ```
