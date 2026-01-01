@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 <!-- 🎉 `New Feature` - -->
 <!-- ✨ `Enhancement` - -->
 <!-- ✏️ `Documentation` - -->
-<!-- 🐛 `Bug Fix` - -->
+<!-- 🐛 `Bug Fix` - Fixes issue with -->
 <!-- ⬆️ `Dependency` - -->
 
 ## Version History
