@@ -181,7 +181,6 @@ const groupChips = document.getElementById("groupChips");
 const groupFilter = document.getElementById("groupFilter");
 const groupsBox = document.getElementById("groupsBox");
 const groupsInner = document.getElementById("groupsInner"); // NEW: inner multicol wrapper
-const saveGroupsBtn = document.getElementById("saveGroupsBtn");
 
 // Name edit
 const firstNameInput = document.getElementById("firstNameInput");
@@ -539,54 +538,6 @@ if (clearAllBtn) clearAllBtn.addEventListener("click", function() {
   pickedGroupIds = new Set();
   renderGroupsBox();
 });
-
-if (saveGroupsBtn) saveGroupsBtn.onclick = async () => {
-  if(!selectedUser) return;
-  setMsgEl(actionMsg, "Saving groups...", true);
-
-  const selected = Array.from(pickedGroupIds);
-  let payload = { groupIds: selected };
-
-  const selectedTemplateKey = templateApplySelect && templateApplySelect.value || "";
-  if (selectedTemplateKey && Array.isArray(agencyTemplatesCache) && agencyTemplatesCache.length) {
-    payload.templateKey = selectedTemplateKey;
-  }
-
-  let res;
-  try {
-    res = await fetch(`/api/users/${selectedUser.pk}/groups`, {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body:JSON.stringify(payload)
-    });
-  } catch (err) {
-    setMsgEl(actionMsg, "Network error while updating groups", false);
-    return;
-  }
-
-  const out = await res.json();
-  if(!res.ok){
-    setMsgEl(actionMsg, out.error || "Update groups failed", false);
-
-    pickedGroupIds = new Set((selectedUser.groups || []).map(x => String(x)));
-    renderGroupsBox();
-    return;
-  }
-
-  selectedUser.groups = Array.isArray(out.groups) ? out.groups : selected;
-  pickedGroupIds = new Set((selectedUser.groups || []).map(x => String(x)));
-
-  renderGroupChips(selectedUser);
-
-  const patch = (u) => String(u.pk) === String(selectedUser.pk)
-    ? { ...u, groups: selectedUser.groups }
-    : u;
-  allUsers = (allUsers || []).map(patch);
-  const updatedVisible = (window.__lastUsers || []).map(patch);
-
-  applySortAndRender(updatedVisible);
-  setMsgEl(actionMsg, "Groups updated.", true);
-};
 
 // Selected user in the modal
 let selectedUser = null;
