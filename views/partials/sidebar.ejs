@@ -50,24 +50,23 @@
         <a href="/settings">Server Settings</a>
       <% } %>
 
-      <small class="version-text">
-        <%= _displayName %>
-        <% if (_isGlobalAdmin) { %>
-          - Global Admin 
-        <% } else if (_isAgencyAdmin) { %>
-          - Agency Admin 
-        <% } %> 
-        <br>
+    <small class="version-text">
+      <%= _displayName %>
+      <% if (_isGlobalAdmin) { %>
+        - Global Admin 
+      <% } else if (_isAgencyAdmin) { %>
+        - Agency Admin 
+      <% } %> <br>
+      Version 
+      <a
+        href="https://github.com/AdventureSeeker423/TAK-Portal/blob/main/CHANGELOG.md"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <%= APP_VERSION %>
+      </a>
+    </small>
 
-        Version 
-        <a 
-          href="https://github.com/AdventureSeeker423/TAK-Portal/blob/main/CHANGELOG.md"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <%= APP_VERSION %>
-        </a>
-      </small>
 
 
       <% if (typeof APP_UPDATE_AVAILABLE !== "undefined" && APP_UPDATE_AVAILABLE) { %>
