@@ -4,7 +4,7 @@ const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
 const settingsSvc = require("./services/settings.service");
-const axios = require("axios");   
+const axios = require("axios");
 const { getString } = require("./services/env");
 const { URL } = require("url");
 const pkg = require("./package.json");
@@ -21,9 +21,10 @@ app.locals.APP_UPDATE_AVAILABLE = false;
 
 // Simple semver compare: returns true if `latest` > `current`
 function isNewerVersion(latest, current) {
-  const toParts = (v) => String(v || "0.0.0")
-    .split(".")
-    .map((n) => parseInt(n, 10) || 0);
+  const toParts = (v) =>
+    String(v || "0.0.0")
+      .split(".")
+      .map((n) => parseInt(n, 10) || 0);
 
   const [la, lb, lc] = toParts(latest);
   const [ca, cb, cc] = toParts(current);
@@ -43,7 +44,9 @@ async function checkForUpdates() {
     const response = await axios.get(url, { timeout: 5000 });
 
     const data =
-      typeof response.data === "string" ? JSON.parse(response.data) : response.data;
+      typeof response.data === "string"
+        ? JSON.parse(response.data)
+        : response.data;
 
     const latestVersion = data.version || app.locals.APP_VERSION;
 
@@ -69,7 +72,6 @@ app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/branding", express.static(path.join(__dirname, "data", "branding")));
-
 
 // Multer storage for settings uploads (certs + branding)
 const uploadStorage = multer.diskStorage({
@@ -120,28 +122,6 @@ const uploadStorage = multer.diskStorage({
   },
 });
 
-// Send a simple SMTP test email using Always CC / BCC lists
-app.post("/settings/test-email", requireGlobalAdmin, async (req, res) => {
-  console.log("[settings] Test email requested");
-
-  try {
-    const result = await emailSvc.sendMail({
-      // no explicit "to": we only use CC / BCC lists
-      subject: "TAK Portal - Email SMTP Test",
-      text: "TAK Portal - Email SMTP Test",
-    });
-
-    console.log("[settings] Test email result:", result);
-    return res.redirect("/settings");
-  } catch (err) {
-    console.error("[settings] Test email failed:", err?.message || err);
-    return res
-      .status(500)
-      .send("Failed to send test email. Check SMTP settings and server logs.");
-  }
-});
-
-
 const upload = multer({ storage: uploadStorage });
 
 // Expose settings + theme/logo to all views
@@ -152,10 +132,7 @@ app.use((req, res, next) => {
     res.locals.brandTheme = settings.BRAND_THEME || "dark-blue";
     res.locals.brandLogoUrl = settings.BRAND_LOGO_URL || "";
   } catch (err) {
-    console.warn(
-      "Failed to load settings for request:",
-      err?.message || err
-    );
+    console.warn("Failed to load settings for request:", err?.message || err);
     res.locals.settings = {};
     res.locals.brandTheme = "dark-blue";
     res.locals.brandLogoUrl = "";
@@ -184,11 +161,18 @@ app.get("/logout", (req, res) => {
   const portalUrl = `${req.protocol}://${req.get("host")}/`;
 
   // Prefer AUTHENTIK_PUBLIC_URL; fall back to AUTHENTIK_URL
-  const base = getString("AUTHENTIK_PUBLIC_URL", "") || getString("AUTHENTIK_URL", "");
+  const base =
+    getString("AUTHENTIK_PUBLIC_URL", "") || getString("AUTHENTIK_URL", "");
 
   if (!base) {
-    console.error("Logout requested but no AUTHENTIK_PUBLIC_URL or AUTHENTIK_URL is configured");
-    return res.status(500).send("Logout is not configured. Ask the administrator to set Authentik URL.");
+    console.error(
+      "Logout requested but no AUTHENTIK_PUBLIC_URL or AUTHENTIK_URL is configured"
+    );
+    return res
+      .status(500)
+      .send(
+        "Logout is not configured. Ask the administrator to set Authentik URL."
+      );
   }
 
   let logoutUrl;
@@ -201,7 +185,9 @@ app.get("/logout", (req, res) => {
     logoutUrl = u.toString();
   } catch (err) {
     console.error("Invalid Authentik URL in settings:", base, err);
-    return res.status(500).send("Logout is misconfigured. Check Authentik URL in settings.");
+    return res
+      .status(500)
+      .send("Logout is misconfigured. Check Authentik URL in settings.");
   }
 
   res.redirect(logoutUrl);
@@ -218,7 +204,6 @@ app.use("/dashboard", require("./routes/dashboard.routes"));
 
 // UI Routes
 
-
 app.get("/", (req, res) => {
   res.redirect("dashboard");
 });
@@ -226,9 +211,13 @@ app.get("/", (req, res) => {
 app.get("/users/create", (req, res) => res.render("users-create"));
 app.get("/users/manage", (req, res) => res.render("users-manage"));
 app.get("/groups", (req, res) => res.render("groups"));
-app.get("/agencies", requireGlobalAdmin, (req, res) => res.render("agencies")); //require Global Admin
+app.get("/agencies", requireGlobalAdmin, (req, res) =>
+  res.render("agencies")
+); //require Global Admin
 app.get("/templates", (req, res) => res.render("templates"));
-app.get("/mutual-aid", requireGlobalAdmin, (req, res) => res.render("mutual-aid")); //require Global Admin
+app.get("/mutual-aid", requireGlobalAdmin, (req, res) =>
+  res.render("mutual-aid")
+); //require Global Admin
 app.get("/qr-generator", (req, res) => res.render("qr-generator"));
 
 app.get("/settings", requireGlobalAdmin, (req, res) => {
@@ -311,6 +300,27 @@ app.post(
   }
 );
 
+// Send a simple SMTP test email using Always CC / BCC lists
+// (Protected the same way as /settings, and after portalAuth so req.authentikUser is set)
+app.post("/settings/test-email", requireGlobalAdmin, async (req, res) => {
+  console.log("[settings] Test email requested");
+
+  try {
+    const result = await emailSvc.sendMail({
+      // no explicit "to": we only use CC / BCC lists
+      subject: "TAK Portal - Email SMTP Test",
+      text: "TAK Portal - Email SMTP Test",
+    });
+
+    console.log("[settings] Test email result:", result);
+    return res.redirect("/settings");
+  } catch (err) {
+    console.error("[settings] Test email failed:", err?.message || err);
+    return res
+      .status(500)
+      .send("Failed to send test email. Check SMTP settings and server logs.");
+  }
+});
 
 // Export a zip of the data folder
 app.get("/settings/export-data", requireGlobalAdmin, (req, res) => {
