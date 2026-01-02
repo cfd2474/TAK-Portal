@@ -120,6 +120,28 @@ const uploadStorage = multer.diskStorage({
   },
 });
 
+// Send a simple SMTP test email using Always CC / BCC lists
+app.post("/settings/test-email", requireGlobalAdmin, async (req, res) => {
+  console.log("[settings] Test email requested");
+
+  try {
+    const result = await emailSvc.sendMail({
+      // no explicit "to": we only use CC / BCC lists
+      subject: "TAK Portal - Email SMTP Test",
+      text: "TAK Portal - Email SMTP Test",
+    });
+
+    console.log("[settings] Test email result:", result);
+    return res.redirect("/settings");
+  } catch (err) {
+    console.error("[settings] Test email failed:", err?.message || err);
+    return res
+      .status(500)
+      .send("Failed to send test email. Check SMTP settings and server logs.");
+  }
+});
+
+
 const upload = multer({ storage: uploadStorage });
 
 // Expose settings + theme/logo to all views
@@ -288,23 +310,6 @@ app.post(
     res.redirect("/settings");
   }
 );
-
-app.post("/settings/test-email", requireGlobalAdmin, async (req, res) => {
-  try {
-    // This uses EMAIL_ALWAYS_CC and EMAIL_SEND_COPY_TO via email.service.js
-    const result = await emailSvc.sendMail({
-      // no explicit "to" – we only care about CC/BCC lists
-      subject: "TAK Portal - Email SMTP Test",
-      text: "TAK Portal - Email SMTP Test",
-    });
-
-    console.log("[settings] test email result:", result);
-    return res.redirect("/settings");
-  } catch (err) {
-    console.error("[settings] test email failed:", err?.message || err);
-    return res.status(500).send("Failed to send test email. Check SMTP settings and server logs.");
-  }
-});
 
 
 // Export a zip of the data folder
