@@ -325,7 +325,7 @@ h2 {
     gap: 14px;
 }
 
-@media (max-width: 990px) {
+@media (max-width: 900px) {
     .grid2 {
         grid-template-columns: 1fr;
     }
@@ -576,7 +576,7 @@ select:focus {
     z-index: 1100;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 990px) {
 
     .sidebarToggle {
         display: inline-flex;
