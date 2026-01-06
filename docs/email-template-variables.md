@@ -1,15 +1,19 @@
-{{displayName}} - The user's name formatted as `Last, First`
-{{lastName}} - The user's name formatted as `Last`
-{{lastNameUpper}} - The user's name formatted as `LAST`
-{{firstName}} - The user's name formatted as `First`
-{{username}} - The user's badge number and agency suffix formatted as `1234abcd`
+# Email Template Variables
 
-{{groupsCsv}}
-{{hasPassword}}
+<p>Below you can find a reference document for all available variables that are passed to the Email Templates</p>
 
-{{beforeGroupsCsv}}
-{{afterGroupsCsv}}
+{{displayName}} - The user's name formatted as `Last, First` <br>
+{{lastName}} - The user's name formatted as `Last` <br>
+{{lastNameUpper}} - The user's name formatted as `LAST` <br>
+{{firstName}} - The user's name formatted as `First` <br>
+{{username}} - The user's badge number and agency suffix formatted as `1234abcd` <br>
 
-{{badgeNumber}} - The user's badge number formatted as `1234`
-{{agencyAbbreviation}} - The user's agency formatted as `ABCD`
-{{agencyColor}} - The user's agency color formatted as `Color`
+{{groupsCsv}} <br>
+{{hasPassword}} <br>
+
+{{beforeGroupsCsv}} <br>
+{{afterGroupsCsv}} <br>
+
+{{badgeNumber}} - The user's badge number formatted as `1234` <br>
+{{agencyAbbreviation}} - The user's agency formatted as `ABCD` <br>
+{{agencyColor}} - The user's agency color formatted as `Color` <br>
