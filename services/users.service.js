@@ -84,17 +84,29 @@ function safeMailTo(user) {
   return to || null;
 }
 
+function parseName(displayName) {
+  const s = String(displayName || "").trim();
+
+  // Split on first comma only
+  const [last, rest] = s.split(",", 2);
+
+  const lastName = (last || "").trim();
+  const firstName = (rest || "").trim();
+
+  return {
+    lastName,
+    lastNameUpper: lastName.toUpperCase(),
+    firstName,
+  };
+}
+
+
 /**
  * User-created email.
  *
  * hasPassword === true  -> use "user_created_password_set.html"
  * hasPassword === false -> use "user_created_no_password.html"
  *
- * Both templates receive:
- *  - displayName
- *  - username
- *  - groupsCsv
- *  - hasPassword (boolean)
  */
 async function emailUserCreated({ user, groups, hasPassword }) {
   const to = safeMailTo(user);
@@ -109,7 +121,31 @@ async function emailUserCreated({ user, groups, hasPassword }) {
 
   const subject = "Account created";
   const displayName = String(user?.name || "").trim() || "there";
+  const { lastName, lastNameUpper, firstName } = parseName(displayName);
   const groupsCsv = groupNames.length ? groupNames.join(", ") : "(none)";
+
+  const attrs = user?.attributes || {};
+  const agencies = agenciesStore.load();
+
+  const agencySuffix = String(attrs.agency || "").toLowerCase();
+  const agency =
+    agencies.find(
+      a => String(a.suffix || "").toLowerCase() === agencySuffix
+    ) || null;
+
+  const badgeNumber = String(attrs.badge_number || "");
+  const agencyAbbreviation =
+    String(
+      agency?.groupPrefix ||
+      attrs.agency_abbreviation ||
+      ""
+    );
+  const agencyColor =
+    String(
+      agency?.color ||
+      attrs.agency_color ||
+      ""
+    );
 
   const templateKey = hasPassword
     ? "user_created_password_set.html"
@@ -117,29 +153,69 @@ async function emailUserCreated({ user, groups, hasPassword }) {
 
   const html = renderTemplate(templateKey, {
     displayName,
+    lastName,
+    lastNameUpper,
+    firstName,
     username: String(user?.username || ""),
     groupsCsv,
     hasPassword: !!hasPassword,
+    badgeNumber,
+    agencyAbbreviation,
+    agencyColor,
   });
+
   const text = htmlToText(html);
 
   await emailSvc.sendMail({ to, subject, text, html });
 }
+
 
 async function emailPasswordChanged(user) {
   const to = safeMailTo(user);
   if (!to) return;
 
+  const attrs = user?.attributes || {};
+  const agencies = agenciesStore.load();
+
+  const agencySuffix = String(attrs.agency || "").toLowerCase();
+  const agency =
+    agencies.find(
+      a => String(a.suffix || "").toLowerCase() === agencySuffix
+    ) || null;
+
+  const badgeNumber = String(attrs.badge_number || "");
+  const agencyAbbreviation =
+    String(
+      agency?.groupPrefix ||
+      attrs.agency_abbreviation ||
+      ""
+    );
+  const agencyColor =
+    String(
+      agency?.color ||
+      attrs.agency_color ||
+      ""
+    );
+
   const subject = "Password changed";
   const displayName = String(user?.name || "").trim() || "there";
+  const { lastName, lastNameUpper, firstName } = parseName(displayName);
   const html = renderTemplate("password_changed.html", {
     displayName,
+    lastName,
+    lastNameUpper,
+    firstName,
     username: String(user?.username || ""),
+    badgeNumber,
+    agencyAbbreviation,
+    agencyColor,
   });
+
   const text = htmlToText(html);
 
   await emailSvc.sendMail({ to, subject, text, html });
 }
+
 
 async function emailGroupsUpdated({ user, beforeIds, afterIds }) {
   const to = safeMailTo(user);
@@ -150,20 +226,52 @@ async function emailGroupsUpdated({ user, beforeIds, afterIds }) {
     resolveGroupNames(afterIds),
   ]);
 
+  const attrs = user?.attributes || {};
+  const agencies = agenciesStore.load();
+
+  const agencySuffix = String(attrs.agency || "").toLowerCase();
+  const agency =
+    agencies.find(
+      a => String(a.suffix || "").toLowerCase() === agencySuffix
+    ) || null;
+
+  const badgeNumber = String(attrs.badge_number || "");
+  const agencyAbbreviation =
+    String(
+      agency?.groupPrefix ||
+      attrs.agency_abbreviation ||
+      ""
+    );
+  const agencyColor =
+    String(
+      agency?.color ||
+      attrs.agency_color ||
+      ""
+    );
+
   const subject = "Groups updated";
   const displayName = String(user?.name || "").trim() || "there";
+  const { lastName, lastNameUpper, firstName } = parseName(displayName);
   const beforeGroupsCsv = beforeNames.length ? beforeNames.join(", ") : "(none)";
   const afterGroupsCsv = afterNames.length ? afterNames.join(", ") : "(none)";
   const html = renderTemplate("groups_updated.html", {
     displayName,
+    lastName,
+    lastNameUpper,
+    firstName,
     username: String(user?.username || ""),
     beforeGroupsCsv,
     afterGroupsCsv,
+    badgeNumber,
+    agencyAbbreviation,
+    agencyColor,
   });
+
   const text = htmlToText(html);
 
   await emailSvc.sendMail({ to, subject, text, html });
 }
+
 
 // --- Debounced "groups updated" email logic ---
 const GROUP_EMAIL_DEBOUNCE_MS = 3 * 60 * 1000;
@@ -426,6 +534,10 @@ if (selectedTemplate) {
   const attributes = {
     agency: agency.suffix,
     agency_name: agency.name,
+
+    badge_number: String(badge || ""),
+    agency_abbreviation: String(agency.groupPrefix || ""),
+    agency_color: String(agency.color || ""),
   };
 
   // who created the user
@@ -435,6 +547,7 @@ if (selectedTemplate) {
   if (createdBy && createdBy.displayName) {
     attributes.created_by_display_name = String(createdBy.displayName);
   }
+
 
   // when / how / from which template
   attributes.created_at = createdAt;

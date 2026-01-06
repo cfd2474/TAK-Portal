@@ -12,7 +12,7 @@
       </h2>
 
       <p style="margin:0 0 12px; font-size:14px;">
-        Hi {{displayName}},
+        Hi {{firstName}} {{lastName}},
       </p>
 
       <p style="margin:0 0 12px; font-size:14px;">
@@ -34,6 +34,19 @@
           {{afterGroupsCsv}}
         </div>
       </div>
+
+      <p style="margin:0 0 12px; font-size:14px;">
+        As a reminder, please use the following callsign and team color when configuring TAK on your device:
+      </p>
+
+      <div style="margin:0 0 12px; padding:12px; border:1px solid #e5e7eb; border-radius:6px; background:#f9fafb; font-size:13px;">
+        <div style="margin:0 0 4px;">
+          <strong>CALLSIGN:</strong> {{agencyAbbreviation}}-{{lastNameUpper}}-{{badgeNumber}}
+        </div>
+        <div>
+          <strong>TEAM COLOR:</strong> {{agencyColor}}
+        </div>
+      </div>      
 
       <p style="margin:0 0 8px; font-size:13px; color:#374151;">
         If you don’t recognize these changes or believe something is missing,

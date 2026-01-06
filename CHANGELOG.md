@@ -10,8 +10,12 @@ All notable changes to this project will be documented in this file.
 
 ## Version History
 
+### v1.1.17 - 1/5/26
+✨ `Enhancement` - Added Agency Abbreviation, Agency Color, and Badge Number to Email Templates and Email Template Variables <br>
+✏️ `Documentation` - Created email-template-variables.md to track available email variables
+
 ### v1.1.16 - 1/5/26
-✨ `Enhancement` - Added Agency Color Option <br>
+✨ `Enhancement` - Added Agency Color Selection <br>
 
 ### v1.1.15 - 1/2/26
 🎉 `New Feature` - Added ability to test SMTP configuration <br>
