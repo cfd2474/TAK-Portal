@@ -117,13 +117,20 @@ case "$CMD" in
   data)
     echo "Opening host volume for '$SERVICE_NAME'..."
 
-    VOLUME_NAME="tak_portal_data"
+    # Make sure the service is running (we need a container to inspect)
+    CONTAINER_ID="$($COMPOSE_CMD ps -q "$SERVICE_NAME" || true)"
+    if [[ -z "$CONTAINER_ID" ]]; then
+      echo "ERROR: Service '$SERVICE_NAME' is not running."
+      echo "Start it first with:"
+      echo "  ./$(basename "${BASH_SOURCE[0]}") start"
+      exit 1
+    fi
 
-    # Resolve the host path of the Docker volume
-    HOST_PATH="$(docker volume inspect -f '{{ .Mountpoint }}' "$VOLUME_NAME" 2>/dev/null || true)"
+    # Get the host path for the volume mounted at /usr/src/app/data
+    HOST_PATH="$(docker inspect -f '{{ range .Mounts }}{{ if and (eq .Type "volume") (eq .Destination "/usr/src/app/data") }}{{ .Mountpoint }}{{ end }}{{ end }}' "$CONTAINER_ID" 2>/dev/null || true)"
 
     if [[ -z "$HOST_PATH" ]]; then
-      echo "ERROR: Could not resolve volume path for '$VOLUME_NAME'."
+      echo "ERROR: Could not find a volume mounted at /usr/src/app/data for container $CONTAINER_ID."
       exit 1
     fi
 
@@ -132,7 +139,7 @@ case "$CMD" in
       exit 1
     fi
 
-    echo "Changing directory to:"
+    echo "Changing directory to host volume path:"
     echo "  $HOST_PATH"
     echo
     echo "Type 'exit' to return."
