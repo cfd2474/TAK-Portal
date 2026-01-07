@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.  Minor qual
 
 ## Version History
 
+### v1.1.19 - 1/6/26
+✨ `Enhancement` - Added argument to navigate to the docker data volume using ./takportal data
+
 ### v1.1.18 - 1/6/26
 🎉 `New Feature` - Added ability to edit email templates from the Server Settings page
 
