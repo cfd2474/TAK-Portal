@@ -337,6 +337,21 @@ app.post(
         : {};
 
     const overridesFromForm = bodySettings.EMAIL_TEMPLATES_OVERRIDES;
+
+    // We'll compare posted values against the current default files on disk.
+    let templatesDirForCompare = null;
+    try {
+      templatesDirForCompare = emailTemplatesSvc.getTemplatesDir();
+    } catch (e) {
+      console.error("[settings] Unable to get templates dir for compare:", e);
+    }
+
+    function normalizeHtml(str) {
+      return String(str || "")
+        .replace(/\r\n/g, "\n")
+        .trim();
+    }
+
     if (overridesFromForm && typeof overridesFromForm === "object") {
       Object.keys(overridesFromForm).forEach((filename) => {
         // If a per-template Save was used, ignore other templates.
@@ -345,9 +360,36 @@ app.post(
         }
 
         const value = overridesFromForm[filename];
-        if (typeof value === "string") {
-          // If the admin typed anything (or even left the default in place),
-          // treat it as the current override. It may be cleared below if reset is set.
+        if (typeof value !== "string") {
+          return;
+        }
+
+        let isSameAsDefault = false;
+
+        if (templatesDirForCompare) {
+          try {
+            const defaultHtml = fs.readFileSync(
+              path.join(templatesDirForCompare, filename),
+              "utf8"
+            );
+            if (normalizeHtml(value) === normalizeHtml(defaultHtml)) {
+              isSameAsDefault = true;
+            }
+          } catch (err) {
+            // If we can't read the default file, we just treat it as custom.
+            console.error(
+              "[settings] Failed to read default email template for compare:",
+              filename,
+              err
+            );
+          }
+        }
+
+        if (isSameAsDefault) {
+          // If the value matches the default on disk, we do NOT keep an override.
+          delete currentOverrides[filename];
+        } else {
+          // Otherwise, keep/update the override.
           currentOverrides[filename] = value;
         }
       });
@@ -384,7 +426,6 @@ app.post(
     } else {
       delete merged.EMAIL_TEMPLATES_OVERRIDES;
     }
-
 
     // --- handle uploaded files (certs + logo) ---
 
