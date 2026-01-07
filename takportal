@@ -9,7 +9,7 @@ SERVICE_NAME="tak-portal"
 
 usage() {
   cat <<EOF
-Usage: $0 {setup|config|start|stop|restart|update|logs|status|remove}
+Usage: $0 {setup|config|start|stop|restart|update|logs|status|remove|data}
 
 Commands:
   setup      Open .env in nano for editing
@@ -21,6 +21,7 @@ Commands:
   logs       Follow logs from the container
   status     Show container status
   remove     Completely remove containers, volumes, network, and images
+  data       Open a shell in the container's /usr/src/app/data directory
 EOF
 }
 
@@ -111,6 +112,22 @@ case "$CMD" in
     $COMPOSE_CMD down -v --rmi local
 
     echo "Cleanup complete."
+    ;;
+
+  data)
+    echo "Opening shell in /usr/src/app/data inside '$SERVICE_NAME'..."
+
+    # Make sure the service is running
+    CONTAINER_ID="$($COMPOSE_CMD ps -q "$SERVICE_NAME" || true)"
+    if [[ -z "$CONTAINER_ID" ]]; then
+      echo "ERROR: Service '$SERVICE_NAME' is not running."
+      echo "Start it first with:"
+      echo "  ./$(basename "${BASH_SOURCE[0]}") start"
+      exit 1
+    fi
+
+    # Open an interactive shell with CWD set to the data volume mount
+    $COMPOSE_CMD exec -it "$SERVICE_NAME" sh -lc 'cd /usr/src/app/data && exec "${SHELL:-/bin/sh}"'
     ;;
 
   *)
