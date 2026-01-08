@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.  Minor qual
 
 ## Version History
 
+## v1.1.20 - 1/8/26
+🎉 `New Feature` - Added a "Setup My Device" page to guide users through the TAK setup process.  This page is not 100% functional and will continue to see updates to bring it to full functionality.
+
 ### v1.1.19 - 1/6/26
 ✨ `Enhancement` - Added argument to navigate to the docker data volume using ./takportal data
 
