@@ -5,16 +5,14 @@ const agenciesStore = require("../services/agencies.service");
 const mutualAidService = require("../services/mutualAid.service");
 const bookmarksService = require("../services/bookmarks.service");
 
-
-
 function buildCharts(users, agencies) {
   const agenciesNorm = (agencies || [])
-    .map(a => ({
+    .map((a) => ({
       name: String(a.name || "").trim(),
-      type: String(a.type || "").trim(),            // Fire, EMS, Law, etc
+      type: String(a.type || "").trim(), // Fire, EMS, Law, etc
       suffix: String(a.suffix || "").trim().toLowerCase(),
     }))
-    .filter(a => a.name && a.suffix);
+    .filter((a) => a.name && a.suffix);
 
   const suffixToAgency = new Map();
   for (const a of agenciesNorm) {
@@ -71,9 +69,11 @@ function buildCharts(users, agencies) {
   return { usersByAgency, unknownAgency, usersByType, unknownType };
 }
 
-
 router.get("/", async (req, res) => {
-
+  // Non-admins should not see the dashboard; send them to Setup My Device.
+  const u = req.authentikUser;
+  const isAdmin = !!(u && (u.isGlobalAdmin || u.isAgencyAdmin));
+  if (!isAdmin) return res.redirect("/setup-my-device");
 
   try {
     const [users, groups] = await Promise.all([
@@ -117,7 +117,6 @@ router.get("/", async (req, res) => {
       charts,
       bookmarks,
     };
-
 
     res.render("dashboard", viewModel);
   } catch (err) {

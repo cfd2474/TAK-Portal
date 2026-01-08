@@ -15,10 +15,13 @@ const accessSvc = require("./access.service");
  *         if any are configured.
  */
 
- const PUBLIC_PATHS = new Set([
-+  "/",
-   "/setup-my-device",
- ]);
+const PUBLIC_PATHS = new Set([
+  "/",
+  "/dashboard",
+  "/setup-my-device",
+  "/styles.css",
+  "/favicon.ico",
+]);
 
 function parseGroupList(raw) {
   if (!raw) return [];
