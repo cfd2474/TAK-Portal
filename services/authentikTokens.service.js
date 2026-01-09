@@ -41,7 +41,7 @@ async function listUserAppPasswordsByUserId(resolvedUserId) {
   const res = await api.get("/core/tokens/", {
     params: {
       intent: "app_password",
-      user: userId,          // <-- reliable filter
+      user: resolvedUserId, // ✅ FIX: use the argument
       ordering: "-expires",
       page_size: 200,
     },
@@ -84,11 +84,12 @@ async function createAppPasswordForUserId(userId, expiresAt) {
  * Reuses within TTL window to avoid multiple active tokens per user.
  */
 async function getOrCreateEnrollmentAppPassword(params, ttlMinutes = 30) {
-    // Backwards-compatible signature:
+  // Backwards-compatible signature:
   //   getOrCreateEnrollmentAppPassword(username, ttlMinutes)
   //   getOrCreateEnrollmentAppPassword({ username, userId, ttlMinutes })
   let username = params;
   let userId = null;
+
   if (params && typeof params === "object") {
     username = params.username;
     userId = params.userId || params.uid || null;
@@ -125,7 +126,9 @@ async function getOrCreateEnrollmentAppPassword(params, ttlMinutes = 30) {
   const tokenObj =
     freshList.find((t) => String(t?.identifier || "") === identifier) || candidate?.t;
 
-  const expires = parseExpires(tokenObj) || new Date(now.getTime() + ttlMinutes * 60 * 1000);
+  const expires =
+    parseExpires(tokenObj) || new Date(now.getTime() + ttlMinutes * 60 * 1000);
+
   const key = await viewTokenKey(identifier);
 
   return {
