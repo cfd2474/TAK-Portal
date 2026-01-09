@@ -33,8 +33,15 @@
     <h2>Step 2: Enroll Your Device (DEVELOPMENT IN PROGRESS)</h2>
 
     <div class="grid2">
-      <button type="button" class="btn tile" id="scanQrBtn">
-        <span class="title">Scan QR Code (Recommended)</span>
+      <button type="button" class="btn tile" id="scanQrBtnTakAware">
+        <span class="title">TAK Aware - Scan QR Code</span>
+        <span class="desc">
+          Scan an enrollment QR code to automatically configure your device.
+        </span>
+      </button>
+
+      <button type="button" class="btn tile" id="scanQrBtnAtak">
+        <span class="title">ATAK - Scan QR Code</span>
         <span class="desc">
           Scan an enrollment QR code to automatically configure your device.
         </span>
@@ -69,6 +76,8 @@
           </div>
         </div>
         <div style="min-width: 320px;">
+          <h3 style="margin-top:0;" id="setupQrInstructionsTitle">How to Scan</h3>
+          <ol id="setupQrInstructions" style="margin-top: 6px;"></ol>
           <h3 style="margin-top:0;">Details</h3>
           <div class="chips" id="setupQrDetails"></div>
           <div id="setupQrCountdown" class="msg" style="margin-top: 10px;"></div>
@@ -80,7 +89,8 @@
 </div>
 
 <script>
-  const scanQrBtn = document.getElementById("scanQrBtn");
+  const scanQrBtnTakAware = document.getElementById("scanQrBtnTakAware");
+  const scanQrBtnAtak = document.getElementById("scanQrBtnAtak");
   const overlay = document.getElementById("setupQrOverlay");
   const closeBtn = document.getElementById("setupQrCloseBtn");
   const qrImg = document.getElementById("setupQrImg");
@@ -89,6 +99,36 @@
   const details = document.getElementById("setupQrDetails");
   const countdownEl = document.getElementById("setupQrCountdown");
   const msg = document.getElementById("setupQrMsg");
+  const instructionsTitle = document.getElementById("setupQrInstructionsTitle");
+  const instructionsList = document.getElementById("setupQrInstructions");
+
+  // Which app the user is scanning with (controls modal instructions)
+  let scanMode = "takaware"; // "takaware" | "atak"
+
+  function setScanInstructions(mode) {
+    scanMode = mode;
+
+    const isTakAware = mode === "takaware";
+    instructionsTitle.textContent = isTakAware ? "TAK Aware: How to Scan" : "ATAK: How to Scan";
+
+    const steps = isTakAware
+      ? [
+          "1. Open TAK Aware on your iPhone/iPad.",
+          "2. Allow location while using app and select to Change to Allways Allow",
+          "3. Set your Call Sign, Team, and Role as instructed in your welcome email.",
+          "4. Select Connect to a TAK Server.",
+          "5. Select Scan QR Code.",
+          "6. Allow camera access when prompted.",
+          "7. Point your camera at the QR code and look for Status: Enrollment Succeeded."
+        ]
+      : [
+          "1. Open the camera on your Android device.",
+          "2. Point your camera at the QR code and select the notification to open the link.",
+          "3. Select Yes to perform quick enrollment.",
+        ];
+
+    instructionsList.innerHTML = steps.map(s => `<li>${s}</li>`).join("");
+  }
 
   // --- IMPORTANT: make cache user-specific to prevent cross-user QR reuse ---
   const CURRENT_USERNAME = "<%= (authUser && authUser.username) ? authUser.username : '' %>";
@@ -213,7 +253,6 @@
 
     const chips = [];
     if (obj.username) chips.push(`<span class="chip">User: ${obj.username}</span>`);
-    if (obj.tokenIdentifier) chips.push(`<span class="chip">Token: ${obj.tokenIdentifier}</span>`);
     details.innerHTML = chips.join(" ");
 
     copyBtn.disabled = !obj.enrollUrl;
@@ -264,7 +303,8 @@
     renderFromCache(obj);
   }
 
-  scanQrBtn.addEventListener("click", async () => {
+  async function handleScanClick(mode) {
+    setScanInstructions(mode);
     setMsg(msg, "", true);
 
     // If we can't determine current username, don't reuse cache
@@ -291,7 +331,10 @@
       // still open modal so the user sees the error
       openModal();
     }
-  });
+  }
+
+  scanQrBtnTakAware.addEventListener("click", () => handleScanClick("takaware"));
+  scanQrBtnAtak.addEventListener("click", () => handleScanClick("atak"));
 
   closeBtn.addEventListener("click", closeModal);
   overlay.addEventListener("click", (e) => {
