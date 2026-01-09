@@ -7,22 +7,21 @@ const tokensSvc = require("../services/authentikTokens.service");
 function requireLoggedIn(req, res) {
   const u = req.authentikUser;
   if (!u || !u.username) {
-    res.status(401).json({ error: "Authentication required" });
+    res.status(401).json({ ok: false, error: "Authentication required" });
     return null;
   }
   return u;
 }
 
-// POST /api/setup-my-device/enroll-qr
 router.post("/enroll-qr", async (req, res) => {
   try {
     const user = requireLoggedIn(req, res);
     if (!user) return;
 
-    // Ensure TAK URL is configured (consistent behavior with /api/qr)
     const takUrl = qrSvc.getTakUrl();
     if (!takUrl) {
       return res.status(500).json({
+        ok: false,
         error:
           "TAK_URL is not configured. Set it in Settings (TAK URL) or via the TAK_URL environment variable.",
       });
@@ -33,7 +32,7 @@ router.post("/enroll-qr", async (req, res) => {
 
     const enrollUrl = qrSvc.buildEnrollUrl({ username: user.username, token: key });
     if (!enrollUrl) {
-      return res.status(500).json({ error: "Failed to build enrollment URL" });
+      return res.status(500).json({ ok: false, error: "Failed to build enrollment URL" });
     }
 
     const qrCode = await qrSvc.generateDisplayQrDataUrl(enrollUrl);
@@ -50,6 +49,7 @@ router.post("/enroll-qr", async (req, res) => {
   } catch (err) {
     console.error("[setup-device] Failed to create enrollment QR:", err);
     return res.status(500).json({
+      ok: false,
       error: err?.message || "Failed to generate enrollment QR",
     });
   }

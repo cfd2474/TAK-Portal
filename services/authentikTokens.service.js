@@ -7,21 +7,6 @@ function toIso(dt) {
   return dt instanceof Date ? dt.toISOString() : new Date(dt).toISOString();
 }
 
-async function getUserIdByUsername(username) {
-  const u = String(username || "").trim();
-  if (!u) throw new Error("Missing username");
-
-  const res = await api.get("/core/users/", {
-    params: { username: u, page_size: 50 },
-  });
-
-  const results = res?.data?.results || [];
-  const user = results.find((x) => String(x?.username || "") === u) || results[0];
-  const pk = user && (user.pk ?? user.id);
-  if (!pk) throw new Error(`Unable to resolve Authentik user id for ${u}`);
-  return pk;
-}
-
 function parseExpires(tokenObj) {
   const raw = tokenObj && tokenObj.expires;
   if (!raw) return null;
@@ -30,14 +15,35 @@ function parseExpires(tokenObj) {
   return dt;
 }
 
-async function listUserAppPasswords(username) {
+async function getUserIdByUsername(username) {
   const u = String(username || "").trim();
+  if (!u) throw new Error("Missing username");
+
+  // Authentik can vary here; be resilient:
+  // 1) try exact-style filter
+  // 2) fallback to search
+  const tries = [
+    { username: u, page_size: 100 },
+    { search: u, page_size: 100 },
+  ];
+
+  for (const params of tries) {
+    const res = await api.get("/core/users/", { params });
+    const results = Array.isArray(res?.data?.results) ? res.data.results : [];
+    const exact = results.find((x) => String(x?.username || "") === u);
+    if (exact) return exact.pk ?? exact.id;
+  }
+
+  throw new Error(`Unable to resolve Authentik user id for "${u}"`);
+}
+
+async function listUserAppPasswordsByUserId(userId) {
   const res = await api.get("/core/tokens/", {
     params: {
       intent: "app_password",
-      "user__username": u,
+      user: userId,          // <-- reliable filter
       ordering: "-expires",
-      page_size: 100,
+      page_size: 200,
     },
   });
 
@@ -47,15 +53,14 @@ async function listUserAppPasswords(username) {
 async function viewTokenKey(identifier) {
   const ident = String(identifier || "").trim();
   if (!ident) throw new Error("Missing token identifier");
+
   const res = await api.get(`/core/tokens/${encodeURIComponent(ident)}/view_key/`);
   const key = res?.data?.key || res?.data?.token || res?.data?.value;
   if (!key) throw new Error("Authentik did not return a token key");
   return key;
 }
 
-async function createAppPasswordForUser(username, expiresAt) {
-  const userId = await getUserIdByUsername(username);
-
+async function createAppPasswordForUserId(userId, expiresAt) {
   const identifier = `${IDENT_PREFIX}${Date.now()}-${Math.random()
     .toString(16)
     .slice(2, 10)}`;
@@ -71,32 +76,27 @@ async function createAppPasswordForUser(username, expiresAt) {
 
   const res = await api.post("/core/tokens/", payload);
   const created = res?.data || {};
-  const ident = created.identifier || identifier;
-
-  return ident;
+  return created.identifier || identifier;
 }
 
 /**
  * Return an existing (non-expired) enrollment token for this user, or create one.
- *
- * Guarantees a stable token (no duplicates) within the validity window by:
- *  1) listing existing app_password tokens for the user
- *  2) selecting the most recent one created by this portal (description/prefix)
- *  3) reusing it if it has not expired
+ * Reuses within TTL window to avoid multiple active tokens per user.
  */
 async function getOrCreateEnrollmentAppPassword(username, ttlMinutes = 30) {
   const u = String(username || "").trim();
   if (!u) throw new Error("Missing username");
 
   const now = new Date();
-  const tokens = await listUserAppPasswords(u);
+  const userId = await getUserIdByUsername(u);
+
+  const tokens = await listUserAppPasswordsByUserId(userId);
 
   const candidate = tokens
     .filter((t) => {
       const d = String(t?.description || "");
       const ident = String(t?.identifier || "");
-      const isOurs = d === TOKEN_DESCRIPTION || ident.startsWith(IDENT_PREFIX);
-      return isOurs;
+      return d === TOKEN_DESCRIPTION || ident.startsWith(IDENT_PREFIX);
     })
     .map((t) => ({ t, expires: parseExpires(t) }))
     .filter((x) => x.expires && x.expires.getTime() > now.getTime())
@@ -104,15 +104,17 @@ async function getOrCreateEnrollmentAppPassword(username, ttlMinutes = 30) {
 
   const identifier = candidate
     ? String(candidate.t.identifier)
-    : await createAppPasswordForUser(u, new Date(now.getTime() + ttlMinutes * 60 * 1000));
+    : await createAppPasswordForUserId(
+        userId,
+        new Date(now.getTime() + ttlMinutes * 60 * 1000)
+      );
 
-  // Fetch fresh details for expires (create returns may omit)
-  const freshList = await listUserAppPasswords(u);
+  // Refresh token details (expires may not be present in create response)
+  const freshList = await listUserAppPasswordsByUserId(userId);
   const tokenObj =
-    freshList.find((t) => String(t?.identifier || "") === identifier) ||
-    candidate?.t;
-  const expires = parseExpires(tokenObj) || new Date(now.getTime() + ttlMinutes * 60 * 1000);
+    freshList.find((t) => String(t?.identifier || "") === identifier) || candidate?.t;
 
+  const expires = parseExpires(tokenObj) || new Date(now.getTime() + ttlMinutes * 60 * 1000);
   const key = await viewTokenKey(identifier);
 
   return {
