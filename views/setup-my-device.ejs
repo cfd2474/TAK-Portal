@@ -32,23 +32,23 @@
   <div class="card">
     <h2>Step 2: Enroll Your Device (DEVELOPMENT IN PROGRESS)</h2>
 
-
     <div class="grid2">
       <button type="button" class="btn tile" id="scanQrBtn">
-        <span class="title">Scan QR Code</span>
+        <span class="title">Scan QR Code (Recommended)</span>
         <span class="desc">
           Scan an enrollment QR code to automatically configure your device.
         </span>
       </button>
-    <!--
+
+      <!--
       <button type="button" class="btn tile">
         <span class="title">Manual Enrollment</span>
         <span class="desc">
           Enter your enrollment details manually if you don’t have a camera.
         </span>
       </button>
+      -->
     </div>
-  -->
   </div>
 </main>
 
@@ -90,7 +90,11 @@
   const countdownEl = document.getElementById("setupQrCountdown");
   const msg = document.getElementById("setupQrMsg");
 
-  const CACHE_KEY = "takPortal.setupDevice.enrollQr.v1";
+  // --- IMPORTANT: make cache user-specific to prevent cross-user QR reuse ---
+  const CURRENT_USERNAME = "<%= (typeof authentikUser !== 'undefined' && authentikUser && authentikUser.username) ? authentikUser.username : ((typeof user !== 'undefined' && user && user.username) ? user.username : ((typeof username !== 'undefined') ? username : '')) %>";
+  const CACHE_KEY = `takPortal.setupDevice.enrollQr.v1:${CURRENT_USERNAME || "unknown"}`;
+  const LEGACY_CACHE_KEY = "takPortal.setupDevice.enrollQr.v1";
+
   let cached = null; // { username, token, expiresAt, enrollUrl, qrCode }
   let countdownTimer = null;
 
@@ -103,17 +107,40 @@
     try { return JSON.parse(s); } catch { return null; }
   }
 
+  function isValidCacheObject(obj) {
+    if (!obj || !obj.expiresAt) return false;
+    const exp = new Date(obj.expiresAt);
+    if (Number.isNaN(exp.getTime())) return false;
+    if (Date.now() >= exp.getTime()) return false;
+    return true;
+  }
+
   function loadCache() {
+    // Clean up old global key if it exists (prevents surprises)
+    try {
+      const legacy = localStorage.getItem(LEGACY_CACHE_KEY);
+      if (legacy) localStorage.removeItem(LEGACY_CACHE_KEY);
+    } catch {}
+
     const raw = localStorage.getItem(CACHE_KEY);
     const obj = raw ? safeParseJson(raw) : null;
-    if (!obj || !obj.expiresAt) return null;
-    const exp = new Date(obj.expiresAt);
-    if (Number.isNaN(exp.getTime())) return null;
-    if (Date.now() >= exp.getTime()) return null;
+    if (!isValidCacheObject(obj)) return null;
+
+    // Hard safety: don't ever reuse another user's cached QR
+    if (obj.username && CURRENT_USERNAME && obj.username !== CURRENT_USERNAME) {
+      try { localStorage.removeItem(CACHE_KEY); } catch {}
+      return null;
+    }
+
+    // If we couldn't determine current username, be conservative and do not reuse cache
+    if (!CURRENT_USERNAME) return null;
+
     return obj;
   }
 
   function saveCache(obj) {
+    // Always stamp with current username so we can validate later
+    obj.username = CURRENT_USERNAME || obj.username || "";
     try { localStorage.setItem(CACHE_KEY, JSON.stringify(obj)); } catch {}
   }
 
@@ -225,12 +252,29 @@
       enrollUrl: data.enrollUrl,
       qrCode: data.qrCode,
     };
+
+    // If server returns username, enforce match (extra safety)
+    if (CURRENT_USERNAME && obj.username && obj.username !== CURRENT_USERNAME) {
+      throw new Error("User mismatch while generating QR. Please refresh and try again.");
+    }
+
     saveCache(obj);
     renderFromCache(obj);
   }
 
   scanQrBtn.addEventListener("click", async () => {
     setMsg(msg, "", true);
+
+    // If we can't determine current username, don't reuse cache
+    if (!CURRENT_USERNAME) {
+      try {
+        await fetchAndShowQr();
+      } catch (err) {
+        setMsg(msg, err?.message || String(err), false);
+        openModal();
+      }
+      return;
+    }
 
     const existing = loadCache();
     if (existing && existing.qrCode && existing.enrollUrl && existing.token) {
@@ -279,5 +323,3 @@
     setMsg(msg, "Downloading high-res QR...", true);
   });
 </script>
-
-</div></body></html>
