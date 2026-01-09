@@ -200,6 +200,7 @@ app.use("/api/users", require("./routes/users.routes"));
 app.use("/api/groups", require("./routes/groups.routes"));
 app.use("/api/templates", require("./routes/templates.routes"));
 app.use("/api/qr", require("./routes/qr.routes"));
+app.use("/api/setup-my-device", require("./routes/setupDevice.routes"));
 app.use("/api/mutual-aid", require("./routes/mutualAid.routes"));
 app.use("/dashboard", require("./routes/dashboard.routes"));
 
