@@ -19,9 +19,7 @@ async function getUserIdByUsername(username) {
   const u = String(username || "").trim();
   if (!u) throw new Error("Missing username");
 
-  // Authentik can vary here; be resilient:
-  // 1) try exact-style filter
-  // 2) fallback to search
+  // Be resilient: try username filter then search fallback
   const tries = [
     { username: u, page_size: 100 },
     { search: u, page_size: 100 },
@@ -41,7 +39,7 @@ async function listUserAppPasswordsByUserId(userId) {
   const res = await api.get("/core/tokens/", {
     params: {
       intent: "app_password",
-      user: userId,          // <-- reliable filter
+      user: userId,          // <-- stable filter
       ordering: "-expires",
       page_size: 200,
     },
@@ -80,17 +78,17 @@ async function createAppPasswordForUserId(userId, expiresAt) {
 }
 
 /**
- * Return an existing (non-expired) enrollment token for this user, or create one.
- * Reuses within TTL window to avoid multiple active tokens per user.
+ * Prefer userId (uid from headers) if provided; fallback to lookup by username.
  */
-async function getOrCreateEnrollmentAppPassword(username, ttlMinutes = 30) {
+async function getOrCreateEnrollmentAppPassword({ username, userId, ttlMinutes = 30 }) {
   const u = String(username || "").trim();
-  if (!u) throw new Error("Missing username");
-
   const now = new Date();
-  const userId = await getUserIdByUsername(u);
 
-  const tokens = await listUserAppPasswordsByUserId(userId);
+  const resolvedUserId = userId
+    ? String(userId).trim()
+    : await getUserIdByUsername(u);
+
+  const tokens = await listUserAppPasswordsByUserId(resolvedUserId);
 
   const candidate = tokens
     .filter((t) => {
@@ -105,12 +103,12 @@ async function getOrCreateEnrollmentAppPassword(username, ttlMinutes = 30) {
   const identifier = candidate
     ? String(candidate.t.identifier)
     : await createAppPasswordForUserId(
-        userId,
+        resolvedUserId,
         new Date(now.getTime() + ttlMinutes * 60 * 1000)
       );
 
-  // Refresh token details (expires may not be present in create response)
-  const freshList = await listUserAppPasswordsByUserId(userId);
+  // Refresh token info and view key
+  const freshList = await listUserAppPasswordsByUserId(resolvedUserId);
   const tokenObj =
     freshList.find((t) => String(t?.identifier || "") === identifier) || candidate?.t;
 

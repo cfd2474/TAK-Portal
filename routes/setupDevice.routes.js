@@ -28,13 +28,13 @@ router.post("/enroll-qr", async (req, res) => {
     }
 
     const { identifier, key, expiresAt } =
-      await tokensSvc.getOrCreateEnrollmentAppPassword(user.username, 30);
+      await tokensSvc.getOrCreateEnrollmentAppPassword({
+        username: user.username,
+        userId: user.uid,     // <-- THE IMPORTANT PART
+        ttlMinutes: 30,
+      });
 
     const enrollUrl = qrSvc.buildEnrollUrl({ username: user.username, token: key });
-    if (!enrollUrl) {
-      return res.status(500).json({ ok: false, error: "Failed to build enrollment URL" });
-    }
-
     const qrCode = await qrSvc.generateDisplayQrDataUrl(enrollUrl);
 
     return res.json({

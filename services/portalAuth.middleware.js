@@ -51,8 +51,13 @@ function portalAuthMiddleware(req, res, next) {
     return next();
   }
 
-  const username = req.headers["x-authentik-username"];
+  // Authentik forward-auth headers
+  const usernameHeader = req.headers["x-authentik-username"];
+  const uidHeader = req.headers["x-authentik-uid"]; // numeric Authentik user id (PK)
   const groupsHeader = req.headers["x-authentik-groups"] || "";
+
+  const username = (usernameHeader && String(usernameHeader).trim()) || "";
+  const uid = (uidHeader && String(uidHeader).trim()) || null;
 
   // Allow completely anonymous access to public paths
   if (!username && isPublicPath) {
@@ -108,13 +113,14 @@ function portalAuthMiddleware(req, res, next) {
     });
   }
 
-const displayNameHeader =
-  req.headers["x-authentik-name"] || req.headers["x-authentik-display-name"];
-const displayName =
-  (displayNameHeader && String(displayNameHeader).trim()) || username;
+  const displayNameHeader =
+    req.headers["x-authentik-name"] || req.headers["x-authentik-display-name"];
+  const displayName =
+    (displayNameHeader && String(displayNameHeader).trim()) || username;
 
   const authUser = {
     username,
+    uid,          // <-- NEW: Authentik user id (PK)
     displayName,
     groups: userGroups,
     isGlobalAdmin,
