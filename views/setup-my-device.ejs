@@ -4,9 +4,32 @@
 <main class="main">
   <h1>Setup My Device</h1>
 
-  <div class="card">
-    <h2>Step 1: Download the TAK App</h2>
+  <!-- Device selector -->
+  <div class="card" id="deviceSelectCard">
+    <h2>Select Your Device Type</h2>
+
     <div class="grid2">
+      <button type="button" class="btn tile deviceTile deviceTile-ios" id="selectIOS">
+        <span class="title"> Apple (iPhone / iPad)</span>
+        <span class="desc">Use TAK Aware on iOS devices.</span>
+      </button>
+
+      <button type="button" class="btn tile deviceTile deviceTile-android" id="selectAndroid">
+        <span class="title">🤖 Android (Phone / Tablet)</span>
+        <span class="desc">Use ATAK on Android devices.</span>
+      </button>
+    </div>
+
+    <div class="row" style="margin-top: 12px; gap: 10px; flex-wrap: wrap;">
+      <span class="chip" id="deviceSelectedChip" style="display:none;"></span>
+      <button type="button" class="btn" id="changeDeviceBtn" style="display:none;">Change device</button>
+    </div>
+  </div>
+
+  <!-- iOS flow -->
+  <div id="iosFlow" style="display:none;">
+    <div class="card">
+      <h2>Step 1: Download the TAK App</h2>
       <a
         href="https://apps.apple.com/us/app/tak-aware/id6738631659"
         target="_blank"
@@ -16,7 +39,21 @@
         <span class="title">iOS - TAK Aware</span>
         <span class="desc">Download TAK Aware for iPhone or iPad.</span>
       </a>
+    </div>
 
+    <div class="card">
+      <h2>Step 2: Enroll Your Device</h2>
+      <button type="button" class="btn tile" id="scanQrBtnTakAware">
+        <span class="title">Scan QR Code</span>
+        <span class="desc">Scan an enrollment QR code to automatically configure TAK Aware.</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Android flow -->
+  <div id="androidFlow" style="display:none;">
+    <div class="card">
+      <h2>Step 1: Download the TAK App</h2>
       <a
         href="https://play.google.com/store/apps/details?id=com.atakmap.app.civ"
         target="_blank"
@@ -27,37 +64,23 @@
         <span class="desc">Download ATAK for Android devices.</span>
       </a>
     </div>
-  </div>
 
-  <div class="card">
-    <h2>Step 2: Enroll Your Device</h2>
-
-    <div class="grid2">
-      <button type="button" class="btn tile" id="scanQrBtnTakAware">
-        <span class="title">TAK Aware - Scan QR Code</span>
-        <span class="desc">
-          Scan an enrollment QR code to automatically configure your device.
-        </span>
-      </button>
-
+    <div class="card">
+      <h2>Step 2: Enroll Your Device</h2>
       <button type="button" class="btn tile" id="scanQrBtnAtak">
-        <span class="title">ATAK - Scan QR Code</span>
-        <span class="desc">
-          Scan an enrollment QR code to automatically configure your device.
-        </span>
+        <span class="title">Scan QR Code</span>
+        <span class="desc">Scan an enrollment QR code to automatically configure ATAK.</span>
       </button>
-
-      <!--
-      <button type="button" class="btn tile">
-        <span class="title">Manual Enrollment</span>
-        <span class="desc">
-          Enter your enrollment details manually if you don’t have a camera.
-        </span>
-      </button>
-      -->
     </div>
   </div>
 </main>
+
+<!-- Optional tiny styling to make selector tiles obviously different -->
+<style>
+  .deviceTile-ios { border-left: 10px solid #111; }
+  .deviceTile-android { border-left: 10px solid #2ea44f; }
+  .deviceTile.selected { outline: 3px solid rgba(255, 196, 0, .65); outline-offset: 2px; }
+</style>
 
 <!-- QR Modal -->
 <div class="modalOverlay" id="setupQrOverlay" style="display:none;">
@@ -89,6 +112,76 @@
 </div>
 
 <script>
+  // --- device selection UI ---
+  const iosFlow = document.getElementById("iosFlow");
+  const androidFlow = document.getElementById("androidFlow");
+  const selectIOS = document.getElementById("selectIOS");
+  const selectAndroid = document.getElementById("selectAndroid");
+  const deviceSelectedChip = document.getElementById("deviceSelectedChip");
+  const changeDeviceBtn = document.getElementById("changeDeviceBtn");
+
+  const DEVICE_KEY = "takPortal.deviceType"; // "ios" | "android"
+
+  function setDeviceUI(type) {
+    const isIOS = type === "ios";
+    iosFlow.style.display = isIOS ? "block" : "none";
+    androidFlow.style.display = isIOS ? "none" : "block";
+
+    selectIOS.classList.toggle("selected", isIOS);
+    selectAndroid.classList.toggle("selected", !isIOS);
+
+    deviceSelectedChip.style.display = "inline-flex";
+    deviceSelectedChip.textContent = isIOS ? "Selected: Apple (iOS)" : "Selected: Android";
+    changeDeviceBtn.style.display = "inline-flex";
+  }
+
+  function clearDeviceUI() {
+    iosFlow.style.display = "none";
+    androidFlow.style.display = "none";
+    selectIOS.classList.remove("selected");
+    selectAndroid.classList.remove("selected");
+    deviceSelectedChip.style.display = "none";
+    changeDeviceBtn.style.display = "none";
+  }
+
+  function selectDevice(type) {
+    localStorage.setItem(DEVICE_KEY, type);
+    setDeviceUI(type);
+
+    // keep modal instructions aligned with device
+    setScanInstructions(type === "ios" ? "takaware" : "atak");
+  }
+
+  selectIOS.addEventListener("click", () => selectDevice("ios"));
+  selectAndroid.addEventListener("click", () => selectDevice("android"));
+  changeDeviceBtn.addEventListener("click", () => {
+    localStorage.removeItem(DEVICE_KEY);
+    clearDeviceUI();
+  });
+
+  (function autoDetectDevice() {
+    const saved = localStorage.getItem(DEVICE_KEY);
+    if (saved === "ios" || saved === "android") {
+      setDeviceUI(saved);
+      setScanInstructions(saved === "ios" ? "takaware" : "atak");
+      return;
+    }
+
+    const ua = navigator.userAgent || "";
+    if (/iPhone|iPad|iPod/i.test(ua)) {
+      selectDevice("ios");
+      return;
+    }
+    if (/Android/i.test(ua)) {
+      selectDevice("android");
+      return;
+    }
+
+    // unknown platform -> show only selector until they pick
+    clearDeviceUI();
+  })();
+
+  // --- QR modal + enrollment logic (kept same behavior) ---
   const scanQrBtnTakAware = document.getElementById("scanQrBtnTakAware");
   const scanQrBtnAtak = document.getElementById("scanQrBtnAtak");
   const overlay = document.getElementById("setupQrOverlay");
@@ -109,22 +202,22 @@
     scanMode = mode;
 
     const isTakAware = mode === "takaware";
-    instructionsTitle.textContent = isTakAware ? "TAK Aware: How to Scan" : "ATAK: How to Scan";
+    instructionsTitle.textContent = isTakAware ? "TAK Aware (iOS): How to Scan" : "ATAK (Android): How to Scan";
 
     const steps = isTakAware
       ? [
           "Open TAK Aware on your iPhone/iPad.",
-          "Allow location while using app and select to Change to Allways Allow",
-          "Set your Call Sign, Team, and Role as instructed in your welcome email.",
-          "Select Connect to a TAK Server.",
-          "Select Scan QR Code.",
-          "Allow camera access.",
-          "Point your camera at the QR code and look for Status: Enrollment Succeeded."
+          "When prompted, allow Location access and set it to “Always Allow” if required by your org.",
+          "Enter your Call Sign / Team / Role (per your welcome email) if prompted.",
+          "Tap “Connect to a TAK Server”, then choose “Scan QR Code”.",
+          "Allow camera access and scan the QR until you see “Status: Succeeded”."
         ]
       : [
-          "Open the camera on your Android device.",
-          "Point your camera at the QR code and select the notification to open the link.",
-          "Select Yes to perform quick enrollment inside ATAK.",
+          "Open ATAK on your Android device.",
+          "Go to the enrollment / server connection area (varies by build).",
+          "Choose the option to import or enroll via QR code.",
+          "Allow camera access when prompted.",
+          "Scan the QR and confirm enrollment when prompted."
         ];
 
     instructionsList.innerHTML = steps.map(s => `<li>${s}</li>`).join("");
@@ -291,7 +384,7 @@
       token: data.token,
       expiresAt: data.expiresAt,
       enrollUrl: data.enrollUrl,
-      qrCode: data.qrCode,
+      qrCode: data.qrCode
     };
 
     // If server returns username, enforce match (extra safety)
@@ -333,8 +426,8 @@
     }
   }
 
-  scanQrBtnTakAware.addEventListener("click", () => handleScanClick("takaware"));
-  scanQrBtnAtak.addEventListener("click", () => handleScanClick("atak"));
+  if (scanQrBtnTakAware) scanQrBtnTakAware.addEventListener("click", () => handleScanClick("takaware"));
+  if (scanQrBtnAtak) scanQrBtnAtak.addEventListener("click", () => handleScanClick("atak"));
 
   closeBtn.addEventListener("click", closeModal);
   overlay.addEventListener("click", (e) => {
