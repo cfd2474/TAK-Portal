@@ -100,7 +100,10 @@ async function getOrCreateEnrollmentAppPassword(params, ttlMinutes = 30) {
   if (!u) throw new Error("Missing username");
 
   const now = new Date();
-  const resolvedUserId = userId ? String(userId).trim() : await getUserIdByUsername(u);
+  const cleanedUserId = userId ? String(userId).trim() : "";
+  const resolvedUserId =
+    /^\d+$/.test(cleanedUserId) ? cleanedUserId : await getUserIdByUsername(u);
+
 
   const tokens = await listUserAppPasswordsByUserId(resolvedUserId);
 
