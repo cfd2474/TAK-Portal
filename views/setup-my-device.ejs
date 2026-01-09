@@ -156,20 +156,21 @@
     const steps = isTakAware
       ? [
           "Open TAK Aware on your iPhone/iPad.",
-          "When prompted, allow Location access (use “Always Allow” if required).",
-          "Enter your Call Sign / Team / Role as instructed in your welcome email.",
+          "When prompted, allow Location access and set it to “Always Allow” if required by your org.",
+          "Enter your Call Sign / Team / Role (per your welcome email) if prompted.",
           "Tap “Connect to a TAK Server”, then choose “Scan QR Code”.",
-          "Allow camera access and scan the QR until enrollment succeeds."
+          "Allow camera access and scan the QR until you see “Status: Succeeded”."
         ]
       : [
           "Open ATAK on your Android device.",
-          "Open the menu for server connections / enrollment (varies by build).",
-          "Choose the option to import/enroll via QR code.",
+          "Go to the enrollment / server connection area (varies by build).",
+          "Choose the option to import or enroll via QR code.",
           "Allow camera access when prompted.",
           "Scan the QR and confirm enrollment when prompted."
         ];
 
     instructionsList.innerHTML = steps.map(s => `<li>${s}</li>`).join("");
+
   }
 
   // --- IMPORTANT: make cache user-specific to prevent cross-user QR reuse ---
