@@ -10,6 +10,10 @@ All notable changes to this project will be documented in this file.  Minor qual
 
 ## Version History
 
+## v1.1.21 - 1/9/26
+🎉 `New Feature` - Added a Scan QR Code Option in the Setup My Device page that creates a short term QR Code login, good for 30 min. <br>
+✨ `Enhancement` - Removed the QR Code Generator from sidebar temporarily as it should no longer be needed.
+
 ## v1.1.20 - 1/8/26
 🎉 `New Feature` - Added a "Setup My Device" page to guide users through the TAK setup process.  This page is not 100% functional and will continue to see updates to bring it to full functionality.
 
@@ -38,5 +42,5 @@ All notable changes to this project will be documented in this file.  Minor qual
 
 ### v1.1.13 - 1/1/26
 ✏️ `Documentation` - Addition of Change Log file <br>
-🎉 `New Feature` - Adds Update Avaliable pill in sidebar<br>
+🎉 `New Feature` - Adds Update Available pill in sidebar<br>
 🐛 `Bug Fix` - Fixes issue with Templates not appearing in Manage Users<br>
