@@ -10,7 +10,7 @@
 
     <div class="grid2">
       <button type="button" class="btn tile deviceTile deviceTile-ios" id="selectIOS">
-        <span class="title"> Apple (iPhone / iPad)</span>
+        <span class="title">🍎 Apple (iPhone / iPad)</span>
         <span class="desc">Use TAK Aware on iOS devices.</span>
       </button>
 
@@ -18,11 +18,6 @@
         <span class="title">🤖 Android (Phone / Tablet)</span>
         <span class="desc">Use ATAK on Android devices.</span>
       </button>
-    </div>
-
-    <div class="row" style="margin-top: 12px; gap: 10px; flex-wrap: wrap;">
-      <span class="chip" id="deviceSelectedChip" style="display:none;"></span>
-      <button type="button" class="btn" id="changeDeviceBtn" style="display:none;">Change device</button>
     </div>
   </div>
 
@@ -75,11 +70,10 @@
   </div>
 </main>
 
-<!-- Optional tiny styling to make selector tiles obviously different -->
+<!-- Styling: keep them visually different, but no yellow selection outline -->
 <style>
   .deviceTile-ios { border-left: 10px solid #111; }
   .deviceTile-android { border-left: 10px solid #2ea44f; }
-  .deviceTile.selected { outline: 3px solid rgba(255, 196, 0, .65); outline-offset: 2px; }
 </style>
 
 <!-- QR Modal -->
@@ -112,76 +106,37 @@
 </div>
 
 <script>
-  // --- device selection UI ---
+  // --- device selection UI (NO persistence; forgets on reload) ---
   const iosFlow = document.getElementById("iosFlow");
   const androidFlow = document.getElementById("androidFlow");
   const selectIOS = document.getElementById("selectIOS");
   const selectAndroid = document.getElementById("selectAndroid");
-  const deviceSelectedChip = document.getElementById("deviceSelectedChip");
-  const changeDeviceBtn = document.getElementById("changeDeviceBtn");
 
-  const DEVICE_KEY = "takPortal.deviceType"; // "ios" | "android"
-
-  function setDeviceUI(type) {
-    const isIOS = type === "ios";
-    iosFlow.style.display = isIOS ? "block" : "none";
-    androidFlow.style.display = isIOS ? "none" : "block";
-
-    selectIOS.classList.toggle("selected", isIOS);
-    selectAndroid.classList.toggle("selected", !isIOS);
-
-    deviceSelectedChip.style.display = "inline-flex";
-    deviceSelectedChip.textContent = isIOS ? "Selected: Apple (iOS)" : "Selected: Android";
-    changeDeviceBtn.style.display = "inline-flex";
+  function showIOS() {
+    iosFlow.style.display = "block";
+    androidFlow.style.display = "none";
+    setScanInstructions("takaware");
+    // optional: scroll to the revealed content
+    iosFlow.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function clearDeviceUI() {
+  function showAndroid() {
+    iosFlow.style.display = "none";
+    androidFlow.style.display = "block";
+    setScanInstructions("atak");
+    androidFlow.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  // On load: always start with chooser only
+  (function resetOnLoad() {
     iosFlow.style.display = "none";
     androidFlow.style.display = "none";
-    selectIOS.classList.remove("selected");
-    selectAndroid.classList.remove("selected");
-    deviceSelectedChip.style.display = "none";
-    changeDeviceBtn.style.display = "none";
-  }
-
-  function selectDevice(type) {
-    localStorage.setItem(DEVICE_KEY, type);
-    setDeviceUI(type);
-
-    // keep modal instructions aligned with device
-    setScanInstructions(type === "ios" ? "takaware" : "atak");
-  }
-
-  selectIOS.addEventListener("click", () => selectDevice("ios"));
-  selectAndroid.addEventListener("click", () => selectDevice("android"));
-  changeDeviceBtn.addEventListener("click", () => {
-    localStorage.removeItem(DEVICE_KEY);
-    clearDeviceUI();
-  });
-
-  (function autoDetectDevice() {
-    const saved = localStorage.getItem(DEVICE_KEY);
-    if (saved === "ios" || saved === "android") {
-      setDeviceUI(saved);
-      setScanInstructions(saved === "ios" ? "takaware" : "atak");
-      return;
-    }
-
-    const ua = navigator.userAgent || "";
-    if (/iPhone|iPad|iPod/i.test(ua)) {
-      selectDevice("ios");
-      return;
-    }
-    if (/Android/i.test(ua)) {
-      selectDevice("android");
-      return;
-    }
-
-    // unknown platform -> show only selector until they pick
-    clearDeviceUI();
   })();
 
-  // --- QR modal + enrollment logic (kept same behavior) ---
+  selectIOS.addEventListener("click", showIOS);
+  selectAndroid.addEventListener("click", showAndroid);
+
+  // --- QR modal + enrollment logic ---
   const scanQrBtnTakAware = document.getElementById("scanQrBtnTakAware");
   const scanQrBtnAtak = document.getElementById("scanQrBtnAtak");
   const overlay = document.getElementById("setupQrOverlay");
@@ -207,15 +162,15 @@
     const steps = isTakAware
       ? [
           "Open TAK Aware on your iPhone/iPad.",
-          "When prompted, allow Location access and set it to “Always Allow” if required by your org.",
-          "Enter your Call Sign / Team / Role (per your welcome email) if prompted.",
+          "When prompted, allow Location access (use “Always Allow” if required).",
+          "Enter your Call Sign / Team / Role as instructed in your welcome email.",
           "Tap “Connect to a TAK Server”, then choose “Scan QR Code”.",
-          "Allow camera access and scan the QR until you see “Status: Succeeded”."
+          "Allow camera access and scan the QR until enrollment succeeds."
         ]
       : [
           "Open ATAK on your Android device.",
-          "Go to the enrollment / server connection area (varies by build).",
-          "Choose the option to import or enroll via QR code.",
+          "Open the menu for server connections / enrollment (varies by build).",
+          "Choose the option to import/enroll via QR code.",
           "Allow camera access when prompted.",
           "Scan the QR and confirm enrollment when prompted."
         ];
@@ -254,6 +209,8 @@
       const legacy = localStorage.getItem(LEGACY_CACHE_KEY);
       if (legacy) localStorage.removeItem(LEGACY_CACHE_KEY);
     } catch {}
+
+    if (!CACHE_KEY) return null;
 
     const raw = localStorage.getItem(CACHE_KEY);
     const obj = raw ? safeParseJson(raw) : null;
@@ -421,13 +378,13 @@
       await fetchAndShowQr();
     } catch (err) {
       setMsg(msg, err?.message || String(err), false);
-      // still open modal so the user sees the error
       openModal();
     }
   }
 
-  if (scanQrBtnTakAware) scanQrBtnTakAware.addEventListener("click", () => handleScanClick("takaware"));
-  if (scanQrBtnAtak) scanQrBtnAtak.addEventListener("click", () => handleScanClick("atak"));
+  // Attach handlers (buttons exist in DOM even when flows are hidden)
+  scanQrBtnTakAware.addEventListener("click", () => handleScanClick("takaware"));
+  scanQrBtnAtak.addEventListener("click", () => handleScanClick("atak"));
 
   closeBtn.addEventListener("click", closeModal);
   overlay.addEventListener("click", (e) => {
