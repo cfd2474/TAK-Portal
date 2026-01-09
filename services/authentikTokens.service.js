@@ -19,7 +19,9 @@ async function getUserIdByUsername(username) {
   const u = String(username || "").trim();
   if (!u) throw new Error("Missing username");
 
-  // Be resilient: try username filter then search fallback
+  // Authentik can vary here; be resilient:
+  // 1) try exact-style filter
+  // 2) fallback to search
   const tries = [
     { username: u, page_size: 100 },
     { search: u, page_size: 100 },
@@ -35,11 +37,11 @@ async function getUserIdByUsername(username) {
   throw new Error(`Unable to resolve Authentik user id for "${u}"`);
 }
 
-async function listUserAppPasswordsByUserId(userId) {
+async function listUserAppPasswordsByUserId(resolvedUserId) {
   const res = await api.get("/core/tokens/", {
     params: {
       intent: "app_password",
-      user: userId,          // <-- stable filter
+      user: userId,          // <-- reliable filter
       ordering: "-expires",
       page_size: 200,
     },
@@ -78,15 +80,26 @@ async function createAppPasswordForUserId(userId, expiresAt) {
 }
 
 /**
- * Prefer userId (uid from headers) if provided; fallback to lookup by username.
+ * Return an existing (non-expired) enrollment token for this user, or create one.
+ * Reuses within TTL window to avoid multiple active tokens per user.
  */
-async function getOrCreateEnrollmentAppPassword({ username, userId, ttlMinutes = 30 }) {
-  const u = String(username || "").trim();
-  const now = new Date();
+async function getOrCreateEnrollmentAppPassword(params, ttlMinutes = 30) {
+    // Backwards-compatible signature:
+  //   getOrCreateEnrollmentAppPassword(username, ttlMinutes)
+  //   getOrCreateEnrollmentAppPassword({ username, userId, ttlMinutes })
+  let username = params;
+  let userId = null;
+  if (params && typeof params === "object") {
+    username = params.username;
+    userId = params.userId || params.uid || null;
+    if (typeof params.ttlMinutes === "number") ttlMinutes = params.ttlMinutes;
+  }
 
-  const resolvedUserId = userId
-    ? String(userId).trim()
-    : await getUserIdByUsername(u);
+  const u = String(username || "").trim();
+  if (!u) throw new Error("Missing username");
+
+  const now = new Date();
+  const resolvedUserId = userId ? String(userId).trim() : await getUserIdByUsername(u);
 
   const tokens = await listUserAppPasswordsByUserId(resolvedUserId);
 
@@ -107,7 +120,7 @@ async function getOrCreateEnrollmentAppPassword({ username, userId, ttlMinutes =
         new Date(now.getTime() + ttlMinutes * 60 * 1000)
       );
 
-  // Refresh token info and view key
+  // Refresh token details (expires may not be present in create response)
   const freshList = await listUserAppPasswordsByUserId(resolvedUserId);
   const tokenObj =
     freshList.find((t) => String(t?.identifier || "") === identifier) || candidate?.t;
