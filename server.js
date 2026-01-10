@@ -572,7 +572,15 @@ app.post(
         fs.unlinkSync(zipPath);
       } catch (_) {}
 
+      // IMPORTANT: reload cached settings from disk so UI reflects imported settings.json
+      try {
+        settingsSvc.ensureSettingsInitialized();
+      } catch (e) {
+        console.warn("[settings] Failed to reload settings after import:", e?.message || e);
+      }
+
       return res.redirect("/settings?import=1");
+
     } catch (err) {
       console.error("Import data zip error:", err);
       try {
