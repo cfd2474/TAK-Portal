@@ -25,7 +25,7 @@
     </div>
   <% } %>
 
-  <!-- Top stats -->
+  <!-- Top stats (unchanged) -->
   <div class="grid3">
     <div class="card stat">
       <div class="statLabel">Total Users</div>
@@ -46,72 +46,49 @@
     </div>
   </div>
 
-  <!-- 3-across row: TAK Health + two pies -->
+  <!-- TAK row: Connected Clients / Uptime / Disk % -->
   <div class="grid3" style="margin-top:14px;">
-    <!-- TAK Server Health -->
-    <div class="card" style="padding: 18px;">
-      <div style="display:flex; align-items:center; justify-content:space-between; gap: 12px;">
-        <div style="font-size: 20px; font-weight: 800;">TAK Server Health (beta)</div>
-        <div style="display:flex; align-items:center; gap:10px;">
-          <span
-            id="takStatusPill"
-            style="padding:6px 10px; border-radius:999px; font-weight:800; font-size:12px; background: rgba(255,255,255,0.08);"
-          >
-            <%= takMetrics && takMetrics.configured ? "CONNECTED" : "NOT CONFIGURED" %>
-          </span>
-        </div>
+    <div class="card takCard">
+      <div class="takHeaderRow">
+        <div class="takTitle">TAK Server Health (beta)</div>
+        <span id="takStatusPill" class="takPill">
+          <%= takMetrics && takMetrics.configured ? "CONNECTED" : "NOT CONFIGURED" %>
+        </span>
       </div>
 
-      <div class="grid3 tak-grid" style="margin-top: 14px;">
-        <div class="card stat" style="margin:0;">
-          <div class="statLabel">CPU %</div>
-          <div class="statValue" id="takCpu">--</div>
-          <div class="statHint" id="takCpuHint"></div>
+      <div class="takStatsRow">
+        <div class="miniStat">
+          <div class="miniLabel">Connected Clients</div>
+          <div class="miniValue" id="takClients">--</div>
         </div>
 
-        <div class="card stat" style="margin:0;">
-          <div class="statLabel">Memory %</div>
-          <div class="statValue" id="takMem">--</div>
-          <div class="statHint"></div>
+        <div class="miniStat">
+          <div class="miniLabel">Uptime</div>
+          <div class="miniValue" id="takUptime">--</div>
+          <div class="miniHint" id="takUptimeHint"></div>
         </div>
 
-        <div class="card stat" style="margin:0;">
-          <div class="statLabel">Disk %</div>
-          <div class="statValue" id="takDisk">--</div>
-          <div class="statHint"></div>
-        </div>
-
-        <div class="card stat" style="margin:0;">
-          <div class="statLabel">Clients</div>
-          <div class="statValue" id="takClients">--</div>
-          <div class="statHint"></div>
-        </div>
-
-        <div class="card stat tak-uptime-wide" style="margin:0;">
-          <div class="statLabel">Uptime</div>
-          <!-- ONLY show formatted string here -->
-          <div class="statValue" id="takUptime">--</div>
-          <div class="statHint" id="takUptimeHint"></div>
+        <div class="miniStat">
+          <div class="miniLabel">Disk %</div>
+          <div class="miniValue" id="takDisk">--</div>
         </div>
       </div>
     </div>
 
     <!-- Pie 1 -->
     <div class="card">
-      <h2 style="font-size:18px;">Users by Agency</h2>
+      <h2 class="cardTitle">Users by Agency</h2>
       <div class="chartWrap">
         <canvas id="agencyChart"></canvas>
       </div>
-      <!-- removed the "Unknown suffix" line -->
     </div>
 
     <!-- Pie 2 -->
     <div class="card">
-      <h2 style="font-size:18px;">Users by Type</h2>
+      <h2 class="cardTitle">Users by Type</h2>
       <div class="chartWrap">
         <canvas id="typeChart"></canvas>
       </div>
-      <!-- removed the "Unknown" line -->
     </div>
   </div>
 
@@ -185,7 +162,7 @@
         pill.style.background = ok ? "rgba(56, 166, 91, 0.25)" : "rgba(199, 82, 82, 0.25)";
       }
 
-      // CPU/Mem/Disk formatting:
+      // Disk formatting:
       // < 10 => 1 decimal (trim trailing .0), >= 10 => integer
       function fmtPct(n){
         if (typeof n !== "number" || !isFinite(n)) return "--";
@@ -210,12 +187,6 @@
         if (!data || data.configured === false) setPill("NOT CONFIGURED", false);
         else setPill("CONNECTED", true);
 
-        const cpu = data && data.cpu ? data.cpu : null;
-
-        $("takCpu").textContent = cpu ? fmtPct(cpu.cpuPercent) : "--";
-        $("takCpuHint").textContent = cpu && typeof cpu.cpuCount === "number" ? (cpu.cpuCount + " cores") : "";
-
-        $("takMem").textContent = fmtPct(data.memoryUsagePercent);
         $("takDisk").textContent = fmtPct(data.diskUsagePercent);
 
         $("takClients").textContent =
@@ -236,25 +207,22 @@
         }
       }
 
-      // Initial render from server-side snapshot (so it looks good immediately)
+      // Initial render from server-side snapshot
       const initial = <%- JSON.stringify(takMetrics || null) %>;
       if (initial) apply(initial);
 
       // Delay the first health check until after full page load, then +5s.
       // Then poll every 25s.
       function startTakPolling() {
-        // Wait 5s after load so the dashboard feels snappier
         setTimeout(async () => {
-          await refresh();                 // first live check
-          setInterval(refresh, 25000);     // subsequent checks
+          await refresh();
+          setInterval(refresh, 25000);
         }, 5000);
       }
 
       if (document.readyState === "complete") {
-        // page already fully loaded
         startTakPolling();
       } else {
-        // wait for full load (images/css/etc)
         window.addEventListener("load", startTakPolling, { once: true });
       }
     })();
@@ -271,6 +239,13 @@
     .grid3{ grid-template-columns: 1fr; }
   }
 
+  /* Slightly refreshed card feel */
+  .card{
+    border: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.18);
+    border-radius: 16px;
+  }
+
   .stat{ padding: 18px; }
 
   .statLabel{
@@ -282,6 +257,7 @@
     font-size: 64px;
     font-weight: 800;
     line-height: 1;
+    letter-spacing: -0.02em;
   }
   .statHint{
     margin-top: 10px;
@@ -289,21 +265,62 @@
     font-size: 12px;
   }
 
-  /* Compact typography for TAK Server Health stats */
-  .tak-grid .statLabel{
-    font-size: 16px;
+  /* TAK compact card */
+  .takCard{ padding: 18px; }
+  .takHeaderRow{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .takTitle{
+    font-size: 18px;
+    font-weight: 900;
+    letter-spacing: -0.01em;
+  }
+  .takPill{
+    padding:6px 10px;
+    border-radius:999px;
+    font-weight:900;
+    font-size:12px;
+    background: rgba(255,255,255,0.08);
+  }
+  .takStatsRow{
+    display:grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .miniStat{
+    padding: 14px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .miniLabel{
+    font-size: 13px;
+    color: var(--muted);
     margin-bottom: 6px;
+    font-weight: 700;
   }
-  .tak-grid .statValue{
-    font-size: 44px;
+  .miniValue{
+    font-size: 34px;
+    font-weight: 900;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
   }
-  .tak-grid .statHint{
+  .miniHint{
+    margin-top: 6px;
+    color: var(--muted);
     font-size: 11px;
   }
 
-  /* Uptime double-wide */
-  .tak-uptime-wide{
-    grid-column: span 2;
+  /* Chart titles */
+  .cardTitle{
+    font-size:18px;
+    margin: 0 0 10px 0;
+    font-weight: 900;
+    letter-spacing: -0.01em;
   }
 
   /* Makes both charts smaller + centered */
