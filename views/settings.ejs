@@ -425,15 +425,20 @@
       <button type="submit" class="btn">Save Settings</button>
       <a href="/settings/export-data" class="btn">Export Configuration</a>
       <form id="importConfigForm" action="/settings/import-data" method="post" enctype="multipart/form-data" style="display:inline-block; margin-left: 8px;">
-        <input id="configZipInput" type="file" name="CONFIG_ZIP_UPLOAD" accept=".zip,application/zip" style="display:none" />
+        <input
+          id="configZipInput"
+          type="file"
+          name="CONFIG_ZIP_UPLOAD"
+          accept=".zip,application/zip"
+          style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;"
+        />
         <button type="button" id="importConfigBtn" class="btn btn-warning">Import Configuration</button>
       </form>
     </div>
   </form>
   <script>
     (function () {
-      var root = document.querySelector(".email-templates-section");
-      if (!root) return;
+      var root = document.querySelector(".email-templates-section") || document;
 
       var resetButtons = root.querySelectorAll("[data-reset-template]");
       resetButtons.forEach(function (btn) {
