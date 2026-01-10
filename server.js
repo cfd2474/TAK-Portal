@@ -4,6 +4,7 @@ const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
 const settingsSvc = require("./services/settings.service");
+const dashboardStatsCache = require("./services/dashboardStatsCache.service");
 const axios = require("axios");
 const { getString } = require("./services/env");
 const { URL } = require("url");
@@ -521,6 +522,9 @@ const port = process.env.WEB_UI_PORT || 3000;
 
 app.listen(port, () => {
   console.log(`✅ TAK Portal running on http://localhost:${port}`);
+
+  // Prime dashboard Authentik stats cache (dashboard-only)
+  dashboardStatsCache.startDashboardStatsRefresher();
 
   // Rehydrate expiration timers from stored mutual aid records.
   try {

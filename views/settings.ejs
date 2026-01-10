@@ -57,6 +57,7 @@
         "GROUPS_HIDDEN_PREFIXES",
         "USERS_ACTIONS_HIDDEN_PREFIXES",
         "GROUPS_ACTIONS_HIDDEN_PREFIXES",
+        "DASHBOARD_AUTHENTIK_STATS_REFRESH_SECONDS",
 
         "TAK_URL",
         "TAK_API_P12_PATH",
@@ -119,6 +120,7 @@
             <% renderField("GROUPS_HIDDEN_PREFIXES","Hidden Group Prefixes","Comma-separated prefixes of groups to hide from the UI."); %>
             <% renderField("USERS_ACTIONS_HIDDEN_PREFIXES","User Action-Lock Prefixes","Users whose name starts with these prefixes cannot be modified from the portal."); %>
             <% renderField("GROUPS_ACTIONS_HIDDEN_PREFIXES","Group Action-Lock Prefixes","Groups whose name starts with these prefixes cannot be modified from the portal."); %>
+            <% renderField("DASHBOARD_AUTHENTIK_STATS_REFRESH_SECONDS","Dashboard Authentik Stats Refresh (seconds)","How often the server refreshes cached Authentik dashboard stats in the background. Server restart required for changes to take effect."); %>
           </div>
         </div>
       </details>

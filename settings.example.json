@@ -1,16 +1,14 @@
 {
-
   "AUTHENTIK_URL": "http://your-authentik-url:9000",
   "AUTHENTIK_TOKEN": "your-real-token-here",
   "USERS_HIDDEN_PREFIXES": "ak-,adm_,nodered-,ma-",
   "GROUPS_HIDDEN_PREFIXES": "authentik, MA -",
   "USERS_ACTIONS_HIDDEN_PREFIXES": "",
   "GROUPS_ACTIONS_HIDDEN_PREFIXES": "",
-
-  "PORTAL_AUTH_ENABLED": "false",         
+  "DASHBOARD_AUTHENTIK_STATS_REFRESH_SECONDS": "300",
+  "PORTAL_AUTH_ENABLED": "false",
   "PORTAL_AUTH_REQUIRED_GROUP": "",
   "AUTHENTIK_PUBLIC_URL": "",
-
   "TAK_URL": "https://your-tak-server:8443/Marti",
   "TAK_API_P12_PATH": "./certs/webadmin.p12",
   "TAK_API_P12_PASSPHRASE": "atakatak",
@@ -18,8 +16,6 @@
   "TAK_REVOKE_ON_DISABLE": "true",
   "TAK_DEBUG": "false",
   "TAK_BYPASS_ENABLED": "false",
-
-
   "EMAIL_ENABLED": "false",
   "EMAIL_PROVIDER": "smtp",
   "SMTP_HOST": "smtp.email.com",
@@ -31,11 +27,8 @@
   "EMAIL_ALWAYS_CC": "",
   "EMAIL_SEND_COPY_TO": "",
   "EMAIL_FAIL_HARD": "false",
-
-
   "BRAND_THEME": "dark",
   "BRAND_LOGO_URL": "",
-
   "BOOKMARK1_TITLE": "TAK Portal GitHub",
   "BOOKMARK1_URL": "https://github.com/AdventureSeeker423/TAK-Portal",
   "BOOKMARK2_TITLE": "Authentik",
