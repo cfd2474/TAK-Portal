@@ -3,7 +3,7 @@
  *
  * Pull operational metrics from TAK Server (Spring Boot actuator / Marti metrics).
  *
- * Env:
+ * Env or settings.json (services/env.js reads settings first, then process.env):
  *   TAK_URL                       e.g. https://tak.example.com:8443 or https://tak.example.com:8443/Marti
  *   TAK_DEBUG=true                (optional)
  *
@@ -52,16 +52,47 @@ function getHostRootFromTakUrl(takUrl) {
   return u.toString().replace(/\/+$/, "");
 }
 
+function normalizePemCertificateChain(pemCertificate) {
+  return String(pemCertificate)
+    .replace(/\r\n/g, "\n")
+    .split("-----BEGIN CERTIFICATE-----")
+    .join("-----BEGIN CERTIFICATE-----\n")
+    .split("-----END CERTIFICATE-----")
+    .join("\n-----END CERTIFICATE-----")
+    .trim();
+}
+
+function normalizePemKey(pemKey) {
+  let key = String(pemKey).replace(/\r\n/g, "\n").trim();
+
+  if (key.includes("-----BEGIN RSA PRIVATE KEY-----")) {
+    key = key
+      .split("-----BEGIN RSA PRIVATE KEY-----")
+      .join("-----BEGIN RSA PRIVATE KEY-----\n")
+      .split("-----END RSA PRIVATE KEY-----")
+      .join("\n-----END RSA PRIVATE KEY-----")
+      .trim();
+  }
+
+  if (key.includes("-----BEGIN PRIVATE KEY-----")) {
+    key = key
+      .split("-----BEGIN PRIVATE KEY-----")
+      .join("-----BEGIN PRIVATE KEY-----\n")
+      .split("-----END PRIVATE KEY-----")
+      .join("\n-----END PRIVATE KEY-----")
+      .trim();
+  }
+
+  return key;
+}
+
 function buildTakAxios() {
   const TAK_DEBUG = getBool("TAK_DEBUG", false);
 
   const p12Path = resolvePathMaybe(getString("TAK_API_P12_PATH", ""));
-  const hasP12Pass = Object.prototype.hasOwnProperty.call({}, "TAK_API_P12_PASSPHRASE");
-  const p12Pass = hasP12Pass
-    ? String(getString("TAK_API_P12_PASSPHRASE", ""))
-    : getString("TAK_API_KEY_PASSPHRASE", "")
-      ? String(getString("TAK_API_KEY_PASSPHRASE", ""))
-      : undefined;
+  // IMPORTANT: use getString() so settings.json works (not process.env directly)
+  // Allow empty string passphrase (common for P12)
+  const p12Pass = String(getString("TAK_API_P12_PASSPHRASE", ""));
 
   const certPath = resolvePathMaybe(getString("TAK_API_CERT_PATH", ""));
   const keyPath = resolvePathMaybe(getString("TAK_API_KEY_PATH", ""));
@@ -81,10 +112,17 @@ function buildTakAxios() {
   if (p12Path) {
     // Parse PKCS#12 (incl RC2-40-CBC) -> PEM using p12-pem
     const { getPemFromP12 } = require("p12-pem");
-    const pass = p12Pass ?? "";
-    const pem = getPemFromP12(p12Path, pass);
-    agentOptions.cert = pem.cert;
-    agentOptions.key = pem.key;
+    const certs = getPemFromP12(p12Path, p12Pass);
+
+    if (!certs?.pemCertificate) {
+      throw new Error("TAK metrics: Unable to extract certificate(s) from P12");
+    }
+    if (!certs?.pemKey) {
+      throw new Error("TAK metrics: Unable to extract private key from P12");
+    }
+
+    agentOptions.cert = normalizePemCertificateChain(certs.pemCertificate);
+    agentOptions.key = normalizePemKey(certs.pemKey);
   } else if (certPath && keyPath) {
     agentOptions.cert = fs.readFileSync(certPath);
     agentOptions.key = fs.readFileSync(keyPath);
@@ -142,7 +180,7 @@ async function getCpuFromCustomEndpoint(client, actuatorBase) {
   const data = await safeGetJson(client, `${actuatorBase}/actuator/custom-cpu-metrics`);
   if (!data) return null;
 
-  // Expected shape (from your sample):
+  // Expected shape:
   // { cpuCount: 4, cpuUsage: 0.0434..., messagingCpuUsage: 0.0419..., messagingCpuCount: 4 }
   const cpuUsage = pickNumber(data, ["cpuUsage", "usage", "cpu"]);
   const msgUsage = pickNumber(data, ["messagingCpuUsage", "messagingUsage"]);
