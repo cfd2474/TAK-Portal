@@ -405,21 +405,6 @@
       </details>
     </div>
 
-    <!-- Other -->
-    <% if (otherKeys.length) { %>
-      <div class="card">
-        <details class="settings-section">
-          <summary class="settings-summary">Other Settings</summary>
-
-          <div class="settings-body">
-            <div class="grid2">
-              <% otherKeys.forEach(k => renderField(k, k, "")); %>
-            </div>
-          </div>
-        </details>
-      </div>
-    <% } %>
-
   </form>
 
   <!-- Action row (outside the main form to avoid nested forms) -->
