@@ -11,7 +11,8 @@ All notable changes to this project will be documented in this file.  Minor qual
 ## Version History
 
 ### v1.1.27  1/10/26
-✨ `Enhancement` - Added caching service for dashboard to speed up page loading times
+✨ `Enhancement` - Added caching service for dashboard to speed up page loading times <br>
+✨ `Enhancement` - Added "Import Configuration" button to the Server Settings <br>
 🐛 `Bug Fix` - Removed CPU and Memory Usage till I can get a more accurate number
 
 ### v1.1.26  1/10/26
