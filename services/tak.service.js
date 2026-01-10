@@ -37,6 +37,11 @@ const https = require("https");
 const axios = require("axios");
 const { getBool, getString } = require("./env");
 
+// IMPORTANT: env.js reads from settingsStore first, then process.env.
+// We need the same behavior here, but ALSO need to support empty string
+// for TAK_API_P12_PASSPHRASE (because empty can be valid for PKCS#12).
+const settingsStore = require("./settings.service");
+
 function isTakConfigured() {
   return !!String(getString("TAK_URL", "")).trim();
 }
@@ -55,13 +60,11 @@ function resolvePathMaybe(p) {
   if (!p) return null;
   const raw = String(p).trim();
   if (!raw) return null;
-  return path.isAbsolute(raw) ? raw : path.resolve(process.cwd(), raw);
+  return path.isAbsolute(raw) ? raw : path.join(process.cwd(), raw);
 }
 
 function getTakBaseUrl() {
   const raw = String(getString("TAK_URL", "")).trim();
-  if (!raw) return "";
-
   const u = new URL(raw);
 
   // Default Marti context if none provided
@@ -80,11 +83,26 @@ function unwrapTakList(payload) {
 }
 
 /**
- * Correctly detect "variable exists" vs "variable is empty string".
- * We need this for P12 passphrases because an empty string can be valid.
+ * Return whether a key is explicitly present in the app's settings/env source.
+ * - If a key exists and is set to "" (empty string), that should count as "present".
  */
-function envHasKey(key) {
-  return Object.prototype.hasOwnProperty.call(process.env, key);
+function hasSettingOrEnvKey(name) {
+  const fromSettings = settingsStore.get(name, undefined);
+  if (fromSettings !== undefined) return true;
+  return Object.prototype.hasOwnProperty.call(process.env, name);
+}
+
+/**
+ * Get a string value allowing empty string.
+ * - If key is not present at all, returns undefined.
+ * - If present in settings/env, returns a string (possibly "").
+ */
+function getStringAllowEmpty(name) {
+  const fromSettings = settingsStore.get(name, undefined);
+  if (fromSettings !== undefined) return String(fromSettings ?? "");
+
+  if (!Object.prototype.hasOwnProperty.call(process.env, name)) return undefined;
+  return String(process.env[name] ?? "");
 }
 
 function buildTakAxios() {
@@ -92,19 +110,25 @@ function buildTakAxios() {
 
   const p12Path = resolvePathMaybe(getString("TAK_API_P12_PATH", ""));
 
-  // ✅ FIX: The previous code checked hasOwnProperty on {} which is always false.
-  // We must check the real environment/config source.
-  //
-  // Behavior:
-  // - If TAK_API_P12_PASSPHRASE is present (even if empty), use it.
-  // - Else fall back to TAK_API_KEY_PASSPHRASE (legacy behavior).
+  // ✅ Robust passphrase selection:
+  // - Prefer TAK_API_P12_PASSPHRASE if explicitly present (even if empty string).
+  // - Otherwise fall back to TAK_API_KEY_PASSPHRASE (legacy).
+  // - If neither present, leave undefined and we'll use "" when calling getPemFromP12.
   let p12Pass;
-  if (envHasKey("TAK_API_P12_PASSPHRASE")) {
-    p12Pass = String(getString("TAK_API_P12_PASSPHRASE", ""));
+  if (hasSettingOrEnvKey("TAK_API_P12_PASSPHRASE")) {
+    p12Pass = getStringAllowEmpty("TAK_API_P12_PASSPHRASE");
   } else if (String(getString("TAK_API_KEY_PASSPHRASE", "")).length > 0) {
     p12Pass = String(getString("TAK_API_KEY_PASSPHRASE", ""));
   } else {
     p12Pass = undefined;
+  }
+
+  if (TAK_DEBUG) {
+    const present = hasSettingOrEnvKey("TAK_API_P12_PASSPHRASE");
+    const len = typeof p12Pass === "string" ? p12Pass.length : -1;
+    console.log(
+      `[TAK TLS] p12Path=${p12Path ? "set" : "unset"} p12PassphrasePresent=${present} p12PassphraseLen=${len}`
+    );
   }
 
   const certPath = resolvePathMaybe(getString("TAK_API_CERT_PATH", ""));
@@ -121,7 +145,7 @@ function buildTakAxios() {
     ca: caPath ? fs.readFileSync(caPath) : undefined,
     rejectUnauthorized: true,
 
-    // Keep previous behavior (skip hostname verification)
+    // Keep your previous behavior (skip hostname verification)
     checkServerIdentity: () => undefined,
   };
 
@@ -149,6 +173,7 @@ function buildTakAxios() {
     // p12-pem often returns RSA PRIVATE KEY; keep formatting robust either way
     let key = String(certs.pemKey);
 
+    // If RSA marker exists, normalize around it
     if (key.includes("-----BEGIN RSA PRIVATE KEY-----")) {
       key = key
         .split("-----BEGIN RSA PRIVATE KEY-----")
@@ -157,6 +182,7 @@ function buildTakAxios() {
         .join("\n-----END RSA PRIVATE KEY-----");
     }
 
+    // If PKCS8 marker exists, normalize around it too
     if (key.includes("-----BEGIN PRIVATE KEY-----")) {
       key = key
         .split("-----BEGIN PRIVATE KEY-----")
@@ -188,9 +214,7 @@ function buildTakAxios() {
     const fullUrl = (config) => {
       const base = config.baseURL || "";
       const url = config.url || "";
-      return (
-        base.replace(/\/+$/, "") + "/" + String(url).replace(/^\/+/, "")
-      );
+      return base.replace(/\/+$/, "") + "/" + String(url).replace(/^\/+/, "");
     };
 
     client.interceptors.request.use((config) => {
@@ -207,11 +231,7 @@ function buildTakAxios() {
     client.interceptors.response.use(
       (res) => {
         console.log("[TAK RES]", res.status, res.config?.url);
-        if (
-          res.data &&
-          typeof res.data === "object" &&
-          !Array.isArray(res.data)
-        ) {
+        if (res.data && typeof res.data === "object" && !Array.isArray(res.data)) {
           console.log("[TAK RES keys]", Object.keys(res.data).slice(0, 30));
         }
         return res;
@@ -292,8 +312,6 @@ async function verifyRevoked(client, ids, TAK_DEBUG) {
   for (const id of ids) {
     const c = byId.get(String(id));
     if (!c) {
-      // If a cert is missing, that can happen on some builds, but usually it still appears.
-      // Treat missing as NOT verified unless we can confirm via revoked endpoint.
       pending.push(String(id));
       continue;
     }
@@ -302,7 +320,7 @@ async function verifyRevoked(client, ids, TAK_DEBUG) {
 
   if (!pending.length) return { ok: true, pending: [] };
 
-  // Fallback: use revoked endpoint ONLY for verification (not discovery).
+  // Fallback: use revoked endpoint ONLY for verification.
   try {
     const res = await client.get("/api/certadmin/cert/revoked");
     const revokedList = unwrapTakList(res.data);
@@ -315,7 +333,6 @@ async function verifyRevoked(client, ids, TAK_DEBUG) {
 
     return { ok: false, pending: stillPending };
   } catch (e) {
-    // Can't verify via revoked endpoint; fail hard for safety
     return { ok: false, pending };
   }
 }
@@ -339,9 +356,8 @@ async function revokeCertsForUser(username, options = {}) {
     };
   }
 
-  if (!isTakConfigured()) {
+  if (!isTakConfigured())
     return { revoked: 0, attempted: 0, skipped: true, verified: true };
-  }
 
   const u = toLowerTrim(username);
   if (!u) throw new Error("Missing username for TAK certificate revocation");
@@ -350,7 +366,6 @@ async function revokeCertsForUser(username, options = {}) {
 
   const allCerts = await getAllCerts(client, TAK_DEBUG);
   if (!allCerts.length) {
-    // If we can't list certs, we can't safely claim revoke/verify.
     if (requireVerified) {
       throw new Error(
         "TAK: Unable to list certificates from /api/certadmin/cert; refusing to proceed."
@@ -375,11 +390,9 @@ async function revokeCertsForUser(username, options = {}) {
     return { revoked: 0, attempted: 0, skipped: false, verified: true };
   }
 
-  // Revoke all matching IDs
   const idsPath = encodeURIComponent(ids.join(","));
   await client.delete(`/api/certadmin/cert/revoke/${idsPath}`);
 
-  // Verify before returning success (required for delete flow safety)
   const vr = await verifyRevoked(client, ids, TAK_DEBUG);
 
   if (!vr.ok && requireVerified) {
