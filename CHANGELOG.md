@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.  Minor qual
 
 ## Version History
 
+### v1.1.27  1/10/26
+✨ `Enhancement` - Added caching service for dashboard to speed up page loading times
+
 ### v1.1.26  1/10/26
 🐛 `Bug Fix` - Fixes issue with not being able to log in on initial install due to authentication being disabled
 
