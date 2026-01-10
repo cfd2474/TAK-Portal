@@ -211,9 +211,18 @@ async function getMemoryFromCustomEndpoint(client, actuatorBase) {
   const msgCommitted = pickNumber(data, ["messagingHeapCommitted"]);
   const msgUsed = pickNumber(data, ["messagingHeapUsed"]);
 
+  // Combined "overall JVM heap usage" (heap + messaging)
+  const totalUsed =
+    (Number.isFinite(heapUsed) ? heapUsed : 0) +
+    (Number.isFinite(msgUsed) ? msgUsed : 0);
+
+  const totalCommitted =
+    (Number.isFinite(heapCommitted) ? heapCommitted : 0) +
+    (Number.isFinite(msgCommitted) ? msgCommitted : 0);
+
   const heapPercent =
-    Number.isFinite(heapUsed) && Number.isFinite(heapCommitted) && heapCommitted > 0
-      ? clampPct((heapUsed / heapCommitted) * 100)
+    Number.isFinite(totalCommitted) && totalCommitted > 0
+      ? clampPct((totalUsed / totalCommitted) * 100)
       : null;
 
   const messagingHeapPercent =
@@ -224,13 +233,14 @@ async function getMemoryFromCustomEndpoint(client, actuatorBase) {
   return {
     heapCommitted: Number.isFinite(heapCommitted) ? heapCommitted : null,
     heapUsed: Number.isFinite(heapUsed) ? heapUsed : null,
-    heapPercent,
+    heapPercent, // now combined overall percent
     messagingHeapCommitted: Number.isFinite(msgCommitted) ? msgCommitted : null,
     messagingHeapUsed: Number.isFinite(msgUsed) ? msgUsed : null,
     messagingHeapPercent,
     raw: data,
   };
 }
+
 
 async function getNetworkFromCustomEndpoint(client, actuatorBase) {
   const data = await safeGetJson(client, `${actuatorBase}/actuator/custom-network-metrics`);
