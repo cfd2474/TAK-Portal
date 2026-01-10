@@ -64,7 +64,7 @@ function portalAuthMiddleware(req, res, next) {
     const bootstrapUser = {
       username: "bootstrap",
       uid: null,
-      displayName: "Bootstrap Admin",
+      displayName: "Non Authenticated",
       groups: [],
       isGlobalAdmin: true,
       isAgencyAdmin: true, // optional, but helps if any code checks this too
