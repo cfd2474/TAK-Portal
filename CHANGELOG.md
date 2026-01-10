@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.  Minor qual
 
 ## Version History
 
+## v1.1.22 - 1/9/26
+✨ `Enhancement` - Modified Setup My Device Buttons and Behaviors
+
 ## v1.1.21 - 1/9/26
 🎉 `New Feature` - Added a Scan QR Code Option in the Setup My Device page that creates a short term QR Code login, good for 30 min. <br>
 ✨ `Enhancement` - Removed the QR Code Generator from sidebar temporarily as it should no longer be needed.
