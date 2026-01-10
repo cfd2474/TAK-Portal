@@ -10,6 +10,10 @@ All notable changes to this project will be documented in this file.  Minor qual
 
 ## Version History
 
+### v1.1.24 - 1/9/26
+✨ `Enhancement` - Adds QR button to each user on manage users page <br>
+🐛 `Bug Fix` - Fixes issue with Disable/Delete Buttons not working
+
 ### v1.1.23 - 1/9/26
 🎉 `New Feature` - Added TAK Server Health Stats to Dashboard
 
