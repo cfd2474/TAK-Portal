@@ -60,7 +60,7 @@
         </div>
       </div>
 
-      <div class="grid3" style="margin-top: 14px;">
+      <div class="grid3 tak-grid" style="margin-top: 14px;">
         <div class="card stat" style="margin:0;">
           <div class="statLabel">CPU %</div>
           <div class="statValue" id="takCpu">
@@ -95,7 +95,7 @@
           <div class="statHint"></div>
         </div>
 
-        <div class="card stat" style="margin:0;">
+        <div class="card stat tak-uptime-wide" style="margin:0;">
           <div class="statLabel">Uptime</div>
           <!-- ONLY show human string here -->
           <div class="statValue" id="takUptime">
@@ -302,12 +302,12 @@
   }
   .stat{ padding: 18px; }
   .statLabel{
-    font-size: 25px;
+    font-size: 18px;
     color: var(--muted);
-    margin-bottom: 10px;
+    margin-bottom: 6px;
   }
   .statValue{
-    font-size: 70px;
+    font-size: 46px;
     font-weight: 800;
     line-height: 1;
   }
@@ -316,6 +316,10 @@
     color: var(--muted);
     font-size: 12px;
   }
+  .tak-uptime-wide {
+  grid-column: span 2;
+}
+
 
   /* Makes both charts smaller + centered */
   .chartWrap{
