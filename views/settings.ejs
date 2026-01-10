@@ -16,9 +16,8 @@
   </div>
 <% } %>
 
-
-  <form method="post" action="/settings" autocomplete="off" enctype="multipart/form-data">
-    <% 
+  <form id="settingsForm" method="post" action="/settings" autocomplete="off" enctype="multipart/form-data">
+    <%
       const BOOL_KEYS = new Set([
         "TAK_REVOKE_ON_DISABLE",
         "TAK_DEBUG",
@@ -29,13 +28,13 @@
         "PORTAL_AUTH_ENABLED"
       ]);
 
-      function renderField(key, label, helpText) { 
+      function renderField(key, label, helpText) {
     %>
       <label class="settings-field">
         <span class="settings-label"><%= label || key %></span>
 
         <% if (BOOL_KEYS.has(key)) { %>
-          <% 
+          <%
             const rawVal = (settings && typeof settings[key] === "string")
               ? settings[key].toLowerCase()
               : "";
@@ -62,7 +61,7 @@
       </label>
     <% } %>
 
-    <% 
+    <%
       const knownKeys = new Set([
         "AUTHENTIK_URL",
         "AUTHENTIK_TOKEN",
@@ -198,7 +197,7 @@
             <% renderField("EMAIL_FAIL_HARD","Fail Hard on Email Error","If true, user actions fail when email fails."); %>
           </div>
 
-          <!-- New: Send Test Email button (uses the main form, but overrides action) -->
+          <!-- Send Test Email button (uses the main form, but overrides action) -->
           <div style="margin-top:1rem;">
             <button
               type="submit"
@@ -217,7 +216,7 @@
       </details>
     </div>
 
-    <% 
+    <%
       const emailTemplatesList = Array.isArray(
         typeof emailTemplates !== "undefined" ? emailTemplates : []
       )
@@ -421,76 +420,77 @@
       </div>
     <% } %>
 
-    <div style="margin-top:1rem;display:flex;gap:.75rem;flex-wrap:wrap;">
-      <button type="submit" class="btn">Save Settings</button>
-      <a href="/settings/export-data" class="btn">Export Configuration</a>
-      <form id="importConfigForm" action="/settings/import-data" method="post" enctype="multipart/form-data" style="display:inline-block; margin-left: 8px;">
-        <input
-          id="configZipInput"
-          type="file"
-          name="CONFIG_ZIP_UPLOAD"
-          accept=".zip,application/zip"
-          style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;"
-        />
-        <button type="button" id="importConfigBtn" class="btn btn-warning">Import Configuration</button>
-      </form>
-    </div>
   </form>
+
+  <!-- Action row (outside the main form to avoid nested forms) -->
+  <div style="margin-top:1rem;display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;">
+    <button type="submit" class="btn" form="settingsForm">Save Settings</button>
+    <a href="/settings/export-data" class="btn">Export Configuration</a>
+
+    <!-- Separate form: Import Configuration -->
+    <form id="importConfigForm" action="/settings/import-data" method="post" enctype="multipart/form-data" style="display:inline-block; margin:0;">
+      <input
+        id="configZipInput"
+        type="file"
+        name="CONFIG_ZIP_UPLOAD"
+        accept=".zip,application/zip"
+        style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;"
+      />
+
+      <!-- Label opens the file picker reliably on Windows -->
+      <label for="configZipInput" class="btn btn-warning" style="cursor:pointer;">
+        Import Configuration
+      </label>
+    </form>
+  </div>
+
   <script>
     (function () {
       var root = document.querySelector(".email-templates-section") || document;
 
+      // Email template reset buttons
       var resetButtons = root.querySelectorAll("[data-reset-template]");
       resetButtons.forEach(function (btn) {
         btn.addEventListener("click", function () {
           var key = btn.getAttribute("data-reset-template");
           if (!key) return;
 
-          // Mark this template to be reset on save
           var flag = root.querySelector('[data-reset-flag="' + key + '"]');
-          if (flag) {
-            flag.value = "1";
-          }
+          if (flag) flag.value = "1";
 
-          // Show a small note so the admin knows it's queued for reset
           var note = root.querySelector('[data-reset-note="' + key + '"]');
-          if (note) {
-            note.style.display = "inline";
-          }
+          if (note) note.style.display = "inline";
         });
       });
-    
-// Import Configuration (restore data from zip)
-var importBtn = document.getElementById("importConfigBtn");
-var importInput = document.getElementById("configZipInput");
-var importForm = document.getElementById("importConfigForm");
 
-if (importBtn && importInput && importForm) {
-  importBtn.addEventListener("click", function () {
-    // First confirm the destructive action
-    var ok = window.confirm(
-      "Importing a configuration will OVERWRITE files in the data folder with the contents of the zip.\n\nContinue?"
-    );
-    if (!ok) return;
-    importInput.value = "";
-    importInput.click();
-  });
+      // Import Configuration (restore data from zip)
+      var importInput = document.getElementById("configZipInput");
+      var importForm = document.getElementById("importConfigForm");
 
-  importInput.addEventListener("change", function () {
-    if (!importInput.files || !importInput.files.length) return;
+      if (importInput && importForm) {
+        importInput.addEventListener("change", function () {
+          if (!importInput.files || !importInput.files.length) return;
 
-    // Show a second confirmation with the selected file name
-    var fileName = importInput.files[0].name || "selected file";
-    var ok2 = window.confirm("Import '" + fileName + "' and overwrite existing configuration files?");
-    if (!ok2) {
-      importInput.value = "";
-      return;
-    }
+          var fileName = importInput.files[0].name || "selected file";
 
-    importForm.submit();
-  });
-}
+          // Confirm destructive action
+          var ok = window.confirm(
+            "Importing a configuration will OVERWRITE files in the data folder with the contents of the zip.\n\nContinue?"
+          );
+          if (!ok) {
+            importInput.value = "";
+            return;
+          }
 
-})();
+          var ok2 = window.confirm("Import '" + fileName + "' and overwrite existing configuration files?");
+          if (!ok2) {
+            importInput.value = "";
+            return;
+          }
+
+          importForm.submit();
+        });
+      }
+    })();
   </script>
 </main>

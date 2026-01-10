@@ -10,12 +10,14 @@ All notable changes to this project will be documented in this file.  Minor qual
 
 ## Version History
 
-### v1.1.27  1/10/26
+### v1.1.28 - 1/10/26
+✨ `Enhancement` - Added "Import Configuration" button to the Server Settings
+
+### v1.1.27 - 1/10/26
 ✨ `Enhancement` - Added caching service for dashboard to speed up page loading times <br>
-✨ `Enhancement` - Added "Import Configuration" button to the Server Settings <br>
 🐛 `Bug Fix` - Removed CPU and Memory Usage till I can get a more accurate number
 
-### v1.1.26  1/10/26
+### v1.1.26 - 1/10/26
 🐛 `Bug Fix` - Fixes issue with not being able to log in on initial install due to authentication being disabled
 
 ### v1.1.25 - 1/9/26
