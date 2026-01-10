@@ -116,25 +116,6 @@
           </div>
         </div>
 
-        <!-- Template apply row (single instance only) -->
-        <div style="grid-column:1/-1;" class="panel">
-          <h3 class="panelTitle">Groups Template</h3>
-
-          <div class="row" style="gap:10px; align-items:flex-end; flex-wrap:wrap;">
-            <label style="flex:1; max-width:420px;">
-              Apply Template (overwrite)
-              <select id="templateApplySelect">
-                <option value="">Select a template...</option>
-              </select>
-            </label>
-            <button class="btn" id="applyTemplateBtn" type="button">Apply Template</button>
-          </div>
-
-          <small style="display:block; margin-top:6px; color: var(--muted);">
-            Applying a template will overwrite this user's groups to match the template.
-          </small>
-        </div>
-
         <div style="grid-column:1/-1;">
           <h3>Current Groups</h3>
           <div id="groupChips" class="chips"></div>
@@ -144,25 +125,45 @@
         <div style="grid-column:1/-1;">
           <h3>Modify Groups</h3>
 
-          <!-- Groups picker -->
-          <label style="display:block;">
-            Groups
-            <input id="groupFilter" placeholder="Search groups..." />
+          <div class="modifyGrid">
+            <!-- LEFT: groups picker -->
+            <div>
+              <label style="display:block;">
+                Groups
+                <input id="groupFilter" placeholder="Search groups..." />
 
-            <div class="row" style="gap:10px; margin-top:8px;">
-              <button class="btn" id="selectAllBtn" type="button">Select All</button>
-              <button class="btn" id="clearAllBtn" type="button">Clear</button>
-              <small style="align-self:center; color: var(--muted);">
-                Checking adds; unchecking removes. Changes save automatically.
-              </small>
+                <div class="row" style="gap:10px; margin-top:8px; flex-wrap:wrap;">
+                  <button class="btn" id="selectAllBtn" type="button">Select All</button>
+                  <button class="btn" id="clearAllBtn" type="button">Clear</button>
+                  <small style="align-self:center; color: var(--muted);">
+                    Checking adds; unchecking removes. Changes save automatically.
+                  </small>
+                </div>
+
+                <div class="groupsBox" id="groupsBox">
+                  <div class="groupsInner" id="groupsInner"></div>
+                </div>
+              </label>
             </div>
 
-            <!-- OUTER SCROLL BOX + INNER MULTICOL WRAPPER -->
-            <div class="groupsBox" id="groupsBox">
-              <div class="groupsInner" id="groupsInner"></div>
+            <!-- RIGHT: compact template apply -->
+            <div class="templateMini">
+              <div class="templateMiniTitle">Template</div>
+
+              <label style="display:block;">
+                <span class="muted" style="font-size:12px;">Apply (overwrite)</span>
+                <select id="templateApplySelect" style="margin-top:6px;">
+                  <option value="">Select…</option>
+                </select>
+              </label>
+
+              <button class="btn" id="applyTemplateBtn" type="button" style="margin-top:10px; width:100%;">
+                Apply Template
+              </button>
             </div>
-          </label>
+          </div>
         </div>
+
 
       </div><!-- /grid2 -->
     </div><!-- /modalBody -->
@@ -1439,6 +1440,39 @@ th.sortable:hover{
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Modify Groups: 2-column layout (left = groups, right = template) */
+.modifyGrid{
+  display: grid;
+  grid-template-columns: minmax(520px, 1fr) 320px;
+  gap: 12px;
+  align-items: start;
+}
+
+.templateMini{
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.03);
+  border-radius: 14px;
+  padding: 10px;
+  position: sticky;
+  top: 68px; /* keeps it visible while scrolling modal */
+}
+
+.templateMiniTitle{
+  font-size: 13px;
+  opacity: .9;
+  margin-bottom: 8px;
+}
+
+/* Stack on smaller screens */
+@media (max-width: 980px){
+  .modifyGrid{
+    grid-template-columns: 1fr;
+  }
+  .templateMini{
+    position: static;
+  }
+}
+
 
 /* Hide Status/Email column on small screens */
 @media (max-width: 640px){
