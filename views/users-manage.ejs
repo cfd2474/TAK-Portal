@@ -817,7 +817,7 @@ window.editUser = async (userPk) => {
 
 window.toggleUserFromTable = async (userPk) => {
   const u = (window.__lastUsers || []).find(x => String(x.pk) === String(userPk));
-  if(!u) return;
+  if (!u) return;
 
   if (userActionsLocked(u.username)) {
     setMsgEl(msg, `Actions are locked for user ${u.username}.`, false);
@@ -825,26 +825,47 @@ window.toggleUserFromTable = async (userPk) => {
   }
 
   const action = u.is_active ? "DISABLE" : "ENABLE";
-  if(!confirm(`${action} ${u.username}?`)) return;
+  if (!confirm(`${action} ${u.username}?`)) return;
 
-  const res = await fetch(`/api/users/${u.pk}/toggle`, { method:"POST" });
-  const out = await res.json();
-  if(!res.ok) return setMsgEl(msg, out.error || "Toggle failed", false);
+  const newState = !u.is_active;
 
-  const flip = (row) => (String(row.pk) === String(u.pk) ? { ...row, is_active: !row.is_active } : row);
+  let res;
+  try {
+    res = await fetch(`/api/users/${u.pk}/active`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: newState }),
+    });
+  } catch (err) {
+    return setMsgEl(msg, "Network error while updating user.", false);
+  }
+
+  const raw = await res.text();
+  let out = {};
+  try { out = JSON.parse(raw); } catch { out = {}; }
+
+  if (!res.ok) return setMsgEl(msg, out.error || "Toggle failed", false);
+
+  const flip = (row) =>
+    (String(row.pk) === String(u.pk) ? { ...row, is_active: newState } : row);
 
   allUsers = (allUsers || []).map(flip);
   const updatedVisible = (window.__lastUsers || []).map(flip);
 
   if (selectedUser && String(selectedUser.pk) === String(u.pk)) {
-    selectedUser.is_active = !selectedUser.is_active;
+    selectedUser.is_active = newState;
     toggleBtn.textContent = selectedUser.is_active ? "Disable User" : "Enable User";
-    setMsgEl(actionMsg, `User is now ${selectedUser.is_active ? "ENABLED" : "DISABLED"}.`, true);
+    setMsgEl(
+      actionMsg,
+      `User is now ${selectedUser.is_active ? "ENABLED" : "DISABLED"}.`,
+      true
+    );
   }
 
   applySortAndRender(updatedVisible);
-  setMsgEl(msg, `User ${u.username} is now ${!u.is_active ? "ENABLED" : "DISABLED"}.`, true);
+  setMsgEl(msg, `User ${u.username} is now ${newState ? "ENABLED" : "DISABLED"}.`, true);
 };
+
 
 window.deleteUserFromTable = async (userPk) => {
   const u = (window.__lastUsers || []).find(x => String(x.pk) === String(userPk));
@@ -1068,7 +1089,7 @@ resetPwBtn.onclick = async () => {
 
 // ---------- Toggle from modal ----------
 toggleBtn.onclick = async () => {
-  if(!selectedUser) return;
+  if (!selectedUser) return;
 
   if (userActionsLocked(selectedUser.username)) {
     setMsgEl(actionMsg, `Actions are locked for user ${selectedUser.username}.`, false);
@@ -1076,21 +1097,42 @@ toggleBtn.onclick = async () => {
   }
 
   const action = selectedUser.is_active ? "DISABLE" : "ENABLE";
-  if(!confirm(`${action} ${selectedUser.username}?`)) return;
+  if (!confirm(`${action} ${selectedUser.username}?`)) return;
 
-  const res = await fetch(`/api/users/${selectedUser.pk}/toggle`, { method:"POST" });
-  const out = await res.json();
-  if(!res.ok) return setMsgEl(actionMsg, out.error || "Toggle failed", false);
+  const newState = !selectedUser.is_active;
 
-  selectedUser.is_active = !selectedUser.is_active;
+  let res;
+  try {
+    res = await fetch(`/api/users/${selectedUser.pk}/active`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: newState }),
+    });
+  } catch (err) {
+    return setMsgEl(actionMsg, "Network error while updating user.", false);
+  }
+
+  const raw = await res.text();
+  let out = {};
+  try { out = JSON.parse(raw); } catch { out = {}; }
+
+  if (!res.ok) return setMsgEl(actionMsg, out.error || "Toggle failed", false);
+
+  selectedUser.is_active = newState;
   toggleBtn.textContent = selectedUser.is_active ? "Disable User" : "Enable User";
 
-  const patch = (u) => String(u.pk) === String(selectedUser.pk) ? {...u, is_active: selectedUser.is_active} : u;
+  const patch = (u) =>
+    String(u.pk) === String(selectedUser.pk)
+      ? { ...u, is_active: selectedUser.is_active }
+      : u;
+
   allUsers = (allUsers || []).map(patch);
   const updatedVisible = (window.__lastUsers || []).map(patch);
 
   applySortAndRender(updatedVisible);
+  setMsgEl(actionMsg, `User is now ${newState ? "ENABLED" : "DISABLED"}.`, true);
 };
+
 
 // ---------- Delete ----------
 deleteBtn.onclick = async () => {
