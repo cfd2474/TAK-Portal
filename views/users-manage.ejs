@@ -58,41 +58,82 @@
   </div>
 </main>
 
-<!-- Modal -->
+<!-- User Edit Modal -->
 <div class="modalOverlay" id="modalOverlay" style="display:none;">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="userTitle">
     <div class="modalHeader">
-      <h2 id="userTitle" style="margin:0;">User</h2>
+      <div class="modalHeaderLeft">
+        <h2 id="userTitle" style="margin:0;">User</h2>
+        <span id="actionMsg" class="msg modalStatus"></span>
+      </div>
       <button class="btn" id="closeBtn" type="button">Close</button>
     </div>
 
     <div class="modalBody">
       <div class="grid2">
+        <!-- Top section: organized panels -->
+        <div class="topPanels" style="grid-column:1/-1;">
+          <div class="panel">
+            <h3 class="panelTitle">Identity</h3>
 
-        <!-- First/Last Name -->
-        <label>First Name
-          <input id="firstNameInput" />
-        </label>
+            <div class="grid2">
+              <label>First Name
+                <input id="firstNameInput" />
+              </label>
 
-        <label>Last Name
-          <input id="lastNameInput" />
-        </label>
+              <label>Last Name
+                <input id="lastNameInput" />
+              </label>
+            </div>
 
-        <div style="grid-column:1/-1;" class="row">
-          <button class="btn" id="saveNameBtn" type="button">Update Name</button>
-          <span class="msg" id="nameMsg"></span>
+            <div class="row" style="gap:10px; margin-top:10px; align-items:center;">
+              <button class="btn" id="saveNameBtn" type="button">Update Name</button>
+              <span class="msg" id="nameMsg"></span>
+            </div>
+
+            <div style="margin-top:10px;">
+              <label>Email</label>
+              <div class="row" style="gap:10px; align-items:center;">
+                <input id="emailInput" style="flex:1; min-width: 240px;" />
+                <button class="btn" id="saveEmailBtn" type="button">Update Email</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3 class="panelTitle">Security</h3>
+
+            <label>Reset Password</label>
+            <div class="grid2" style="margin-top:6px;">
+              <input id="pw1" type="password" placeholder="New password" />
+              <input id="pw2" type="password" placeholder="Confirm password" />
+            </div>
+
+            <div class="row" style="gap:10px; margin-top:10px;">
+              <button class="btn" id="resetPwBtn" type="button">Reset Password</button>
+              <small class="muted" style="align-self:center;">Passwords must match.</small>
+            </div>
+          </div>
         </div>
 
-        <label>Email
-          <input id="emailInput" />
-          <button class="btn" id="saveEmailBtn" type="button">Update Email</button>
-        </label>
+        <!-- Template apply row (single instance only) -->
+        <div style="grid-column:1/-1;" class="panel">
+          <h3 class="panelTitle">Groups Template</h3>
 
-        <label>Reset Password
-          <input id="pw1" type="password" placeholder="New password" />
-          <input id="pw2" type="password" placeholder="Confirm password" />
-          <button class="btn" id="resetPwBtn" type="button">Reset Password</button>
-        </label>
+          <div class="row" style="gap:10px; align-items:flex-end; flex-wrap:wrap;">
+            <label style="flex:1; max-width:420px;">
+              Apply Template (overwrite)
+              <select id="templateApplySelect">
+                <option value="">Select a template...</option>
+              </select>
+            </label>
+            <button class="btn" id="applyTemplateBtn" type="button">Apply Template</button>
+          </div>
+
+          <small style="display:block; margin-top:6px; color: var(--muted);">
+            Applying a template will overwrite this user's groups to match the template.
+          </small>
+        </div>
 
         <div style="grid-column:1/-1;">
           <h3>Current Groups</h3>
@@ -103,7 +144,7 @@
         <div style="grid-column:1/-1;">
           <h3>Modify Groups</h3>
 
-          <!-- Templates-style groups picker (simple checked = member) -->
+          <!-- Groups picker -->
           <label style="display:block;">
             Groups
             <input id="groupFilter" placeholder="Search groups..." />
@@ -120,32 +161,13 @@
             <div class="groupsBox" id="groupsBox">
               <div class="groupsInner" id="groupsInner"></div>
             </div>
-
-            <div class="row" style="gap:10px; margin-top:10px; align-items:flex-end;">
-              <label style="flex:1; max-width:320px;">
-                Apply Template (overwrite)
-                <select id="templateApplySelect">
-                  <option value="">Select a template...</option>
-                </select>
-              </label>
-              <button class="btn" id="applyTemplateBtn" type="button">Apply Template</button>
-            </div>
-            <small style="display:block; margin-top:4px; color: var(--muted);">
-              Applying a template will overwrite this user's groups to match the template.
-            </small>
           </label>
         </div>
 
-        <div style="grid-column:1/-1;" class="row">
-          <button class="btn" id="toggleBtn" type="button"></button>
-          <button class="btn danger" id="deleteBtn" type="button">Delete User</button>
-          <span id="actionMsg" class="msg"></span>
-        </div>
-
-      </div>
-    </div>
-  </div>
-</div>
+      </div><!-- /grid2 -->
+    </div><!-- /modalBody -->
+  </div><!-- /modal -->
+</div><!-- /modalOverlay -->
 
 
 <!-- User Enrollment QR Modal -->
@@ -198,18 +220,19 @@ const pageInfoBottom = document.getElementById("pageInfoBottom");
 const modalOverlay = document.getElementById("modalOverlay");
 const closeBtn = document.getElementById("closeBtn");
 const userTitle = document.getElementById("userTitle");
+
+// Note: usernameSpan is optional (not present in this template), keep guarded usage only
 const usernameSpan = document.getElementById("usernameSpan");
+
 const emailInput = document.getElementById("emailInput");
 const saveEmailBtn = document.getElementById("saveEmailBtn");
 const pw1 = document.getElementById("pw1");
 const pw2 = document.getElementById("pw2");
 const resetPwBtn = document.getElementById("resetPwBtn");
-const toggleBtn = document.getElementById("toggleBtn");
-const deleteBtn = document.getElementById("deleteBtn");
 const groupChips = document.getElementById("groupChips");
 const groupFilter = document.getElementById("groupFilter");
 const groupsBox = document.getElementById("groupsBox");
-const groupsInner = document.getElementById("groupsInner"); // NEW: inner multicol wrapper
+const groupsInner = document.getElementById("groupsInner");
 
 // Name edit
 const firstNameInput = document.getElementById("firstNameInput");
@@ -223,11 +246,15 @@ const clearAllBtn = document.getElementById("clearAllBtn");
 const templateApplySelect = document.getElementById("templateApplySelect");
 const applyTemplateBtn = document.getElementById("applyTemplateBtn");
 
+// These modal action buttons are NOT in the HTML anymore; keep as null and guard usage.
+const toggleBtn = document.getElementById("toggleBtn");
+const deleteBtn = document.getElementById("deleteBtn");
+
 // Action-lock prefixes (case-insensitive, comma-separated)
 // Users whose username starts with one of these prefixes will have ALL action buttons hidden.
 // NOTE: This value comes from the server environment (.env).
 const USERS_ACTIONS_HIDDEN_PREFIXES_RAW = "<%= (process.env.USERS_ACTIONS_HIDDEN_PREFIXES) %>";
-const USERS_ACTIONS_HIDDEN_PREFIXES = USERS_ACTIONS_HIDDEN_PREFIXES_RAW
+const USERS_ACTIONS_HIDDEN_PREFIXES = String(USERS_ACTIONS_HIDDEN_PREFIXES_RAW || "")
   .split(",")
   .map(p => String(p || "").trim().toLowerCase())
   .filter(Boolean);
@@ -245,21 +272,20 @@ let sortState = {
 };
 
 // ------- Users state (server-side pagination) -------
-// allUsers now holds only the current page of users; all searching/filtering is done on the server.
 let allUsers = [];
 let filterTimer = null;
 
-const PAGE_SIZE = 25;      // must match backend default unless pageSize is passed explicitly
-let currentPage = 1;       // 1-based
-let totalUsers = 0;        // total number of matches across all pages
-let currentPageUsers = []; // users for the currently loaded page
-let currentSearch = "";    // current search string
+const PAGE_SIZE = 25;
+let currentPage = 1;
+let totalUsers = 0;
+let currentPageUsers = [];
+let currentSearch = "";
 
-// track next/prev from backend
 let hasNextPage = false;
 let hasPrevPage = false;
 
 function setMsgEl(el, text, ok=true){
+  if (!el) return;
   el.textContent = text || "";
   el.className = "msg " + (ok ? "ok" : "bad");
 }
@@ -289,11 +315,13 @@ let userQrCountdownTimer = null;
 let userQrCurrent = null;
 
 function openUserQrModal(){
+  if (!userQrOverlay) return;
   userQrOverlay.style.display = "flex";
   document.body.classList.add("noScroll");
 }
 
 function closeUserQrModal(){
+  if (!userQrOverlay) return;
   userQrOverlay.style.display = "none";
   document.body.classList.remove("noScroll");
   if (userQrCountdownTimer) {
@@ -310,6 +338,8 @@ function fmtRemain(ms){
 }
 
 function startUserQrCountdown(expiresAt){
+  if (!userQrCountdown) return;
+
   if (userQrCountdownTimer) {
     clearInterval(userQrCountdownTimer);
     userQrCountdownTimer = null;
@@ -325,8 +355,8 @@ function startUserQrCountdown(expiresAt){
     const remain = exp - Date.now();
     if (remain <= 0) {
       userQrCountdown.textContent = "QR Code Expired";
-      userQrCopyBtn.disabled = true;
-      userQrSaveBtn.disabled = true;
+      if (userQrCopyBtn) userQrCopyBtn.disabled = true;
+      if (userQrSaveBtn) userQrSaveBtn.disabled = true;
       setMsgEl(userQrMsg, "This enrollment QR has expired. Click QR again to generate a new one.", false);
       if (userQrCountdownTimer) {
         clearInterval(userQrCountdownTimer);
@@ -361,14 +391,15 @@ async function copyToClipboard(text) {
 function renderUserQr(obj){
   userQrCurrent = obj;
 
-  userQrImg.src = obj.qrCode || "";
+  if (userQrImg) userQrImg.src = obj.qrCode || "";
+
   const chips = [];
   if (obj.username) chips.push(`<span class="chip">User: ${escapeHtml(obj.username)}</span>`);
   if (obj.tokenIdentifier) chips.push(`<span class="chip">Token: ${escapeHtml(obj.tokenIdentifier)}</span>`);
-  userQrDetails.innerHTML = chips.join(" ");
+  if (userQrDetails) userQrDetails.innerHTML = chips.join(" ");
 
-  userQrCopyBtn.disabled = !obj.enrollUrl;
-  userQrSaveBtn.disabled = !(obj.username && obj.token);
+  if (userQrCopyBtn) userQrCopyBtn.disabled = !obj.enrollUrl;
+  if (userQrSaveBtn) userQrSaveBtn.disabled = !(obj.username && obj.token);
 
   setMsgEl(userQrMsg, "QR ready.", true);
   startUserQrCountdown(obj.expiresAt);
@@ -376,12 +407,11 @@ function renderUserQr(obj){
 }
 
 async function fetchUserEnrollQr(userId, username){
-  // UI reset
-  userQrImg.src = "";
-  userQrDetails.innerHTML = "";
-  userQrCopyBtn.disabled = true;
-  userQrSaveBtn.disabled = true;
-  userQrCountdown.textContent = "";
+  if (userQrImg) userQrImg.src = "";
+  if (userQrDetails) userQrDetails.innerHTML = "";
+  if (userQrCopyBtn) userQrCopyBtn.disabled = true;
+  if (userQrSaveBtn) userQrSaveBtn.disabled = true;
+  if (userQrCountdown) userQrCountdown.textContent = "";
   setMsgEl(userQrMsg, "Generating enrollment QR...", true);
   openUserQrModal();
 
@@ -426,15 +456,15 @@ tbody.addEventListener("click", async (e) => {
   }
 });
 
-userQrCloseBtn.addEventListener("click", closeUserQrModal);
-userQrOverlay.addEventListener("click", (e) => { if (e.target === userQrOverlay) closeUserQrModal(); });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape" && userQrOverlay.style.display !== "none") closeUserQrModal(); });
+if (userQrCloseBtn) userQrCloseBtn.addEventListener("click", closeUserQrModal);
+if (userQrOverlay) userQrOverlay.addEventListener("click", (e) => { if (e.target === userQrOverlay) closeUserQrModal(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && userQrOverlay && userQrOverlay.style.display !== "none") closeUserQrModal(); });
 
-userQrCopyBtn.addEventListener("click", () => {
+if (userQrCopyBtn) userQrCopyBtn.addEventListener("click", () => {
   if (userQrCurrent && userQrCurrent.enrollUrl) copyToClipboard(userQrCurrent.enrollUrl);
 });
 
-userQrSaveBtn.addEventListener("click", () => {
+if (userQrSaveBtn) userQrSaveBtn.addEventListener("click", () => {
   if (!userQrCurrent || !userQrCurrent.username || !userQrCurrent.token) {
     setMsgEl(userQrMsg, "Generate a QR first.", false);
     return;
@@ -466,13 +496,11 @@ function splitName(full){
   const t = String(full || "").trim();
   if (!t) return { first: "", last: "" };
 
-  // Stored format: "Last, First"
   if (t.includes(",")) {
     const [last, first] = t.split(",").map(x => String(x || "").trim());
     return { first, last };
   }
 
-  // Fallback: assume "First Last"
   const parts = t.split(/\s+/);
   if (parts.length === 1) return { first: parts[0], last: "" };
   const last = parts.pop();
@@ -480,7 +508,6 @@ function splitName(full){
   return { first, last };
 }
 
-// For sorting names by LAST name then FIRST
 function lastNameForSort(full){
   const { first, last } = splitName(full);
   return `${last} ${first}`.trim();
@@ -510,7 +537,6 @@ function stableSortedCopy(arr, key, dir){
       const av = getSortValue(a.item, key);
       const bv = getSortValue(b.item, key);
 
-      // Put blanks at the end for asc, at the start for desc
       const aBlank = !String(av || "").trim();
       const bBlank = !String(bv || "").trim();
       if (aBlank && !bBlank) return 1 * sign;
@@ -519,17 +545,13 @@ function stableSortedCopy(arr, key, dir){
       const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" });
       if (cmp !== 0) return cmp * sign;
 
-      // Stable tie-breaker
       return (a.idx - b.idx);
     })
     .map(x => x.item);
 }
 
 function updateSortIndicators(){
-  const ths = Array.from(
-    thead ? thead.querySelectorAll("th.sortable") : []
-  );
-
+  const ths = Array.from(thead ? thead.querySelectorAll("th.sortable") : []);
   ths.forEach(th => {
     const key = th.dataset.key;
     const indicator = th.querySelector(".sortIndicator");
@@ -559,9 +581,9 @@ function renderResults(users){
             <div class="row" style="gap:8px; flex-wrap:wrap;">
               <button class="btn" onclick="editUser('${pk}')">Edit</button>
               ${u.is_active ? `
-            <button class="btn qr userQrBtn" type="button"
-              data-pk="${pk}" data-username="${escapeHtml(u.username)}">QR</button>
-          ` : ""}
+                <button class="btn qr userQrBtn" type="button"
+                  data-pk="${pk}" data-username="${escapeHtml(u.username)}">QR</button>
+              ` : ""}
               <button class="btn" onclick="toggleUserFromTable('${pk}')">${toggleLabel}</button>
               <button class="btn danger" onclick="deleteUserFromTable('${pk}')">Delete</button>
             </div>
@@ -601,7 +623,7 @@ closeBtn.onclick = closeModal;
 modalOverlay.addEventListener("click", (e) => { if (e.target === modalOverlay) closeModal(); });
 window.addEventListener("keydown", (e) => { if (e.key === "Escape" && modalOverlay.style.display !== "none") closeModal(); });
 
-// Load templates & default groups for a specific agency suffix (from user.attributes.agency)
+// Load templates & default groups for a specific agency suffix
 let agencyTemplatesCache = [];
 
 async function loadTemplatesForAgency(agencySuffix){
@@ -609,7 +631,7 @@ async function loadTemplatesForAgency(agencySuffix){
   if (!templateApplySelect) return;
 
   templateApplySelect.innerHTML = '<option value="">Loading templates...</option>';
-  applyTemplateBtn.disabled = true;
+  if (applyTemplateBtn) applyTemplateBtn.disabled = true;
 
   const sfx = String(agencySuffix || "").trim();
   if (!sfx) {
@@ -623,7 +645,7 @@ async function loadTemplatesForAgency(agencySuffix){
     if (!res.ok) throw new Error(meta.error || 'Failed to load templates');
 
     const all = Array.isArray(meta.templates) ? meta.templates : [];
-    const rest = all.slice(1); // skip Manual item at [0]
+    const rest = all.slice(1);
     const manual = all[0];
 
     const options = [];
@@ -636,7 +658,7 @@ async function loadTemplatesForAgency(agencySuffix){
 
     templateApplySelect.innerHTML = options.join("");
     agencyTemplatesCache = all;
-    applyTemplateBtn.disabled = false;
+    if (applyTemplateBtn) applyTemplateBtn.disabled = false;
   } catch (err) {
     templateApplySelect.innerHTML = '<option value="">Failed to load templates</option>';
     console.error(err);
@@ -663,6 +685,7 @@ async function loadGroups(){
 
 async function applyGroupChange(groupId, shouldBeMember){
   if (!selectedUser) return;
+
   const url = shouldBeMember
     ? `/api/users/${selectedUser.pk}/groups/add`
     : `/api/users/${selectedUser.pk}/groups/remove`;
@@ -684,23 +707,21 @@ async function applyGroupChange(groupId, shouldBeMember){
   const out = await res.json();
   if (!res.ok) {
     setMsgEl(actionMsg, out.error || "Update groups failed", false);
-    // Revert UI back to server-known state
     pickedGroupIds = new Set((selectedUser.groups || []).map(x => String(x)));
     renderGroupsBox();
     return;
   }
 
-  // Backend returns full groups array for the user; prefer that.
   const newGroups = Array.isArray(out.groups) ? out.groups : Array.from(pickedGroupIds);
   selectedUser.groups = newGroups;
   pickedGroupIds = new Set((newGroups || []).map(x => String(x)));
 
-  // Update chips + table row
   renderGroupChips(selectedUser);
 
   const patch = (u) => String(u.pk) === String(selectedUser.pk)
     ? { ...u, groups: selectedUser.groups }
     : u;
+
   allUsers = (allUsers || []).map(patch);
   const updatedVisible = (window.__lastUsers || []).map(patch);
   applySortAndRender(updatedVisible);
@@ -716,7 +737,6 @@ function renderGroupsBox(){
     ? allGroupsArray.filter(g => String(g.name || "").toLowerCase().includes(filterText))
     : allGroupsArray;
 
-  // IMPORTANT: render into the INNER wrapper, not the scroll box
   groupsInner.innerHTML = filteredGroups.map(g => {
     const id = String(g.id);
     const checked = pickedGroupIds.has(id) ? "checked" : "";
@@ -736,7 +756,6 @@ function renderGroupsBox(){
       } else {
         pickedGroupIds.delete(id);
       }
-      // Auto-apply this single group change immediately
       applyGroupChange(id, cb.checked);
     });
   });
@@ -779,40 +798,33 @@ window.editUser = async (userPk) => {
 
   selectedUser = { ...u };
 
-  if (userTitle) {
-    userTitle.textContent = `User ${selectedUser.username}`;
-  }
+  if (userTitle) userTitle.textContent = `User ${selectedUser.username}`;
 
   if (usernameSpan) {
-    usernameSpan.textContent = `${selectedUser.username} — ${
-      selectedUser.name || ""
-    }`;
+    usernameSpan.textContent = `${selectedUser.username} — ${selectedUser.name || ""}`;
   }
 
-  if (emailInput) {
-    emailInput.value = selectedUser.email || "";
-  }
+  if (emailInput) emailInput.value = selectedUser.email || "";
 
   const { first, last } = splitName(selectedUser.name || "");
   if (firstNameInput) firstNameInput.value = first;
   if (lastNameInput) lastNameInput.value = last;
 
-  if (nameMsg) setMsgEl(nameMsg, "");
-  if (actionMsg) setMsgEl(actionMsg, "");
+  setMsgEl(nameMsg, "");
+  setMsgEl(actionMsg, "");
 
   renderGroupChips(selectedUser);
 
   pickedGroupIds = new Set((selectedUser.groups || []).map(x => String(x)));
   renderGroupsBox();
 
+  // modal-only action buttons are not present; guard if you ever add them back
   if (toggleBtn) {
     toggleBtn.textContent = selectedUser.is_active ? "Disable User" : "Enable User";
   }
 
   await loadTemplatesForAgency(
-    (selectedUser &&
-      selectedUser.attributes &&
-      selectedUser.attributes.agency) || ""
+    (selectedUser && selectedUser.attributes && selectedUser.attributes.agency) || ""
   );
 
   openModal();
@@ -857,18 +869,13 @@ window.toggleUserFromTable = async (userPk) => {
 
   if (selectedUser && String(selectedUser.pk) === String(u.pk)) {
     selectedUser.is_active = newState;
-    toggleBtn.textContent = selectedUser.is_active ? "Disable User" : "Enable User";
-    setMsgEl(
-      actionMsg,
-      `User is now ${selectedUser.is_active ? "ENABLED" : "DISABLED"}.`,
-      true
-    );
+    if (toggleBtn) toggleBtn.textContent = selectedUser.is_active ? "Disable User" : "Enable User";
+    setMsgEl(actionMsg, `User is now ${selectedUser.is_active ? "ENABLED" : "DISABLED"}.`, true);
   }
 
   applySortAndRender(updatedVisible);
   setMsgEl(msg, `User ${u.username} is now ${newState ? "ENABLED" : "DISABLED"}.`, true);
 };
-
 
 window.deleteUserFromTable = async (userPk) => {
   const u = (window.__lastUsers || []).find(x => String(x.pk) === String(userPk));
@@ -1090,77 +1097,7 @@ resetPwBtn.onclick = async () => {
   setMsgEl(actionMsg, "Password reset.", true);
 };
 
-// ---------- Toggle from modal ----------
-toggleBtn.onclick = async () => {
-  if (!selectedUser) return;
-
-  if (userActionsLocked(selectedUser.username)) {
-    setMsgEl(actionMsg, `Actions are locked for user ${selectedUser.username}.`, false);
-    return;
-  }
-
-  const action = selectedUser.is_active ? "DISABLE" : "ENABLE";
-  if (!confirm(`${action} ${selectedUser.username}?`)) return;
-
-  const newState = !selectedUser.is_active;
-
-  let res;
-  try {
-    res = await fetch(`/api/users/${selectedUser.pk}/active`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ is_active: newState }),
-    });
-  } catch (err) {
-    return setMsgEl(actionMsg, "Network error while updating user.", false);
-  }
-
-  const raw = await res.text();
-  let out = {};
-  try { out = JSON.parse(raw); } catch { out = {}; }
-
-  if (!res.ok) return setMsgEl(actionMsg, out.error || "Toggle failed", false);
-
-  selectedUser.is_active = newState;
-  toggleBtn.textContent = selectedUser.is_active ? "Disable User" : "Enable User";
-
-  const patch = (u) =>
-    String(u.pk) === String(selectedUser.pk)
-      ? { ...u, is_active: selectedUser.is_active }
-      : u;
-
-  allUsers = (allUsers || []).map(patch);
-  const updatedVisible = (window.__lastUsers || []).map(patch);
-
-  applySortAndRender(updatedVisible);
-  setMsgEl(actionMsg, `User is now ${newState ? "ENABLED" : "DISABLED"}.`, true);
-};
-
-
-// ---------- Delete ----------
-deleteBtn.onclick = async () => {
-  if(!selectedUser) return;
-
-  if (userActionsLocked(selectedUser.username)) {
-    setMsgEl(actionMsg, `Actions are locked for user ${selectedUser.username}.`, false);
-    return;
-  }
-
-  if(!confirm(`DELETE ${selectedUser.username}? This cannot be undone.`)) return;
-
-  const res = await fetch(`/api/users/${selectedUser.pk}`,{ method:"DELETE" });
-  const out = await res.json();
-  if(!res.ok) return setMsgEl(actionMsg, out.error || "Delete failed", false);
-
-  setMsgEl(actionMsg, "User deleted.", true);
-  closeModal();
-
-  allUsers = (allUsers || []).filter(u => String(u.pk) !== String(selectedUser.pk));
-  selectedUser = null;
-
-  applyFilterSortRender();
-};
-
+// ---------- Template apply ----------
 if (applyTemplateBtn) applyTemplateBtn.addEventListener("click", async () => {
   if (!selectedUser) return;
 
@@ -1172,7 +1109,6 @@ if (applyTemplateBtn) applyTemplateBtn.addEventListener("click", async () => {
     return;
   }
 
-  // Find the template by key
   const template = Array.isArray(agencyTemplatesCache)
     ? agencyTemplatesCache.find(t => String(t.key) === String(selectedKey))
     : null;
@@ -1182,13 +1118,11 @@ if (applyTemplateBtn) applyTemplateBtn.addEventListener("click", async () => {
     return;
   }
 
-  // If this is the "Manual" item, don't do anything special
   if (selectedKey === "manual") {
     setMsgEl(actionMsg, "Manual selection does not apply a template.", false);
     return;
   }
 
-  // Build a name -> id lookup from the groupIndex (which is id -> name)
   const nameToId = {};
   for (const [id, name] of groupIndex.entries()) {
     const n = String(name || "").trim().toLowerCase();
@@ -1202,7 +1136,6 @@ if (applyTemplateBtn) applyTemplateBtn.addEventListener("click", async () => {
     return;
   }
 
-  // Map template group names to IDs using the lookup
   const newGroupIds = templateGroupNames
     .map(gName => {
       const key = String(gName || "").trim().toLowerCase();
@@ -1211,15 +1144,10 @@ if (applyTemplateBtn) applyTemplateBtn.addEventListener("click", async () => {
     .filter(Boolean);
 
   if (!newGroupIds.length) {
-    setMsgEl(
-      actionMsg,
-      "Template groups could not be matched to available Authentik groups.",
-      false
-    );
+    setMsgEl(actionMsg, "Template groups could not be matched to available Authentik groups.", false);
     return;
   }
 
-  // Overwrite the user's groups with this new set
   setMsgEl(actionMsg, "Applying template...", true);
 
   let res;
@@ -1240,17 +1168,14 @@ if (applyTemplateBtn) applyTemplateBtn.addEventListener("click", async () => {
     return;
   }
 
-  // Server returns the final groups array; prefer that.
   const applied = Array.isArray(out.groups) ? out.groups : newGroupIds;
 
   selectedUser.groups = applied;
   pickedGroupIds = new Set(applied.map(x => String(x)));
 
-  // Refresh UI
   renderGroupChips(selectedUser);
   renderGroupsBox();
 
-  // Update the current table page data as well
   const patch = (u) =>
     String(u.pk) === String(selectedUser.pk)
       ? { ...u, groups: selectedUser.groups }
@@ -1263,7 +1188,6 @@ if (applyTemplateBtn) applyTemplateBtn.addEventListener("click", async () => {
   setMsgEl(actionMsg, "Template applied. Groups overwritten.", true);
 });
 
-
 async function loadAllUsers(){
   setMsgEl(msg, "Loading users...", true);
 
@@ -1273,9 +1197,7 @@ async function loadAllUsers(){
   });
 
   const qVal = String(currentSearch || "").trim();
-  if (qVal) {
-    params.set("q", qVal);
-  }
+  if (qVal) params.set("q", qVal);
 
   const res = await fetch(`/api/users/search?${params.toString()}`);
   const out = await res.json();
@@ -1297,11 +1219,7 @@ async function loadAllUsers(){
 
   if (totalUsers) {
     if (qVal) {
-      setMsgEl(
-        msg,
-        `Showing ${users.length} of ${totalUsers} user(s) for "${qVal}".`,
-        true
-      );
+      setMsgEl(msg, `Showing ${users.length} of ${totalUsers} user(s) for "${qVal}".`, true);
     } else {
       setMsgEl(msg, `Showing ${users.length} of ${totalUsers} user(s).`, true);
     }
@@ -1358,8 +1276,44 @@ searchForm.onsubmit = (e) => {
   justify-content: space-between;
   gap: 12px;
 }
+.modalHeaderLeft{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  min-width:0;
+}
+.modalStatus{
+  margin:0;
+  padding:4px 10px;
+  border-radius:999px;
+  font-size:12px;
+  white-space:nowrap;
+  max-width:52vw;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
 .modalBody{ padding: 14px; }
 .noScroll{ overflow: hidden; }
+
+.topPanels{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 900px){
+  .topPanels{ grid-template-columns: 1fr; }
+}
+.panel{
+  border:1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.03);
+  border-radius: 14px;
+  padding: 12px;
+}
+.panelTitle{
+  margin:0 0 10px 0;
+  font-size: 14px;
+  opacity: .9;
+}
 
 .chips{
   display:flex;
@@ -1396,10 +1350,6 @@ th.sortable:hover{
   min-width: 12px;
   margin-left: 6px;
   opacity: 0.9;
-}
-th.sortedAsc .sortIndicator,
-th.sortedDesc .sortIndicator{
-  font-weight: 700;
 }
 
 /* Groups picker: OUTER scroll box + INNER multicol (max 4 columns, fill down first) */
@@ -1449,7 +1399,7 @@ th.sortedDesc .sortIndicator{
   text-overflow: ellipsis;
 }
 
-/* Hide Status column on small screens */
+/* Hide Status/Email column on small screens */
 @media (max-width: 640px){
   .table th:nth-child(4),
   .table td:nth-child(4){
@@ -1513,5 +1463,3 @@ tr.row-disabled td {
   font-size: 12px;
 }
 </style>
-
-</div></body></html>
