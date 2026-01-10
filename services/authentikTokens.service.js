@@ -93,7 +93,7 @@ async function createAppPasswordForUserId(userId, expiresAt) {
  * Return an existing (non-expired) enrollment token for this user, or create one.
  * Reuses within TTL window to avoid multiple active tokens per user.
  */
-async function getOrCreateEnrollmentAppPassword(params, ttlMinutes = 30) {
+async function getOrCreateEnrollmentAppPassword(params, ttlMinutes = 15) {
   // Backwards-compatible signature:
   //   getOrCreateEnrollmentAppPassword(username, ttlMinutes)
   //   getOrCreateEnrollmentAppPassword({ username, userId, ttlMinutes })
