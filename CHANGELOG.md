@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.  Minor qual
 
 ## Version History
 
+### v1.1.26  1/10/26
+🐛 `Bug Fix` - Fixes issue with not being able to log in on initial install due to authentication being disabled
+
 ### v1.1.25 - 1/9/26
 ✨ `Enhancement` - Updated modal for editing a user
 
