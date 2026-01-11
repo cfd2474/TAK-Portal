@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.  Minor qual
 
 ## Version History
 
+## v1.1.29 - 1/10/26
+🐛 `Bug Fix` - Fixes issue with Agency Templates not appearing in sidebar
+
 ### v1.1.28 - 1/10/26
 ✨ `Enhancement` - Added "Import Configuration" button to the Server Settings
 
