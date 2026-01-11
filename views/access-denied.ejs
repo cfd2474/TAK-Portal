@@ -13,7 +13,7 @@
       <% if (username) { %>
         <p>
           You are logged in as <strong><%= username %></strong>, but you are not a member
-          of any allowed Authentik admin group (Global Admin or Agency Admin) for this portal. 
+          of any allowed admin group (Global Admin or Agency Admin) for this portal. 
         </p>
 
         <p>
@@ -22,12 +22,6 @@
       <% } else { %>
         <p>You are not authorized to access this portal.</p>
       <% } %>
-
-
-
-      <p>
-        If you have another account that should have access, you can log out and sign in again.
-      </p>
 
       <div style="margin-top: 1.5rem; display:flex; gap: 0.75rem; flex-wrap: wrap;">
         <a href="/logout" class="btn btn-danger">Log out</a>
