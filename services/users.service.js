@@ -167,6 +167,30 @@ async function emailUserCreated({ user, groups, hasPassword }) {
       attrs.agency_color ||
       ""
     );
+
+  // For user-created emails only: if the user was created from an agency template,
+  // prefer that template's color override (when present). Otherwise fall back to
+  // the agency color behavior above.
+  let agencyColorEffective = agencyColor;
+  try {
+    const createdTemplateName = String(attrs.created_template || "").trim();
+
+    // "Manual Group Selection" is the non-template option in the UI.
+    if (createdTemplateName && createdTemplateName !== "Manual Group Selection") {
+      const tplAgencySuffix = String(attrs.agency || agencySuffix || "")
+        .trim()
+        .toLowerCase();
+      const allTemplates = templatesStore.load();
+      const match = allTemplates.find(t =>
+        String(t?.agencySuffix || "").trim().toLowerCase() === tplAgencySuffix &&
+        String(t?.name || "").trim().toLowerCase() === createdTemplateName.toLowerCase()
+      );
+      const override = String(match?.colorOverride || "").trim();
+      if (override) agencyColorEffective = override;
+    }
+  } catch (e) {
+    // Never block email sending because of template lookup issues.
+  }
   
 
   const templateKey = hasPassword
@@ -183,7 +207,7 @@ async function emailUserCreated({ user, groups, hasPassword }) {
     hasPassword: !!hasPassword,
     badgeNumber,
     agencyAbbreviation,
-    agencyColor,
+    agencyColor: agencyColorEffective,
     takPortalPublicUrl: getTakPortalPublicUrl(),
   });
 

@@ -10,6 +10,10 @@ All notable changes to this project will be documented in this file.  Minor qual
 
 ## Version History
 
+### v1.1.31 - 1/11/26
+✨ `Enhancement` - Added "Color Override" to agency templates so that users created with certain templates would be assigned a special color, different from their agency (ex... SWAT to get a differing color) <br>
+✨ `Enhancement` - Adjusted the service for new user emails to reflect the template override color
+
 ### v1.1.30 - 1/11/26
 ✨ `Enhancement` - Added CloudTAK URL to settings and Setup My Device pages <br>
 ✨ `Enhancement` - Added setting variable to pass TAK Portal Public URL to email templates <br>
