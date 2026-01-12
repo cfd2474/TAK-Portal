@@ -9,12 +9,12 @@
 
     <div class="row">
       <select id="createType">
-        <option value="agency" selected>Agency-Specific Group</option>
+        <label>Group Type<option value="agency" selected>Agency-Specific Group</option>
         <% if (isGlobalAdmin) { %>
         <option value="county">County-Specific Group</option>
         <option value="generic">Global Group</option>
         <% } %>
-      </select>
+      </label></select>
 
       <select id="agencyPrefixSelect" style="display:none;">
         <option value="">Select Agency</option>
