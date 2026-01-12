@@ -288,6 +288,9 @@ const agencyPrefixSelect = document.getElementById("agencyPrefixSelect");
 const countySelect = document.getElementById("countySelect");
 const groupName = document.getElementById("groupName");
 const groupDescription = document.getElementById("groupDescription");
+const agencyPrefixWrap = document.getElementById("agencyPrefixWrap");
+const countyWrap = document.getElementById("countyWrap");
+
 
 // Private dropdown (Global Admins only)
 const privateSelect = document.getElementById("privateSelect");
@@ -575,8 +578,8 @@ createType.onchange = () => {
   const isAgency = v === "agency";
   const isCounty = v === "county";
 
-  agencyPrefixSelect.style.display = isAgency ? "block" : "none";
-  countySelect.style.display = isCounty ? "block" : "none";
+  if (agencyPrefixWrap) agencyPrefixWrap.style.display = isAgency ? "flex" : "none";
+  if (countyWrap) countyWrap.style.display = isCounty ? "flex" : "none";
 };
 
 // Show/hide edit agency / county selects based on type
