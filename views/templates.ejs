@@ -12,7 +12,8 @@
       </div>
     </div>
 
-    <form id="form" class="grid3" autocomplete="off">
+    <!-- FIX: use a page-specific class instead of grid3 (grid3 is defined globally as 3 columns) -->
+    <form id="form" class="templatesGrid" autocomplete="off">
       <label>Template Name
         <input id="name" placeholder="Template Name Here (ex. Patrol, Medic, etc...)" required />
       </label>
@@ -325,17 +326,36 @@ form.onsubmit = async (e) => {
 <style>
 /* templates page only */
 
-/* Responsive grid for the form (only direct children, so it
-   doesn't affect the checkbox grid items) */
-.grid3 {
+/*
+  FIX:
+  - Do NOT use .grid3 here because your global CSS defines .grid3 as exactly 3 columns.
+  - This page needs 4 columns on desktop (Name/Agency/Color/Default) so we use .templatesGrid.
+*/
+.templatesGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 950px) {
+  .templatesGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .templatesGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* allow grid items + selects to shrink/grow correctly */
+.templatesGrid > label {
   min-width: 0;
 }
 
-.grid3 > label > input,
-.grid3 > label > select {
+.templatesGrid > label > input,
+.templatesGrid > label > select {
   width: 100%;
   box-sizing: border-box;
   min-width: 0;
@@ -398,7 +418,7 @@ form.onsubmit = async (e) => {
   overflow-x: auto;
 }
 
-/* hide 3rd column (Default) on small screens */
+/* hide Default column on small screens (Default is 4th col now) */
 @media (max-width: 768px) {
   .templatesTable th:nth-child(4),
   .templatesTable td:nth-child(4) {
