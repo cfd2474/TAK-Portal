@@ -113,53 +113,62 @@
 
         <!-- Row that mirrors Create Group -->
         <div class="row">
-          <!-- Type selector -->
-          <select id="editType">
-            <option value="agency">Agency-Specific Group</option>
-            <% if (isGlobalAdmin) { %>
-            <option value="county">County-Specific Group</option>
-            <option value="generic">Global Group</option>
-            <% } %>
-          </select>
+          <label>Group Type
+            <select id="editType">
+              <option value="agency">Agency-Specific Group</option>
+              <% if (isGlobalAdmin) { %>
+              <option value="county">County-Specific Group</option>
+              <option value="generic">Global Group</option>
+              <% } %>
+            </select>
+          </label>
 
-          <!-- Agency dropdown -->
-          <select id="editAgencyPrefixSelect" style="display:none;">
-            <option value="">Select Agency</option>
-          </select>
+          <label id="editAgencyPrefixWrap" style="display:none;">Select Agency
+            <select id="editAgencyPrefixSelect">
+              <option value="">Select Agency</option>
+            </select>
+          </label>
 
-          <!-- County dropdown -->
-          <select id="editCountySelect" style="display:none;">
-            <option value="">Select County</option>
-          </select>
+          <label id="editCountyWrap" style="display:none;">Select County
+            <select id="editCountySelect">
+              <option value="">Select County</option>
+            </select>
+          </label>
 
-          <!-- Base group name (no prefix, no _READ/_WRITE) -->
-          <input
-            id="editGroupName"
-            placeholder="Group name"
-            style="flex: 1; min-width: 120px;"
-          />
+          <label style="flex: 1; min-width: 160px;">Group Name
+            <input
+              id="editGroupName"
+              placeholder="Group name"
+              style="width: 100%;"
+            />
+          </label>
 
-          <!-- Behavior dropdown -->
-          <select id="editBehaviorSelect" style="min-width: 120px;">
-            <option value="both">BOTH - Send and Recieve (default)</option>
-            <option value="read">READ - Recieve Only</option>
-            <option value="write">WRITE - Send Only</option>
-          </select>
+          <label style="min-width: 220px;">Channel Behavior
+            <select id="editBehaviorSelect" style="min-width: 120px;">
+              <option value="both">BOTH - Send and Recieve (default)</option>
+              <option value="read">READ - Recieve Only</option>
+              <option value="write">WRITE - Send Only</option>
+            </select>
+          </label>
 
           <% if (isGlobalAdmin) { %>
-          <select id="editPrivateSelect" style="min-width: 120px;">
-            <option value="no" selected>Private: No</option>
-            <option value="yes">Private: Yes</option>
-          </select>
+          <label style="min-width: 140px;">Private
+            <select id="editPrivateSelect" style="min-width: 120px;">
+              <option value="no">No</option>
+              <option value="yes">Yes</option>
+            </select>
+          </label>
           <% } %>
         </div>
 
         <div class="row" style="margin-top:8px;">
-          <input
-            id="editGroupDescription"
-            placeholder="One-line description for this group (optional)"
-            style="flex: 1; min-width: 0;"
-          />
+          <label style="flex: 1; min-width: 0;">Group Description
+            <input
+              id="editGroupDescription"
+              placeholder="One-line description for this group (optional)"
+              style="width: 100%;"
+            />
+          </label>
         </div>
 
         <div class="row" style="margin-top:16px; align-items:center;">
@@ -290,7 +299,8 @@ const groupName = document.getElementById("groupName");
 const groupDescription = document.getElementById("groupDescription");
 const agencyPrefixWrap = document.getElementById("agencyPrefixWrap");
 const countyWrap = document.getElementById("countyWrap");
-
+const editAgencyPrefixWrap = document.getElementById("editAgencyPrefixWrap");
+const editCountyWrap = document.getElementById("editCountyWrap");
 
 // Private dropdown (Global Admins only)
 const privateSelect = document.getElementById("privateSelect");
@@ -589,14 +599,11 @@ if (editType) {
     const isAgency = v === "agency";
     const isCounty = v === "county";
 
-    if (editAgencyPrefixSelect) {
-      editAgencyPrefixSelect.style.display = isAgency ? "block" : "none";
-    }
-    if (editCountySelect) {
-      editCountySelect.style.display = isCounty ? "block" : "none";
-    }
+    if (editAgencyPrefixWrap) editAgencyPrefixWrap.style.display = isAgency ? "flex" : "none";
+    if (editCountyWrap) editCountyWrap.style.display = isCounty ? "flex" : "none";
   };
 }
+
 
 function renderGroups(){
   const needle = String(filter.value || "").trim().toLowerCase();
