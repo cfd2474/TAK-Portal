@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.  Minor qual
 
 ## Version History
 
+### v1.1.32 - 1/12/26
+✨ `Enhancement` - Added the ability to make a channel "Private" so that it is hidden from Agency Admins (My use will be sensitive groups and WRITE groups for data feeds from NodeRed)
+
 ### v1.1.31 - 1/11/26
 ✨ `Enhancement` - Added "Color Override" to agency templates so that users created with certain templates would be assigned a special color, different from their agency (ex... SWAT to get a differing color) <br>
 ✨ `Enhancement` - Adjusted the service for new user emails to reflect the template override color
