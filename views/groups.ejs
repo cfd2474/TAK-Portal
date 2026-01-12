@@ -16,13 +16,17 @@
         <% } %>
       </select></label>
 
-      <label>Select Agency<select id="agencyPrefixSelect" style="display:none;">
-        <option value="">Select Agency</option>
-      </select></label>
+      <label id="agencyPrefixWrap" style="display:none;">Select Agency
+        <select id="agencyPrefixSelect">
+          <option value="">Select Agency</option>
+        </select>
+      </label>
 
-      <label>Select County<select id="countySelect" style="display:none;">
-        <option value="">Select County</option>
-      </select></label>
+      <label id="countyWrap" style="display:none;">Select County
+        <select id="countySelect">
+          <option value="">Select County</option>
+        </select>
+      </label>
 
       <label> Group Name<input
         id="groupName"
@@ -47,14 +51,14 @@
       <button class="btn" id="createBtn" type="button">Create New Group</button>
     </div>
     <div class="row" style="margin-top:8px;">
-      <label>Group Description<input
-        id="groupDescription"
-        placeholder="One-line description for this group (optional)"
-        style="flex: 1; min-width: 0;"
-      /></label>
+      <label style="flex: 1; min-width: 0;">Group Description
+        <input
+          id="groupDescription"
+          placeholder="One-line description for this group (optional)"
+          style="width: 100%;"
+        />
+      </label>
     </div>
-    <div id="createMsg" class="msg"></div>
-  </div>
 
   <div class="card">
     <div class="row" style="justify-content: space-between; align-items:center;">
