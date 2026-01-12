@@ -196,23 +196,35 @@ async function renameGroup(groupId, newName, opts = {}) {
   const oldName = String(current?.name || "").trim();
   if (!oldName) throw new Error("Could not determine existing group name");
 
-// Rename (and optionally update description) in Authentik
-const payload = { name: n };
+  // Rename (and optionally update attributes) in Authentik
+  const payload = { name: n };
 
-// If description is explicitly provided in opts, merge it into attributes
-if (Object.prototype.hasOwnProperty.call(opts, "description")) {
-  const desc = String(opts.description || "").trim();
-  const existingAttrs =
-    current && typeof current.attributes === "object" && current.attributes
-      ? current.attributes
-      : {};
-  payload.attributes = {
-    ...existingAttrs,
-    description: desc,
-  };
-}
+  const wantsDescription = Object.prototype.hasOwnProperty.call(opts, "description");
+  const wantsPrivate = Object.prototype.hasOwnProperty.call(opts, "private");
 
-const res = await api.patch(`/core/groups/${id}/`, payload);
+  if (wantsDescription || wantsPrivate) {
+    const existingAttrs =
+      current && typeof current.attributes === "object" && current.attributes
+        ? current.attributes
+        : {};
+
+    const nextAttrs = { ...existingAttrs };
+
+    if (wantsDescription) {
+      const desc = String(opts.description || "").trim();
+      nextAttrs.description = desc;
+    }
+
+    if (wantsPrivate) {
+      const priv = String(opts.private || "").trim().toLowerCase();
+      // Normalize to "yes"/"no"; treat anything other than "yes" as "no"
+      nextAttrs.private = priv === "yes" ? "yes" : "no";
+    }
+
+    payload.attributes = nextAttrs;
+  }
+
+  const res = await api.patch(`/core/groups/${id}/`, payload);
   const updatedGroup = res.data;
 
   // Update templates (replace oldName -> n)

@@ -32,6 +32,16 @@ router.post("/", async (req, res) => {
     const authUser = req.authentikUser || null;
     const access = accessSvc.getAgencyAccess(authUser);
 
+    // Private groups are a global-admin-only feature
+    const hasPrivate = Object.prototype.hasOwnProperty.call(req.body || {}, "private");
+    const privateStatus = hasPrivate
+      ? String(req.body.private || "").trim().toLowerCase()
+      : undefined;
+
+    if (!access.isGlobalAdmin && hasPrivate) {
+      return res.status(403).json({ error: "You do not have permission to set group privacy." });
+    }
+
     if (!access.isGlobalAdmin) {
       const allowedSuffixes = access.allowedAgencySuffixes || [];
       if (!allowedSuffixes.length) {
@@ -104,6 +114,11 @@ if (description) {
   attributes.description = description;
 }
 
+// 2b) private (global admins only; default is "no")
+if (access.isGlobalAdmin && hasPrivate) {
+  attributes.private = privateStatus === "yes" ? "yes" : "no";
+}
+
 // 3) created_type
 attributes.created_type = groupType;
 
@@ -114,6 +129,13 @@ attributes.created_type_detail = groupTypeDetail || null;
 if (createdBy) {
   attributes.created_by_username = createdBy.username;
   attributes.created_by_display_name = createdBy.displayName;
+}
+
+// Private flag (Global Admins only)
+if (access.isGlobalAdmin && typeof privateStatus === "string" && privateStatus) {
+  // Accept common truthy values; store as "yes"/"no" for consistency
+  const truthy = privateStatus === "yes" || privateStatus === "true" || privateStatus === "1";
+  attributes.private = truthy ? "yes" : "no";
 }
 const out = await groups.createGroup(rawName, { attributes });
     res.json({ success: true, group: out });
@@ -133,12 +155,26 @@ router.patch("/:groupId", async (req, res) => {
       return res.status(400).json({ error: "Group name is required" });
     }
 
+    const authUser = req.authentikUser || null;
+    const access = accessSvc.getAgencyAccess(authUser);
+
+    // Private groups are a global-admin-only feature
+    const hasPrivate = Object.prototype.hasOwnProperty.call(req.body || {}, "private");
+    const privateStatus = hasPrivate
+      ? String(req.body.private || "").trim().toLowerCase()
+      : undefined;
+
+    if (!access.isGlobalAdmin && hasPrivate) {
+      return res.status(403).json({ error: "You do not have permission to set group privacy." });
+    }
+
     // Optional: description update
     const hasDescription = Object.prototype.hasOwnProperty.call(req.body || {}, "description");
     const description = hasDescription ? String(req.body.description || "").trim() : undefined;
 
     const out = await groups.renameGroup(req.params.groupId, name, {
       description,
+      private: access.isGlobalAdmin ? privateStatus : undefined,
     });
     res.json({ success: true, group: out });
   } catch (err) {

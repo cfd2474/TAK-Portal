@@ -220,6 +220,12 @@ function filterGroupsForUser(authUser, groups) {
     Array.isArray(countyPrefixes) && countyPrefixes.length > 0;
 
   return list.filter((g) => {
+    // Hide "private" groups from non-global admins
+    const privateFlag = String(g?.attributes?.private || "").trim().toLowerCase();
+    if (privateFlag === "yes" || privateFlag === "true" || privateFlag === "1") {
+      return false;
+    }
+
     const name = String(g && g.name ? g.name : "").trim();
     if (!name) return false;
 

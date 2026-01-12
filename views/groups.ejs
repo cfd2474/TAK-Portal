@@ -37,6 +37,13 @@
         <option value="write">WRITE - Send Only</option>
       </select>
 
+      <% if (isGlobalAdmin) { %>
+      <select id="privateSelect" style="min-width: 120px;">
+        <option value="no" selected>Private: No</option>
+        <option value="yes">Private: Yes</option>
+      </select>
+      <% } %>
+
       <button class="btn" id="createBtn" type="button">Create New Group</button>
     </div>
     <div class="row" style="margin-top:8px;">
@@ -119,6 +126,13 @@
             <option value="read">READ - Recieve Only</option>
             <option value="write">WRITE - Send Only</option>
           </select>
+
+          <% if (isGlobalAdmin) { %>
+          <select id="editPrivateSelect" style="min-width: 120px;">
+            <option value="no" selected>Private: No</option>
+            <option value="yes">Private: Yes</option>
+          </select>
+          <% } %>
         </div>
 
         <div class="row" style="margin-top:8px;">
@@ -256,6 +270,9 @@ const countySelect = document.getElementById("countySelect");
 const groupName = document.getElementById("groupName");
 const groupDescription = document.getElementById("groupDescription");
 
+// Private dropdown (Global Admins only)
+const privateSelect = document.getElementById("privateSelect");
+
 // Behavior dropdown
 const behaviorSelect = document.getElementById("behaviorSelect");
 
@@ -298,6 +315,9 @@ const editType = document.getElementById("editType");
 const editAgencyPrefixSelect = document.getElementById("editAgencyPrefixSelect");
 const editCountySelect = document.getElementById("editCountySelect");
 const editBehaviorSelect = document.getElementById("editBehaviorSelect");
+
+// Private dropdown (Global Admins only)
+const editPrivateSelect = document.getElementById("editPrivateSelect");
 
 // Global admin flag for JS logic
 const IS_GLOBAL_ADMIN = <%= isGlobalAdmin ? 'true' : 'false' %>;
@@ -673,6 +693,9 @@ createBtn.onclick = async () => {
     body: JSON.stringify({
       name,
       description: String(groupDescription.value || "").trim() || null,
+      private: (IS_GLOBAL_ADMIN && privateSelect)
+        ? String(privateSelect.value || "no").trim().toLowerCase()
+        : undefined,
       groupType,
       groupTypeDetail,
     })
@@ -688,6 +711,7 @@ createBtn.onclick = async () => {
   groupName.value = "";
   groupDescription.value = "";
   behaviorSelect.value = "both";
+  if (privateSelect) privateSelect.value = "no";
   await loadGroups();
 };
 
@@ -711,6 +735,7 @@ window.editGroupName = async (groupId) => {
   const g = (groupsCache || []).find(x => String(x.pk) === String(groupId));
   const currentName = String(g?.name || "").trim();
   const currentDescription = String(g?.attributes?.description || "").trim();
+  const currentPrivate = String(g?.attributes?.private || "no").trim().toLowerCase();
 
   if (groupActionsLocked(currentName)) {
     setMsg(listMsg, `Actions are locked for group ${currentName || groupId}`, false);
@@ -754,6 +779,11 @@ window.editGroupName = async (groupId) => {
 
   // Description
   editGroupDescriptionInput.value = currentDescription;
+
+  // Private dropdown (Global Admins only)
+  if (editPrivateSelect) {
+    editPrivateSelect.value = currentPrivate === "yes" ? "yes" : "no";
+  }
 
   setMsg(editGroupMsg, "");
   showEditGroupModal(true);
@@ -1089,6 +1119,9 @@ editGroupSaveBtn.onclick = async () => {
     body: JSON.stringify({
       name: newName,
       description: newDescription || null,
+      private: (IS_GLOBAL_ADMIN && editPrivateSelect)
+        ? String(editPrivateSelect.value || "no").trim().toLowerCase()
+        : undefined,
     }),
   });
 
