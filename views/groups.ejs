@@ -16,42 +16,42 @@
         <% } %>
       </select></label>
 
-      <select id="agencyPrefixSelect" style="display:none;">
+      <label>Select Agency<select id="agencyPrefixSelect" style="display:none;">
         <option value="">Select Agency</option>
-      </select>
+      </select></label>
 
-      <select id="countySelect" style="display:none;">
+      <label>Select County<select id="countySelect" style="display:none;">
         <option value="">Select County</option>
-      </select>
+      </select></label>
 
-      <input
+      <label> Group Name<input
         id="groupName"
         placeholder="Group name"
         style="flex: 1; min-width: 120px;"
-      />
+      /></label>
 
       <!-- Behavior dropdown -->
-      <select id="behaviorSelect" style="min-width: 120px;">
+      <label>Channel Behavior<select id="behaviorSelect" style="min-width: 120px;">
         <option value="both" selected>BOTH - Send and Recieve (default)</option>
         <option value="read">READ - Recieve Only</option>
         <option value="write">WRITE - Send Only</option>
-      </select>
+      </select></label>
 
       <% if (isGlobalAdmin) { %>
-      <select id="privateSelect" style="min-width: 120px;">
-        <option value="no" selected>Private: No</option>
-        <option value="yes">Private: Yes</option>
-      </select>
+      <label>Private<select id="privateSelect" style="min-width: 120px;">
+        <option value="no" selected>No</option>
+        <option value="yes">Yes</option>
+      </select></label>
       <% } %>
 
       <button class="btn" id="createBtn" type="button">Create New Group</button>
     </div>
     <div class="row" style="margin-top:8px;">
-      <input
+      <label>Group Description<input
         id="groupDescription"
         placeholder="One-line description for this group (optional)"
         style="flex: 1; min-width: 0;"
-      />
+      /></label>
     </div>
     <div id="createMsg" class="msg"></div>
   </div>
