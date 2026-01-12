@@ -17,3 +17,4 @@
 {{badgeNumber}} - The user's badge number formatted as `1234` <br>
 {{agencyAbbreviation}} - The user's agency formatted as `ABCD` <br>
 {{agencyColor}} - The user's agency color formatted as `Color` <br>
+{{takPortalPublicUrl}} - The TAK Portal Public URL <br>
