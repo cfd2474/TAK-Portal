@@ -4,6 +4,7 @@
 <main class="main">
   <h1>Agency Templates</h1>
   <small>Templates allow quick assignment of multiple groups to a user upon creation. Editing a template does not edit previously created users.</small>
+
   <div class="card">
     <div class="row" style="justify-content: space-between; align-items: center;">
       <h2 style="margin:0;" id="formTitle">Create New Template</h2>
@@ -409,16 +410,12 @@ form.onsubmit = async (e) => {
   }
 }
 
-div.tableWrap > table.table.templatesTable { display: table !important; }
-div.tableWrap > table.table.templatesTable > thead { display: table-header-group !important; }
-div.tableWrap > table.table.templatesTable > tbody { display: table-row-group !important; }
-div.tableWrap > table.table.templatesTable > thead > tr,
-div.tableWrap > table.table.templatesTable > tbody > tr { display: table-row !important; height: auto !important; }
-div.tableWrap > table.table.templatesTable th,
-div.tableWrap > table.table.templatesTable td { display: table-cell !important; height: auto !important; vertical-align: top !important; }
+.templatesTable td {
+  vertical-align: top;
+}
 
 .actionsCell{
-  display: inline-flex;
+  display: flex;
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
@@ -427,7 +424,6 @@ div.tableWrap > table.table.templatesTable td { display: table-cell !important; 
 .groupsCell{
   white-space: normal;
   word-break: break-word;
-  line-height: 1.25;
 }
 </style>
 
