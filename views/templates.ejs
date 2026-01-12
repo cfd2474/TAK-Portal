@@ -331,12 +331,14 @@ form.onsubmit = async (e) => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
+  min-width: 0;
 }
 
 .grid3 > label > input,
 .grid3 > label > select {
   width: 100%;
   box-sizing: border-box;
+  min-width: 0;
 }
 
 /* groups checkbox grid – restored to original */
