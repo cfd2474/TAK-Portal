@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.  Minor qual
 
 ## Version History
 
+## v1.1.35 - 1/12/26
+⬆️ `Dependency` - Updated DockerFile to manage certificates for SMTP
+
 ### v1.1.34 - 1/12/26
 ✨ `Enhancement` - Major reduction in loading time for all users performing the "View Members" function on groups
 
