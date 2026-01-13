@@ -6,6 +6,10 @@
  * - Currently supports EMAIL_PROVIDER=smtp
  * - Provides a simple sendMail(...) helper
  *
+ * NOTE: TLS certificate validation is intentionally DISABLED for SMTP
+ * to support servers whose certificate name does not match SMTP_HOST.
+ * This is insecure on untrusted networks (MITM risk).
+ *
  * This module is intentionally not wired into user flows yet.
  */
 
@@ -18,7 +22,7 @@ function parseAddressList(value) {
   // Support comma or semicolon-separated lists
   return s
     .split(/[;,]/g)
-    .map(x => String(x).trim())
+    .map((x) => String(x).trim())
     .filter(Boolean);
 }
 
@@ -75,6 +79,12 @@ function getTransport() {
     port: cfg.port,
     secure: cfg.secure,
     auth,
+
+    // HARD OVERRIDE: disable TLS certificate/hostname validation
+    // (fixes: "Hostname/IP does not match certificate's altnames")
+    tls: {
+      rejectUnauthorized: false,
+    },
   });
 
   return _transport;
@@ -101,7 +111,10 @@ async function sendMail({ to, subject, text, html, cc, bcc }) {
   if (ccList.length) mail.cc = ccList.join(",");
 
   // Optional quality-of-life: always BCC a testing or audit inbox list
-  const bccList = [...parseAddressList(cfg.sendCopyTo), ...parseAddressList(bcc)];
+  const bccList = [
+    ...parseAddressList(cfg.sendCopyTo),
+    ...parseAddressList(bcc),
+  ];
   if (bccList.length) mail.bcc = bccList.join(",");
 
   try {
