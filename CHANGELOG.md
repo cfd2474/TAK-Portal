@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.  Minor qual
 
 ## Version History
 
+### v1.1.34 - 1/12/26
+✨ `Enhancement` - Major reduction in loading time for all users performing the "View Members" function on groups
+
 ### v1.1.33 - 1/12/26
 ✨ `Enhancement` - MAJOR reduction in loading time for agency admins navigating to the manage users section.  Load time cut down by 3/4.  Changed logic from looking at username suffixes to looking at authentik user attributes.
 
