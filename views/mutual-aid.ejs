@@ -418,7 +418,7 @@ function renderExistingGroupSelect() {
     .slice()
     .sort((a,b)=>String(a.name||"").localeCompare(String(b.name||"")));
 
-  const opts = [`<option value="">-- select a group --</option>`]
+  const opts = [`<option value="">-- Select A Group --</option>`]
     .concat(items.map(g => {
       const id = String(g.pk);
       const name = String(g.name || "");
