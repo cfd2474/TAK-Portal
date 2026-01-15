@@ -194,16 +194,6 @@ function buildTakPortalBlock({
   `.trim();
 }
 
-
-  const fallback = String(elseHtml || "").trim();
-  return `
-    <p style="margin:0 0 16px; font-size:14px; line-height:21px;">
-      ${fallback}
-    </p>
-  `.trim();
-}
-
-
 /**
  * User-created email.
  *
