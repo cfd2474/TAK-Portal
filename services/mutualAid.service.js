@@ -376,7 +376,7 @@ async function sendMutualAidCreatedEmail({ type, title, username, password, grou
   if (!recipients.length) return;
 
   const { enrollUrl, qrCode } = await qrDataUrl(username, password);
-  const subject = `${String(type || "").toUpperCase()} created: ${title}`;
+  const subject = `${String(type || "").toUpperCase()} Created: ${title}`;
 
   const html = renderTemplate("mutual_aid_created.html", {
     type: String(type || "").toUpperCase(),
