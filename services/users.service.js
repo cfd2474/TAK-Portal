@@ -136,10 +136,9 @@ function buildTakPortalBlock({
     const intro = String(introHtml || "").trim();
     const btnText = String(buttonText || "Open TAK Portal").trim();
 
-    // Button sizing
-    const btnPadV = 12;   // vertical padding
-    const btnPadH = 22;   // horizontal padding
-    const btnRadius = 8;  // modern but still professional
+    const btnPadV = 12;
+    const btnPadH = 22;
+    const btnRadius = 8;
     const btnBg = "#2563eb";
     const btnTextColor = "#ffffff";
 
@@ -169,9 +168,12 @@ function buildTakPortalBlock({
               <tr>
                 <td bgcolor="${btnBg}" style="border-radius:${btnRadius}px;">
                   <a href="${url}" target="_blank" rel="noopener noreferrer"
-                     style="display:inline-block; padding:${btnPadV}px ${btnPadH}px; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-                            font-size:14px; line-height:16px; font-weight:700; color:${btnTextColor}; text-decoration:none; border-radius:${btnRadius}px;">
-                    ${btnText}
+                     style="display:inline-block; padding:${btnPadV}px ${btnPadH}px;
+                            font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+                            font-size:14px; line-height:16px; font-weight:700;
+                            color:${btnTextColor} !important; mso-style-priority:100;
+                            text-decoration:none; border-radius:${btnRadius}px;">
+                    <span style="color:${btnTextColor} !important; text-decoration:none;">${btnText}</span>
                   </a>
                 </td>
               </tr>
@@ -183,6 +185,15 @@ function buildTakPortalBlock({
       </table>
     `.trim();
   }
+
+  const fallback = String(elseHtml || "").trim();
+  return `
+    <p style="margin:0 0 16px; font-size:14px; line-height:21px;">
+      ${fallback}
+    </p>
+  `.trim();
+}
+
 
   const fallback = String(elseHtml || "").trim();
   return `
