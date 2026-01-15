@@ -10,6 +10,10 @@ All notable changes to this project will be documented in this file.  Minor qual
 
 ## Version History
 
+### v1.1.38 - 1/14/26
+✨ `Enhancement` - Update to restart script <br>
+✨ `Enhancement` - Minor behavior tweaks
+
 ### v1.1.37 - 1/13/26
 🐛 `Bug Fix` - Fixes issue with SMTP not sending emails when it experiences a TLS cert mismatch.  Email service now ignores TLS errors.
 
