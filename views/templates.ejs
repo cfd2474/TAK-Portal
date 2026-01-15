@@ -114,6 +114,7 @@ const groupsInner = document.getElementById("groupsInner");
 
 let allGroups = [];
 let allTemplates = [];
+let allAgencies = [];
 let editingIndex = null;
 
 function setMsg(text, ok=true){
@@ -166,8 +167,19 @@ function renderGroups(filterText = ""){
 async function loadAgencies(){
   const res = await fetch("/api/agencies");
   const agencies = await res.json();
+
+  allAgencies = Array.isArray(agencies) ? agencies : [];
+
   agencyEl.innerHTML = `<option value="">Select an agency</option>` +
-    agencies.map(a => `<option value="${esc(a.suffix)}">${esc(a.name)} (${esc(a.suffix)})</option>`).join("");
+    allAgencies.map(a => {
+      const abbr = (a.groupPrefix || "").trim();
+      const suffix = (a.suffix || "").trim();
+      const name = (a.name || "").trim();
+
+      // value stays suffix (important: keeps existing behavior)
+      // label can show abbreviation instead of suffix (optional)
+      return `<option value="${esc(suffix)}">${esc(name)}${abbr ? ` (${esc(abbr)})` : ""}</option>`;
+    }).join("");
 }
 
 async function loadGroups(){
@@ -176,6 +188,12 @@ async function loadGroups(){
   if (!res.ok) throw new Error(groups.error || "Failed to load groups");
   allGroups = groups;
   renderGroups("");
+}
+
+function agencyAbbrFromSuffix(suffix){
+  const s = String(suffix || "").trim().toLowerCase();
+  const a = allAgencies.find(x => String(x.suffix || "").trim().toLowerCase() === s);
+  return String(a?.groupPrefix || "").trim();
 }
 
 async function loadTemplates(){
@@ -187,7 +205,7 @@ async function loadTemplates(){
   tbody.innerHTML = allTemplates.map((t,i)=>`
     <tr>
       <td>${esc(t.name)}</td>
-      <td>${t.agencySuffix ? esc(t.agencySuffix) : "—"}</td>
+      <td>${t.agencySuffix ? esc(agencyAbbrFromSuffix(t.agencySuffix) || t.agencySuffix): "—"}</td>
       <td>${t.colorOverride ? esc(t.colorOverride) : "—"}</td>
       <td>${t.isDefault ? "Yes" : ""}</td>
       <td class="groupsCell">${esc((t.groups || []).join(", "))}</td>
