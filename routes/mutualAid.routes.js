@@ -23,6 +23,8 @@ router.post("/", async (req, res) => {
       title: req.body?.title,
       expireEnabled: req.body?.expireEnabled,
       expireAt: req.body?.expireAt,
+      groupMode: req.body?.groupMode,
+      existingGroupId: req.body?.existingGroupId,
     });
     res.json({ success: true, item: out });
   } catch (err) {

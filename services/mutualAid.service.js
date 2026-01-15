@@ -413,10 +413,10 @@ function parseExpireAt(value) {
   return d.toISOString();
 }
 
-async function create({ type, title, expireEnabled, expireAt }) {
+async function create({ type, title, expireEnabled, expireAt, groupMode, existingGroupId }) {
   const t = String(type || "").trim().toUpperCase();
   const name = sanitizeTitle(title);
-  const groupName = buildGroupName(t, name);
+  const desiredGroupName = buildGroupName(t, name);
   // Username should be incident-xxx / event-xxx.
   const username = buildMutualAidUsername(t, name);
   if (!username) throw new Error("Name must contain at least one letter/number for username");
@@ -432,8 +432,27 @@ async function create({ type, title, expireEnabled, expireAt }) {
     throw new Error("Expiration date/time must be in the future");
   }
 
-  // 1) Create group
-  const group = await groupsSvc.createGroup(groupName);
+  // Group selection
+  // - "new" (default): create a brand new group named "MA - TITLE"
+  // - "existing": attach this mutual aid user to an existing group
+  const modeRaw = String(groupMode || "").trim().toLowerCase();
+  const mode = modeRaw === "existing" ? "existing" : "new";
+
+  let group;
+  let groupWasCreated = false;
+
+  if (mode === "existing") {
+    const gid = String(existingGroupId || "").trim();
+    if (!gid) throw new Error("Existing group is required when using an existing group");
+    group = await groupsSvc.getGroupById(gid);
+    if (!group || !group.pk) throw new Error("Group not found");
+  } else {
+    // 1) Create group
+    group = await groupsSvc.createGroup(desiredGroupName);
+    groupWasCreated = true;
+  }
+
+  const groupName = String(group?.name || desiredGroupName);
 
   // 2) Create user (minimal fields; password is numeric as requested)
   const password = randomPassword(18);
@@ -471,6 +490,8 @@ async function create({ type, title, expireEnabled, expireAt }) {
     title: name,
     groupId: String(group.pk),
     groupName,
+    groupMode: mode,
+    groupWasCreated,
     userId: String(user.pk),
     username,
     password,
@@ -596,8 +617,14 @@ async function remove({ id }) {
   }
 
   if (item.groupId) {
-    // Use cleanup delete to keep templates consistent (safest)
-    await groupsSvc.deleteGroupWithCleanup(item.groupId, { ignoreLocks: true });
+    // Only delete the group if this mutual aid created it.
+    // When using an existing group, we must not delete shared groups.
+    const mode = String(item.groupMode || "new").toLowerCase();
+    const shouldDelete = item.groupWasCreated === true || mode !== "existing";
+    if (shouldDelete) {
+      // Use cleanup delete to keep templates consistent (safest)
+      await groupsSvc.deleteGroupWithCleanup(item.groupId, { ignoreLocks: true });
+    }
   }
 
   // Remove from store

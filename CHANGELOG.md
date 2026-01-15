@@ -10,6 +10,10 @@ All notable changes to this project will be documented in this file.  Minor qual
 
 ## Version History
 
+### v1.1.40 - 1/15/26
+🐛 `Bug Fix` - Fixes issue with Agency displaying the suffix on templates <br>
+🐛 `Bug Fix` - Fixes issue with Agency Templates tab getting hidded from Agency Admins <br>
+
 ### v1.1.39 - 1/15/26
 ✨ `Enhancement` - Updated all email templates to maximize compatibly with various email clients with a primary focus on Outlook and Gmail.
 

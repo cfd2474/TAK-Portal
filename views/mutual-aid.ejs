@@ -29,11 +29,24 @@
         <input id="maExpireAt" type="datetime-local" style="min-width: 240px;" />
       </label>
 
+      <label>
+        Group
+        <select id="maGroupMode" style="min-width: 220px;">
+          <option value="new" selected>Create New Group</option>
+          <option value="existing">Use Existing Group</option>
+        </select>
+      </label>
+
+      <label id="maExistingGroupWrap" style="display:none;">
+        Existing Group
+        <select id="maExistingGroup" style="min-width: 320px;"></select>
+      </label>
+
       
       <label><br>
       <button class="btn" id="maCreateBtn" type="button">Create New Mutual Aid</button></label>
     </div>
-    <small>
+    <small id="maCreateHelp">
       This will create a group named <strong>MA - TITLE</strong> and a matching user with an auto-generated 18-character password.
     </small>
     <div id="maCreateMsg" class="msg"></div>
@@ -382,6 +395,11 @@ const maExpireWrap = document.getElementById("maExpireWrap");
 const maExpireEnabled = document.getElementById("maExpireEnabled");
 const maExpireAt = document.getElementById("maExpireAt");
 
+const maGroupMode = document.getElementById("maGroupMode");
+const maExistingGroupWrap = document.getElementById("maExistingGroupWrap");
+const maExistingGroup = document.getElementById("maExistingGroup");
+const maCreateHelp = document.getElementById("maCreateHelp");
+
 const maFilter = document.getElementById("maFilter");
 const maTbody = document.getElementById("maTbody");
 const maListMsg = document.getElementById("maListMsg");
@@ -399,6 +417,51 @@ function updateCreateExpireUi(){
 maType.onchange = updateCreateExpireUi;
 maExpireEnabled.onchange = updateCreateExpireUi;
 updateCreateExpireUi();
+
+// ----- Create: group mode controls -----
+function renderExistingGroupSelect() {
+  if (!maExistingGroup) return;
+  const current = String(maExistingGroup.value || "");
+  const items = (groupsCache || [])
+    .slice()
+    .sort((a,b)=>String(a.name||"").localeCompare(String(b.name||"")));
+
+  const opts = [`<option value="">-- select a group --</option>`]
+    .concat(items.map(g => {
+      const id = String(g.pk);
+      const name = String(g.name || "");
+      return `<option value="${esc(id)}">${esc(name)}</option>`;
+    }));
+
+  maExistingGroup.innerHTML = opts.join("");
+  if (current) maExistingGroup.value = current;
+}
+
+function updateCreateGroupModeUi(){
+  const mode = String(maGroupMode?.value || "new").toLowerCase();
+  const isExisting = mode === "existing";
+  if (maExistingGroupWrap) maExistingGroupWrap.style.display = isExisting ? "block" : "none";
+
+  if (maCreateHelp) {
+    maCreateHelp.innerHTML = isExisting
+      ? `This will create a matching user with an auto-generated 18-character password and add it to the selected group.`
+      : `This will create a group named <strong>MA - TITLE</strong> and a matching user with an auto-generated 18-character password.`;
+  }
+
+  if (isExisting) {
+    // Ensure groups are loaded and dropdown is populated.
+    if (!groupsCache || !groupsCache.length) {
+      loadGroups().catch(()=>{});
+    } else {
+      renderExistingGroupSelect();
+    }
+  } else {
+    if (maExistingGroup) maExistingGroup.value = "";
+  }
+}
+
+if (maGroupMode) maGroupMode.onchange = updateCreateGroupModeUi;
+updateCreateGroupModeUi();
 
 // ----- QR modal -----
 const qrOverlay = document.getElementById("qrOverlay");
@@ -579,7 +642,9 @@ const userSelectAll = document.getElementById("userSelectAll");
 const userClearAll = document.getElementById("userClearAll");
 
 let agenciesCache = [];
-let groupsCache = [];
+// NOTE: groupsCache is used by both the Mutual Aid create form and the mass-assign modal.
+// Use `var` so it's available before this point in the script (no TDZ issues).
+var groupsCache = [];
 let usersSearchCache = [];
 let massMode = "agency";
 let massAction = "assign";
@@ -698,6 +763,7 @@ async function loadGroups(){
   const out = await res.json();
   groupsCache = res.ok && Array.isArray(out) ? out : [];
   renderSourceGroupList();
+  renderExistingGroupSelect();
 }
 
 function renderSourceGroupList(){
@@ -907,7 +973,11 @@ async function loadList(){
 maFilter.oninput = () => renderList();
 
 async function deleteItem(item){
-  const ok = confirm(`Delete ${item.type} "${item.title}"?\n\nThis will revoke TAK certs, delete the user, and delete the group.`);
+  const willDeleteGroup = String(item.groupMode||"new").toLowerCase() !== "existing";
+  const extra = willDeleteGroup
+    ? "This will revoke TAK certs, delete the user, and delete the group."
+    : "This will revoke TAK certs and delete the user. (The existing group will NOT be deleted.)";
+  const ok = confirm(`Delete ${item.type} "${item.title}"?\n\n${extra}`);
   if(!ok) return;
   setMsg(maListMsg, "Deleting...", true);
   const res = await fetch(`/api/mutual-aid/${encodeURIComponent(item.id)}`, { method: "DELETE" });
@@ -940,10 +1010,19 @@ maCreateBtn.onclick = async () => {
       }
       expireAt = new Date(raw).toISOString();
     }
+    // Group mode payload
+    const groupMode = String(maGroupMode?.value || "new").toLowerCase() === "existing" ? "existing" : "new";
+    const existingGroupId = groupMode === "existing" ? String(maExistingGroup?.value || "").trim() : "";
+    if (groupMode === "existing" && !existingGroupId) {
+      setMsg(maCreateMsg, "Please select an existing group.", false);
+      maCreateBtn.disabled = false;
+      return;
+    }
+
     const res = await fetch("/api/mutual-aid", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, title, expireEnabled, expireAt })
+      body: JSON.stringify({ type, title, expireEnabled, expireAt, groupMode, existingGroupId })
     });
     const data = await res.json();
     if(!res.ok) throw new Error(data.error || "Create failed");
@@ -953,6 +1032,9 @@ maCreateBtn.onclick = async () => {
     maTitle.value = "";
     maExpireEnabled.value = "no";
     maExpireAt.value = "";
+    if (maGroupMode) maGroupMode.value = "new";
+    if (maExistingGroup) maExistingGroup.value = "";
+    updateCreateGroupModeUi();
     updateCreateExpireUi();
     await loadList();
 
