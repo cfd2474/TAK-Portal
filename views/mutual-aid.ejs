@@ -9,9 +9,9 @@
     <div class="row" style="flex-wrap: wrap;">
       <label> Type
         <select id="maType" style="min-width: 200px;">
-        <label>
         <option value="INCIDENT" selected>INCIDENT</option>
         <option value="EVENT">EVENT</option>
+        <option value="STANDBY">STANDBY</option>
       </select>
       </label>
       <label>Title
@@ -128,6 +128,7 @@
           <select id="editType">
             <option value="INCIDENT">INCIDENT</option>
             <option value="EVENT">EVENT</option>
+            <option value="STANDBY">STANDBY</option>
           </select>
         </label>
         <label>Title
@@ -214,8 +215,6 @@
   </div>
 </div>
 
-
-
 <!-- Mutual Aid Members Modal (read-only) -->
 <div class="modalOverlay" id="membersOverlay" style="display:none;">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="membersTitle">
@@ -235,9 +234,6 @@
     </div>
   </div>
 </div>
-
-
-
 
 <script>
 // ----- Shared helpers -----
