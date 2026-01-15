@@ -37,8 +37,8 @@
         </select>
       </label>
 
-      <label id="maExistingGroupWrap" style="display:none;">
-        Existing Group
+      <label id="maExistingGroupWrap" style="display:none; flex-direction:column;">
+        <span>Existing Group</span>
         <select id="maExistingGroup" style="min-width: 320px;"></select>
       </label>
 
@@ -440,7 +440,8 @@ function renderExistingGroupSelect() {
 function updateCreateGroupModeUi(){
   const mode = String(maGroupMode?.value || "new").toLowerCase();
   const isExisting = mode === "existing";
-  if (maExistingGroupWrap) maExistingGroupWrap.style.display = isExisting ? "block" : "none";
+  // Use flex so the "Existing Group" label sits above the dropdown.
+  if (maExistingGroupWrap) maExistingGroupWrap.style.display = isExisting ? "flex" : "none";
 
   if (maCreateHelp) {
     maCreateHelp.innerHTML = isExisting
@@ -917,6 +918,7 @@ function renderList(){
   });
 
   maTbody.innerHTML = items.map(it => {
+    const isExistingGroup = String(it.groupMode || "new").toLowerCase() === "existing";
     return `
       <tr>
         <td>${esc(it.type||"")}</td>
@@ -928,8 +930,8 @@ function renderList(){
         <td>
           <div class="row" style="gap:10px; flex-wrap: wrap;">
             <button class="btn" type="button" data-act="members" data-id="${esc(it.id)}">View Members</button>
-            <button class="btn success" type="button" data-act="assign" data-id="${esc(it.id)}">Assign</button>
-            <button class="btn" type="button" data-act="unassign" data-id="${esc(it.id)}">Unassign</button>
+            ${isExistingGroup ? "" : `<button class=\"btn success\" type=\"button\" data-act=\"assign\" data-id=\"${esc(it.id)}\">Assign</button>`}
+            ${isExistingGroup ? "" : `<button class=\"btn\" type=\"button\" data-act=\"unassign\" data-id=\"${esc(it.id)}\">Unassign</button>`}
             <button class="btn" type="button" data-act="edit" data-id="${esc(it.id)}">Edit</button>
             <button class="btn qr" type="button" data-act="qr" data-id="${esc(it.id)}">Show QR</button>
             <button class="btn danger" type="button" data-act="del" data-id="${esc(it.id)}">Delete</button>
@@ -1038,8 +1040,10 @@ maCreateBtn.onclick = async () => {
     updateCreateExpireUi();
     await loadList();
 
-    // Immediately offer mass-assign (optional)
-    openMassAssign({ groupId: item.groupId, groupName: item.groupName });
+    // Immediately offer mass-assign (optional) ONLY when we created a new group.
+    if (groupMode !== "existing") {
+      openMassAssign({ groupId: item.groupId, groupName: item.groupName });
+    }
   } catch (e){
     setMsg(maCreateMsg, e.message || String(e), false);
   } finally {
