@@ -152,6 +152,19 @@
             <button class="btn" id="applyTemplateBtn" type="button">
               Apply
             </button>
+
+            <span class="templateBarDivider" aria-hidden="true"></span>
+
+            <span class="templateBarLabel">Permissions</span>
+
+            <select id="permissionsSelect">
+              <option value="user">User</option>
+              <option value="agency_admin">Agency Admin</option>
+            </select>
+
+            <button class="btn" id="applyPermissionsBtn" type="button">
+              Apply
+            </button>
           </div>
         </div>
       </div><!-- /grid2 -->
@@ -235,6 +248,10 @@ const selectAllBtn = document.getElementById("selectAllBtn");
 const clearAllBtn = document.getElementById("clearAllBtn");
 const templateApplySelect = document.getElementById("templateApplySelect");
 const applyTemplateBtn = document.getElementById("applyTemplateBtn");
+
+// Permissions controls
+const permissionsSelect = document.getElementById("permissionsSelect");
+const applyPermissionsBtn = document.getElementById("applyPermissionsBtn");
 
 // These modal action buttons are NOT in the HTML anymore; keep as null and guard usage.
 const toggleBtn = document.getElementById("toggleBtn");
@@ -616,6 +633,7 @@ function closeModal(){
   setMsgEl(nameMsg, "");
   pw1.value = ""; pw2.value = "";
   groupFilter.value = "";
+  if (permissionsSelect) permissionsSelect.value = "user";
 }
 
 closeBtn.onclick = closeModal;
@@ -667,6 +685,23 @@ async function loadTemplatesForAgency(agencySuffix){
 // Groups list
 let groupIndex = new Map();
 let pickedGroupIds = new Set();
+
+function getUserAgencyAbbreviation(user){
+  const attrs = user && user.attributes ? user.attributes : {};
+  const raw =
+    attrs.agency_abbreviation ||
+    attrs.agencyAbbreviation ||
+    attrs.agencyAbbr ||
+    attrs.agencyabbr ||
+    "";
+  return String(raw || "").trim();
+}
+
+function getAgencyAdminGroupNameForUser(user){
+  const abbr = getUserAgencyAbbreviation(user);
+  if (!abbr) return null;
+  return `authentik-${String(abbr).trim().toUpperCase()}-AgencyAdmin`;
+}
 
 async function loadGroups(){
   const res = await fetch("/api/users/meta");
@@ -775,6 +810,21 @@ if (clearAllBtn) clearAllBtn.addEventListener("click", function() {
 // Selected user in the modal
 let selectedUser = null;
 
+function getAgencyAdminGroupNameForUser(user){
+  const abbr = getAgencyAbbreviationForUser(user);
+  if (!abbr) return null;
+  return `authentik-${String(abbr).trim().toUpperCase()}-AgencyAdmin`;
+}
+
+function getGroupIdByName(name){
+  const target = String(name || "").trim().toLowerCase();
+  if (!target) return null;
+  for (const [id, groupName] of groupIndex.entries()) {
+    if (String(groupName || "").trim().toLowerCase() === target) return String(id);
+  }
+  return null;
+}
+
 window.editUser = async (userPk) => {
   const pkStr = String(userPk);
   const sourceLists = [
@@ -817,6 +867,24 @@ window.editUser = async (userPk) => {
   pickedGroupIds = new Set((selectedUser.groups || []).map(x => String(x)));
   renderGroupsBox();
 
+  // Default permissions = User; if user is in their agency admin group, reflect that.
+  if (permissionsSelect) {
+    const adminGroupName = getAgencyAdminGroupNameForUser(selectedUser);
+    if (adminGroupName) {
+      const hasAdmin = (selectedUser.groups || []).some(gid => {
+        const name = groupIndex.get(String(gid));
+        return String(name || "").trim().toLowerCase() === adminGroupName.toLowerCase();
+      });
+      permissionsSelect.value = hasAdmin ? "agency_admin" : "user";
+      permissionsSelect.disabled = false;
+      if (applyPermissionsBtn) applyPermissionsBtn.disabled = false;
+    } else {
+      permissionsSelect.value = "user";
+      permissionsSelect.disabled = true;
+      if (applyPermissionsBtn) applyPermissionsBtn.disabled = true;
+    }
+  }
+
   // modal-only action buttons are not present; guard if you ever add them back
   if (toggleBtn) {
     toggleBtn.textContent = selectedUser.is_active ? "Disable User" : "Enable User";
@@ -828,6 +896,78 @@ window.editUser = async (userPk) => {
 
   openModal();
 };
+
+// ---------- Permissions apply ----------
+if (applyPermissionsBtn) applyPermissionsBtn.addEventListener("click", async () => {
+  if (!selectedUser) return;
+
+  setMsgEl(actionMsg, "");
+
+  const desired = (permissionsSelect && permissionsSelect.value) || "user";
+  const adminGroupName = getAgencyAdminGroupNameForUser(selectedUser);
+
+  if (!adminGroupName) {
+    setMsgEl(actionMsg, "Cannot set permissions: user has no agency abbreviation.", false);
+    return;
+  }
+
+  const adminGroupId = getGroupIdByName(adminGroupName);
+  if (!adminGroupId) {
+    setMsgEl(actionMsg, `Cannot find group: ${adminGroupName}.`, false);
+    return;
+  }
+
+  const currentlyHasAdmin = (selectedUser.groups || []).some(gid => String(gid) === String(adminGroupId));
+
+  // Keep behavior simple and predictable:
+  // - Selecting Agency Admin adds the group
+  // - Selecting User removes the group (if present)
+  const shouldHaveAdmin = desired === "agency_admin";
+
+  if (shouldHaveAdmin === currentlyHasAdmin) {
+    setMsgEl(actionMsg, shouldHaveAdmin ? "Already an Agency Admin." : "Already a User.", true);
+    return;
+  }
+
+  const url = shouldHaveAdmin
+    ? `/api/users/${selectedUser.pk}/groups/add`
+    : `/api/users/${selectedUser.pk}/groups/remove`;
+
+  setMsgEl(actionMsg, "Updating permissions...", true);
+
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ groupIds: [String(adminGroupId)] }),
+    });
+  } catch (err) {
+    setMsgEl(actionMsg, "Network error while updating permissions.", false);
+    return;
+  }
+
+  const out = await res.json();
+  if (!res.ok) {
+    setMsgEl(actionMsg, out.error || "Failed to update permissions.", false);
+    return;
+  }
+
+  const newGroups = Array.isArray(out.groups) ? out.groups : (selectedUser.groups || []);
+  selectedUser.groups = newGroups;
+  pickedGroupIds = new Set((newGroups || []).map(x => String(x)));
+
+  renderGroupChips(selectedUser);
+  renderGroupsBox();
+
+  const patch = (u) =>
+    String(u.pk) === String(selectedUser.pk) ? { ...u, groups: selectedUser.groups } : u;
+  allUsers = (allUsers || []).map(patch);
+  const updatedVisible = (window.__lastUsers || []).map(patch);
+  applySortAndRender(updatedVisible);
+
+  setMsgEl(actionMsg, shouldHaveAdmin ? "Permissions updated: Agency Admin." : "Permissions updated: User.", true);
+});
 
 window.toggleUserFromTable = async (userPk) => {
   const u = (window.__lastUsers || []).find(x => String(x.pk) === String(userPk));
@@ -1441,6 +1581,13 @@ th.sortable:hover{
   background: rgba(255,255,255,.03);
 }
 
+.templateBarDivider{
+  width: 1px;
+  height: 22px;
+  background: rgba(255,255,255,.12);
+  margin: 0 2px;
+}
+
 .templateBarLabel{
   font-size: 12px;
   opacity: .8;
@@ -1448,8 +1595,13 @@ th.sortable:hover{
 }
 
 .templateBar select{
-  min-width: 220px;
+  min-width: 180px;
   max-width: 420px;
+}
+
+#permissionsSelect{
+  min-width: 160px;
+  max-width: 220px;
 }
 
 /* Stack nicely on small screens */
