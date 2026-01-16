@@ -613,6 +613,14 @@ async function createUser(
   const badgeErr = validateBadgeNumber(badge);
   if (badgeErr) throw new Error(badgeErr);
 
+  // Keep server-side password validation consistent with reset-password.
+  // (The UI validates too, but API callers could bypass the UI.)
+  const pwd = String(password || "").trim();
+  if (pwd) {
+    const pwdErr = validatePassword(pwd);
+    if (pwdErr) throw new Error(pwdErr);
+  }
+
   const agencies = agenciesStore.load();
   const agency = agencies.find(
     a =>
@@ -739,14 +747,20 @@ async function createUser(
   if (folderRaw) payload.path = normalizePath(folderRaw);
 
   // Track whether a password is being set at creation time
-  const hasPassword = !!password;
-
-  // Optional password
-  if (password) payload.password = password;
+  const hasPassword = !!pwd;
 
   // Create user
   const res = await api.post("/core/users/", payload);
   const user = res.data;
+
+  // NOTE: Authentik's create-user endpoint may not reliably apply the provided
+  // password field (depending on configuration / permissions). However, the
+  // dedicated set_password endpoint is known to work (and is what the UI uses
+  // for resets). To keep behavior consistent, set the password *after* creation
+  // when one was provided.
+  if (pwd) {
+    await api.post(`/core/users/${user.pk}/set_password/`, { password: pwd });
+  }
 
   // Apply groups
   if (finalGroups.length) {

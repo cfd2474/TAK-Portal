@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.  Minor qual
 ✨ `Enhancement` - Adds "Role" to manage users columns <br>
 🐛 `Bug Fix` - Fixes issue with using a template and accidentally overwriting a user's agency admin group <br>
 🐛 `Bug Fix` - Fixes issue with agency admin groups not appearing properly in the groups list <br>
+🐛 `Bug Fix` - Fixes issue with incorrect user counts on Manage Users page for Global Admins
 
 ### v1.1.41 - 1/16/26
 ✨ `Enhancement` - Creating an agency will now auto create a group in authentik for that agency's admins. Existing agencies should be deleted and recreated to get this update. <br>
