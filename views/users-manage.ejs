@@ -810,12 +810,6 @@ if (clearAllBtn) clearAllBtn.addEventListener("click", function() {
 // Selected user in the modal
 let selectedUser = null;
 
-function getAgencyAdminGroupNameForUser(user){
-  const abbr = getAgencyAbbreviationForUser(user);
-  if (!abbr) return null;
-  return `authentik-${String(abbr).trim().toUpperCase()}-AgencyAdmin`;
-}
-
 function getGroupIdByName(name){
   const target = String(name || "").trim().toLowerCase();
   if (!target) return null;
