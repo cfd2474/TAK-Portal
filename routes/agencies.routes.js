@@ -184,14 +184,36 @@ router.put("/:index", async (req, res) => {
   res.json({ success: true });
 });
 
-router.delete("/:index", (req, res) => {
-  const idx = Number(req.params.index);
-  const agencies = store.load();
-  if (!Number.isInteger(idx) || !agencies[idx]) return res.status(404).json({ error: "Not found" });
+router.delete("/:index", async (req, res) => {
+  try {
+    const idx = Number(req.params.index);
+    const agencies = store.load();
+    if (!Number.isInteger(idx) || !agencies[idx]) return res.status(404).json({ error: "Not found" });
 
-  agencies.splice(idx, 1);
-  store.save(agencies);
-  res.json({ success: true });
+    // Delete the computed Agency Admin group in Authentik (best-effort).
+    // We bypass the portal's hidden-group filtering, because these groups
+    // typically start with "authentik-".
+    const a = agencies[idx];
+    const groupName = getAgencyAdminGroupName(a?.groupPrefix);
+    if (groupName) {
+      const g = await getGroupByNameUnfiltered(groupName);
+      if (g?.pk) {
+        try {
+          await groupsService.deleteGroup(g.pk);
+        } catch (e) {
+          // If the group is already gone or cannot be deleted, we still allow
+          // agency deletion to proceed.
+          // (Returning a hard failure here would strand the agency record.)
+        }
+      }
+    }
+
+    agencies.splice(idx, 1);
+    store.save(agencies);
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ error: err?.response?.data || err?.message || "Failed to delete agency" });
+  }
 });
 
 module.exports = router;
