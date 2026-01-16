@@ -76,13 +76,32 @@ router.get("/group-lookup", async (req, res) => {
   try {
     const authUser = req.authentikUser || null;
     const access = accessSvc.getAgencyAccess(authUser);
-    if (!access.isGlobalAdmin) {
-      return res.status(403).json({ error: "Forbidden" });
-    }
 
     const name = String(req.query.name || "").trim();
     if (!name) {
       return res.status(400).json({ error: "Group name is required" });
+    }
+
+    // Global admins can resolve any group name (including hidden).
+    // Agency admins may ONLY resolve their own computed AgencyAdmin group(s)
+    // so the Manage Users UI can:
+    //  - show the friendly group name in "Current Groups"
+    //  - compute the Role column (User/Admin)
+    // without exposing arbitrary hidden groups.
+    if (!access.isGlobalAdmin) {
+      const prefixes = accessSvc.getAgencyAndCountyPrefixesForUser(authUser).agencyPrefixes;
+      const allowedPrefixes = Array.isArray(prefixes)
+        ? prefixes.map(p => String(p || "").trim().toUpperCase()).filter(Boolean)
+        : [];
+
+      const target = name.toLowerCase();
+      const allowedNames = new Set(
+        allowedPrefixes.map(abbr => `authentik-${abbr}-agencyadmin`.toLowerCase())
+      );
+
+      if (!allowedNames.has(target)) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
     }
 
     // Bypass GROUPS_HIDDEN_PREFIXES by requesting all groups (including hidden).
