@@ -62,6 +62,13 @@
     <% } %>
 
     <%
+      // Build known keys list so bookmarks can scale without changing
+      // the underlying settings.json format (flat BOOKMARKn_TITLE/URL keys).
+      const bookmarkKeys = [];
+      for (let i = 1; i <= 20; i++) {
+        bookmarkKeys.push(`BOOKMARK${i}_TITLE`, `BOOKMARK${i}_URL`);
+      }
+
       const knownKeys = new Set([
         "AUTHENTIK_URL",
         "AUTHENTIK_TOKEN",
@@ -97,22 +104,7 @@
         "EMAIL_SEND_COPY_TO",
         "EMAIL_FAIL_HARD",
 
-        "BOOKMARK1_TITLE",
-        "BOOKMARK1_URL",
-        "BOOKMARK2_TITLE",
-        "BOOKMARK2_URL",
-        "BOOKMARK3_TITLE",
-        "BOOKMARK3_URL",
-        "BOOKMARK4_TITLE",
-        "BOOKMARK4_URL",
-        "BOOKMARK5_TITLE",
-        "BOOKMARK5_URL",
-        "BOOKMARK6_TITLE",
-        "BOOKMARK6_URL",
-        "BOOKMARK7_TITLE",
-        "BOOKMARK7_URL",
-        "BOOKMARK8_TITLE",
-        "BOOKMARK8_URL",
+        ...bookmarkKeys,
 
         "BRAND_THEME",
         "BRAND_LOGO_URL"
@@ -382,13 +374,187 @@
         <summary class="settings-summary">Dashboard Bookmarks (Visible Only To Global Admins)</summary>
 
         <div class="settings-body">
-          <p>These appear as quick links on the dashboard.</p>
-          <div class="grid2">
-            <% for (let i = 1; i <= 8; i++) { %>
-              <% renderField(`BOOKMARK${i}_TITLE`, `Bookmark ${i} Title`, ""); %>
-              <% renderField(`BOOKMARK${i}_URL`, `Bookmark ${i} URL`, ""); %>
-            <% } %>
+          <p>These appear as quick links on the dashboard. Drag to reorder. Limit: 20.</p>
+
+          <% 
+            const initialBookmarks = [];
+            for (let i = 1; i <= 20; i++) {
+              const t = (settings[`BOOKMARK${i}_TITLE`] || "").trim();
+              const u = (settings[`BOOKMARK${i}_URL`] || "").trim();
+              if (!t && !u) continue;
+              initialBookmarks.push({ title: t, url: u });
+            }
+          %>
+
+          <div id="bookmarkEditor" style="margin-top:.5rem;">
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.5rem;">
+              <button type="button" class="btn" id="addBookmarkBtn">Add Bookmark</button>
+              <small class="settings-help" id="bookmarkCountNote"></small>
+            </div>
+
+            <ul id="bookmarkList" style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:.5rem;"></ul>
+
+            <!-- Hidden fields will be generated on submit to keep settings.json format unchanged -->
+            <div id="bookmarkHiddenFields"></div>
           </div>
+
+          <script>
+            (function () {
+              var MAX = 20;
+              var form = document.getElementById('settingsForm');
+              var list = document.getElementById('bookmarkList');
+              var addBtn = document.getElementById('addBookmarkBtn');
+              var note = document.getElementById('bookmarkCountNote');
+              var hiddenHost = document.getElementById('bookmarkHiddenFields');
+
+              if (!form || !list || !addBtn || !hiddenHost) return;
+
+              var initial = <%- JSON.stringify(initialBookmarks) %>;
+
+              function updateCount() {
+                var n = list.querySelectorAll('li[data-bookmark-row]').length;
+                if (note) note.textContent = n + ' / ' + MAX + ' bookmarks';
+                addBtn.disabled = n >= MAX;
+              }
+
+              function makeInput(placeholder, value) {
+                var inp = document.createElement('input');
+                inp.type = 'text';
+                inp.placeholder = placeholder;
+                inp.value = value || '';
+                inp.style.width = '100%';
+                return inp;
+              }
+
+              function createRow(bm) {
+                var li = document.createElement('li');
+                li.setAttribute('data-bookmark-row', '1');
+                li.draggable = true;
+                li.style.border = '1px solid #e5e7eb';
+                li.style.borderRadius = '0.5rem';
+                li.style.padding = '0.5rem';
+                li.style.background = '#fff0';
+
+                var wrap = document.createElement('div');
+                wrap.style.display = 'grid';
+                wrap.style.gridTemplateColumns = '32px 1fr 1fr 80px';
+                wrap.style.gap = '0.5rem';
+                wrap.style.alignItems = 'center';
+
+                var handle = document.createElement('div');
+                handle.title = 'Drag to reorder';
+                handle.textContent = '⋮⋮';
+                handle.style.cursor = 'grab';
+                handle.style.userSelect = 'none';
+                handle.style.fontSize = '1.2rem';
+                handle.style.textAlign = 'center';
+
+                var title = makeInput('Title', bm && bm.title);
+                title.setAttribute('data-bm-title', '1');
+                var url = makeInput('URL (https://...)', bm && bm.url);
+                url.setAttribute('data-bm-url', '1');
+
+                var del = document.createElement('button');
+                del.type = 'button';
+                del.className = 'btn btn-warning';
+                del.textContent = 'Delete';
+                del.addEventListener('click', function () {
+                  li.remove();
+                  updateCount();
+                });
+
+                wrap.appendChild(handle);
+                wrap.appendChild(title);
+                wrap.appendChild(url);
+                wrap.appendChild(del);
+                li.appendChild(wrap);
+
+                // Drag/drop
+                li.addEventListener('dragstart', function (e) {
+                  li.classList.add('dragging');
+                  e.dataTransfer.effectAllowed = 'move';
+                });
+                li.addEventListener('dragend', function () {
+                  li.classList.remove('dragging');
+                });
+
+                return li;
+              }
+
+              function getDragAfterElement(container, y) {
+                var els = [].slice.call(container.querySelectorAll('li[data-bookmark-row]:not(.dragging)'));
+                return els.reduce(function (closest, child) {
+                  var box = child.getBoundingClientRect();
+                  var offset = y - box.top - box.height / 2;
+                  if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                  }
+                  return closest;
+                }, { offset: Number.NEGATIVE_INFINITY, element: null }).element;
+              }
+
+              list.addEventListener('dragover', function (e) {
+                e.preventDefault();
+                var dragging = list.querySelector('.dragging');
+                if (!dragging) return;
+                var after = getDragAfterElement(list, e.clientY);
+                if (after == null) {
+                  list.appendChild(dragging);
+                } else {
+                  list.insertBefore(dragging, after);
+                }
+              });
+
+              addBtn.addEventListener('click', function () {
+                var n = list.querySelectorAll('li[data-bookmark-row]').length;
+                if (n >= MAX) return;
+                list.appendChild(createRow({ title: '', url: '' }));
+                updateCount();
+              });
+
+              // Seed
+              if (Array.isArray(initial) && initial.length) {
+                initial.forEach(function (bm) {
+                  list.appendChild(createRow(bm));
+                });
+              }
+              updateCount();
+
+              // On submit, serialize into flat settings[BOOKMARKn_*] fields.
+              form.addEventListener('submit', function () {
+                // Clear any previous hidden fields
+                hiddenHost.innerHTML = '';
+
+                var rows = [].slice.call(list.querySelectorAll('li[data-bookmark-row]'));
+                var normalized = rows
+                  .map(function (li) {
+                    var t = (li.querySelector('[data-bm-title]') || {}).value || '';
+                    var u = (li.querySelector('[data-bm-url]') || {}).value || '';
+                    return { title: String(t).trim(), url: String(u).trim() };
+                  })
+                  .filter(function (bm) {
+                    return bm.title || bm.url;
+                  });
+
+                for (var i = 1; i <= MAX; i++) {
+                  var bm = normalized[i - 1] || { title: '', url: '' };
+
+                  var t = document.createElement('input');
+                  t.type = 'hidden';
+                  t.name = 'settings[BOOKMARK' + i + '_TITLE]';
+                  t.value = bm.title;
+
+                  var u = document.createElement('input');
+                  u.type = 'hidden';
+                  u.name = 'settings[BOOKMARK' + i + '_URL]';
+                  u.value = bm.url;
+
+                  hiddenHost.appendChild(t);
+                  hiddenHost.appendChild(u);
+                }
+              });
+            })();
+          </script>
         </div>
       </details>
     </div>

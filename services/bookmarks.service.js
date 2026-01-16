@@ -8,7 +8,9 @@
 
 const { getString } = require("./env");
 
-const MAX_BOOKMARKS = 8;
+// Keep bookmarks stored as flat keys in settings.json (BOOKMARKn_TITLE/URL).
+// We support up to 20 entries.
+const MAX_BOOKMARKS = 20;
 
 function loadBookmarks() {
   const bookmarks = [];
