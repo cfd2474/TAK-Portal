@@ -686,6 +686,10 @@ async function loadTemplatesForAgency(agencySuffix){
 let groupIndex = new Map();
 let pickedGroupIds = new Set();
 
+// Name->id cache for groups that may be hidden from the UI list
+// (e.g. groups starting with "authentik-").
+const groupNameToIdCache = new Map();
+
 function getUserAgencyAbbreviation(user){
   const attrs = user && user.attributes ? user.attributes : {};
   const raw =
@@ -819,6 +823,37 @@ function getGroupIdByName(name){
   return null;
 }
 
+// Resolve a group id by name, even if the group is hidden by GROUPS_HIDDEN_PREFIXES.
+// Falls back to /api/users/group-lookup (global admins only) and caches the result.
+async function resolveGroupIdByName(name){
+  const key = String(name || "").trim().toLowerCase();
+  if (!key) return null;
+
+  // 1) Try visible groups first
+  const direct = getGroupIdByName(name);
+  if (direct) return direct;
+
+  // 2) Try cache
+  if (groupNameToIdCache.has(key)) return groupNameToIdCache.get(key);
+
+  // 3) Ask server (includes hidden groups)
+  try {
+    const res = await fetch(`/api/users/group-lookup?name=${encodeURIComponent(name)}`);
+    const out = await res.json().catch(()=> ({}));
+    if (!res.ok) return null;
+    const id = String(out.pk || "");
+    const nm = String(out.name || "").trim();
+    if (!id || !nm) return null;
+
+    // Cache and also inject into groupIndex so chips can render the proper name
+    groupNameToIdCache.set(key, id);
+    groupIndex.set(id, nm);
+    return id;
+  } catch (e) {
+    return null;
+  }
+}
+
 window.editUser = async (userPk) => {
   const pkStr = String(userPk);
   const sourceLists = [
@@ -865,10 +900,11 @@ window.editUser = async (userPk) => {
   if (permissionsSelect) {
     const adminGroupName = getAgencyAdminGroupNameForUser(selectedUser);
     if (adminGroupName) {
-      const hasAdmin = (selectedUser.groups || []).some(gid => {
-        const name = groupIndex.get(String(gid));
-        return String(name || "").trim().toLowerCase() === adminGroupName.toLowerCase();
-      });
+      // The admin group may be hidden from the visible group list; resolve id by name.
+      const adminGroupId = await resolveGroupIdByName(adminGroupName);
+      const hasAdmin = adminGroupId
+        ? (selectedUser.groups || []).some(gid => String(gid) === String(adminGroupId))
+        : false;
       permissionsSelect.value = hasAdmin ? "agency_admin" : "user";
       permissionsSelect.disabled = false;
       if (applyPermissionsBtn) applyPermissionsBtn.disabled = false;
@@ -905,7 +941,7 @@ if (applyPermissionsBtn) applyPermissionsBtn.addEventListener("click", async () 
     return;
   }
 
-  const adminGroupId = getGroupIdByName(adminGroupName);
+  const adminGroupId = await resolveGroupIdByName(adminGroupName);
   if (!adminGroupId) {
     setMsgEl(actionMsg, `Cannot find group: ${adminGroupName}.`, false);
     return;

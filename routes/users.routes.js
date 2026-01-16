@@ -70,6 +70,39 @@ router.get("/meta", async (req, res) => {
   }
 });
 
+// Lookup a group by exact name, INCLUDING groups hidden from the portal UI.
+// Used for permission toggles like: authentik-<Agency Abbreviation>-AgencyAdmin
+router.get("/group-lookup", async (req, res) => {
+  try {
+    const authUser = req.authentikUser || null;
+    const access = accessSvc.getAgencyAccess(authUser);
+    if (!access.isGlobalAdmin) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const name = String(req.query.name || "").trim();
+    if (!name) {
+      return res.status(400).json({ error: "Group name is required" });
+    }
+
+    // Bypass GROUPS_HIDDEN_PREFIXES by requesting all groups (including hidden).
+    // groups.service.getAllGroups supports includeHidden=true.
+    const allGroups = await groupsSvc.getAllGroups({ includeHidden: true });
+    const target = name.toLowerCase();
+    const found = (Array.isArray(allGroups) ? allGroups : []).find(
+      (g) => String(g?.name || "").trim().toLowerCase() === target
+    );
+
+    if (!found) {
+      return res.status(404).json({ error: "Group not found" });
+    }
+
+    res.json({ pk: found.pk, name: found.name });
+  } catch (err) {
+    res.status(500).json({ error: toErrorPayload(err) });
+  }
+});
+
 
 router.get("/groups", async (req, res) => {
   try {

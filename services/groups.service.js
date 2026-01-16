@@ -74,7 +74,7 @@ function applyUserVisibilityFilters(users) {
 }
 
 // ---------------- Authentik API helpers (groups) ----------------
-async function getAllGroupsRaw() {
+async function getAllGroupsRaw(options = {}) {
   let groups = [];
   let url = "/core/groups/";
 
@@ -88,18 +88,21 @@ async function getAllGroupsRaw() {
       : null;
   }
 
-  // Hide internal Authentik groups from this portal UI.
+  // Hide internal Authentik groups from this portal UI unless explicitly requested.
   // We read GROUPS_HIDDEN_PREFIXES via getString so settings.json and env both work.
   // Example: GROUPS_HIDDEN_PREFIXES=authentik-,internal-
-  const prefixes = String(getString("GROUPS_HIDDEN_PREFIXES", ""))
-    .split(",")
-    .map(p => String(p || "").trim().toLowerCase())
-    .filter(Boolean);
+  const includeHidden = !!options.includeHidden;
+  if (!includeHidden) {
+    const prefixes = String(getString("GROUPS_HIDDEN_PREFIXES", ""))
+      .split(",")
+      .map(p => String(p || "").trim().toLowerCase())
+      .filter(Boolean);
 
-  groups = groups.filter(g => {
-    const name = String(g?.name || "").trim().toLowerCase();
-    return !prefixes.some(p => name.startsWith(p));
-  });
+    groups = groups.filter(g => {
+      const name = String(g?.name || "").trim().toLowerCase();
+      return !prefixes.some(p => name.startsWith(p));
+    });
+  }
 
   return groups;
 }
@@ -603,8 +606,8 @@ function invalidateGroupUsersCache() {
 }
 
 async function getAllGroups(options = {}) {
-  // ignore options / forceRefresh; always reload
-  return await getAllGroupsRaw();
+  // ignore caching / forceRefresh; always reload
+  return await getAllGroupsRaw(options);
 }
 
 async function getAllUsers(options = {}) {
