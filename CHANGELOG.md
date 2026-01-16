@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.  Minor qual
 
 ## Version History
 
+### v1.1.41 - 1/16/26
+✨ `Enhancement` - Creating an agency will now auto create a group in authentik for that agency's admins.  Next update will include a way to add users to said Agency Admin group.  Existing agencies should be deleted and recreated to get this update.
+
 ### v1.1.40 - 1/15/26
 🎉 `New Feature` - Added "Standby" option to Mutual Aid to allow for non-critical, generic user MA instances to be created for operational readiness <br>
 🎉 `New Feature` - New Mutual Aid instances can now create a new channel or use an existing one <br>
