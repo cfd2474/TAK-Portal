@@ -686,6 +686,10 @@ async function loadTemplatesForAgency(agencySuffix){
 let groupIndex = new Map();
 let pickedGroupIds = new Set();
 
+// Group IDs that are "known" to this portal UI (i.e. returned from /api/users/meta.groups).
+// Templates should only add/remove these. Anything outside this set is preserved.
+let visibleGroupIds = new Set();
+
 // Name->id cache for groups that may be hidden from the UI list
 // (e.g. groups starting with "authentik-").
 const groupNameToIdCache = new Map();
@@ -716,6 +720,7 @@ async function loadGroups(){
   }
 
   const groups = Array.isArray(meta.groups) ? meta.groups : [];
+  visibleGroupIds = new Set(groups.map(g => String(g.pk)));
   groupIndex = new Map(groups.map(g => [String(g.pk), g.name || ("Group " + g.pk)]));
 
   renderGroupsBox();
@@ -876,6 +881,13 @@ window.editUser = async (userPk) => {
 
   selectedUser = { ...u };
 
+  // Resolve hidden/internal group names we know how to derive (e.g. the agency admin group)
+  // BEFORE rendering chips so users never see raw UUIDs.
+  const adminGroupName = getAgencyAdminGroupNameForUser(selectedUser);
+  const adminGroupId = adminGroupName
+    ? await resolveGroupIdByName(adminGroupName)
+    : null;
+
   if (userTitle) userTitle.textContent = `User ${selectedUser.username}`;
 
   if (usernameSpan) {
@@ -898,10 +910,7 @@ window.editUser = async (userPk) => {
 
   // Default permissions = User; if user is in their agency admin group, reflect that.
   if (permissionsSelect) {
-    const adminGroupName = getAgencyAdminGroupNameForUser(selectedUser);
     if (adminGroupName) {
-      // The admin group may be hidden from the visible group list; resolve id by name.
-      const adminGroupId = await resolveGroupIdByName(adminGroupName);
       const hasAdmin = adminGroupId
         ? (selectedUser.groups || []).some(gid => String(gid) === String(adminGroupId))
         : false;
@@ -1349,6 +1358,12 @@ if (applyTemplateBtn) applyTemplateBtn.addEventListener("click", async () => {
     return;
   }
 
+  // Preserve any groups the portal does NOT know about (e.g. internal authentik-* groups).
+  // Templates should only overwrite "known" portal groups.
+  const currentIds = Array.isArray(selectedUser.groups) ? selectedUser.groups.map(x => String(x)) : [];
+  const preservedUnknownIds = currentIds.filter(id => !visibleGroupIds.has(String(id)));
+  const finalGroupIds = Array.from(new Set([...preservedUnknownIds, ...newGroupIds]));
+
   setMsgEl(actionMsg, "Applying template...", true);
 
   let res;
@@ -1356,7 +1371,7 @@ if (applyTemplateBtn) applyTemplateBtn.addEventListener("click", async () => {
     res = await fetch(`/api/users/${selectedUser.pk}/groups`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ groupIds: newGroupIds }),
+      body: JSON.stringify({ groupIds: finalGroupIds }),
     });
   } catch (err) {
     setMsgEl(actionMsg, "Network error while applying template.", false);
@@ -1369,7 +1384,7 @@ if (applyTemplateBtn) applyTemplateBtn.addEventListener("click", async () => {
     return;
   }
 
-  const applied = Array.isArray(out.groups) ? out.groups : newGroupIds;
+  const applied = Array.isArray(out.groups) ? out.groups : finalGroupIds;
 
   selectedUser.groups = applied;
   pickedGroupIds = new Set(applied.map(x => String(x)));

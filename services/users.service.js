@@ -70,7 +70,9 @@ async function resolveGroupNames(groupIds) {
     : [];
   if (!ids.length) return [];
 
-  const all = await getAllGroups();
+  // Include hidden/internal groups when resolving names so notifications and
+  // admin UIs never fall back to raw UUIDs.
+  const all = await getAllGroups({ includeHidden: true });
   const byPk = new Map(all.map(g => [String(g.pk), String(g.name || "").trim()]));
   return ids
     .map(id => byPk.get(String(id)) || String(id))
@@ -502,7 +504,8 @@ function getTemplatesForAgency(agencySuffix) {
 }
 
 // Authentik API helpers (groups)
-async function getAllGroupsRaw() {
+async function getAllGroupsRaw(options = {}) {
+  const { includeHidden = false } = options || {};
   let groups = [];
   let url = "/core/groups/";
   while (url) {
@@ -513,11 +516,15 @@ async function getAllGroupsRaw() {
       : null;
   }
 
-  // Hide internal Authentik groups from this portal UI
-  groups = groups.filter(g => {
-    const name = String(g?.name || "").trim().toLowerCase();
-    return !name.startsWith("authentik");
-  });
+  // Hide internal Authentik groups from this portal UI by default.
+  // Callers may opt-in to includeHidden=true when they need to resolve names
+  // or preserve internal group memberships.
+  if (!includeHidden) {
+    groups = groups.filter(g => {
+      const name = String(g?.name || "").trim().toLowerCase();
+      return !name.startsWith("authentik");
+    });
+  }
 
   return groups;
 }
@@ -1433,8 +1440,8 @@ async function getAllUsers(options = {}) {
 }
 
 async function getAllGroups(options = {}) {
-  // ignore options / forceRefresh; always reload
-  return await getAllGroupsRaw();
+  // ignore forceRefresh; always reload
+  return await getAllGroupsRaw(options);
 }
 
 module.exports = {
