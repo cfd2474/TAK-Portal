@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.  Minor qual
 🎉 `New Feature` - Added "Standby" option to Mutual Aid to allow for non-critical, generic user MA instances to be created for operational readiness <br>
 🎉 `New Feature` - New Mutual Aid instances can now create a new channel or use an existing one <br>
 🐛 `Bug Fix` - Fixes issue with Agency displaying the suffix on templates <br>
-🐛 `Bug Fix` - Fixes issue with Agency Templates tab getting hidded from Agency Admins <br>
+🐛 `Bug Fix` - Fixes issue with Agency Templates tab getting hidden from Agency Admins <br>
 
 ### v1.1.39 - 1/15/26
 ✨ `Enhancement` - Updated all email templates to maximize compatibly with various email clients with a primary focus on Outlook and Gmail.
