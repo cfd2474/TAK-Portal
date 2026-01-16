@@ -1101,6 +1101,36 @@ async function searchUsersPaged({ q, page = 1, pageSize = 50 } = {}) {
     ordering: "username",
   };
 
+  // IMPORTANT: Keep pagination totals accurate without extra API calls.
+  //
+  // The portal supports hiding system/service users by username prefix
+  // (USERS_HIDDEN_PREFIXES). When possible, we also apply Authentik's
+  // server-side `type` filter so the API's `pagination.count` already
+  // reflects the same visible set.
+  //
+  // Authentik exposes the following user `type` values:
+  //   - external
+  //   - internal
+  //   - internal_service_account
+  //   - service_account
+  //
+  // If the portal is configured to hide users by prefix, those hidden users
+  // are almost always service accounts. Excluding service accounts here keeps
+  // the "showing X of Y users" UI correct with a single request.
+  const hiddenPrefixes = getHiddenUserPrefixes();
+  if (hiddenPrefixes.length) {
+    // NOTE: params.type is an array; axios serializes this as repeated
+    // query params (?type=external&type=internal), which matches Authentik.
+    params.type = ["external", "internal"];
+  }
+
+  // If AUTHENTIK_USER_PATH is set, ask Authentik to filter server-side so
+  // pagination totals align with the visible user set.
+  const folderRaw = String(getString("AUTHENTIK_USER_PATH", "")).trim();
+  if (folderRaw) {
+    params.path_startswith = normalizePath(folderRaw);
+  }
+
   if (q && String(q).trim()) {
     // Authentik supports "search" across username/email/etc.
     params.search = String(q).trim();
@@ -1114,8 +1144,8 @@ async function searchUsersPaged({ q, page = 1, pageSize = 50 } = {}) {
   // paged search stays in sync with full-list queries.
   let users = raw.slice();
 
-  const hiddenPrefixes = getHiddenUserPrefixes();
-
+  // Even when we apply the server-side `type` filter above, keep this
+  // prefix filter as a safety net in case the instance has custom naming.
   if (hiddenPrefixes.length) {
     users = users.filter(u => {
       const username = String(u?.username || "").trim().toLowerCase();
@@ -1123,7 +1153,9 @@ async function searchUsersPaged({ q, page = 1, pageSize = 50 } = {}) {
     });
   }
 
-  const folderRaw = String(getString("AUTHENTIK_USER_PATH", "")).trim();
+  // If the instance doesn't support the `path_startswith` param (or if the
+  // portal is using a strict folder match), keep the legacy in-memory path
+  // enforcement.
   if (folderRaw) {
     const target = normalizePath(folderRaw);
     users = users.filter(u => {
@@ -1154,6 +1186,20 @@ async function searchUsersPaged({ q, page = 1, pageSize = 50 } = {}) {
   // As a last resort, fall back to the current page length
   if (!total) {
     total = users.length;
+  }
+
+  // If we still have any hidden-prefix users on this page (e.g., if the
+  // Authentik instance does not classify them as service accounts), adjust
+  // the total downward for this request so the UI doesn't over-report.
+  //
+  // This preserves correctness when the API `type` filter is effective
+  // (the common case), while still being strictly better than the unfiltered
+  // count when it's not.
+  if (hiddenPrefixes.length) {
+    const filteredOnPage = raw.length - users.length;
+    if (filteredOnPage > 0 && total >= filteredOnPage) {
+      total = total - filteredOnPage;
+    }
   }
 
   const currentPage =
