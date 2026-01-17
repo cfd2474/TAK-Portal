@@ -527,33 +527,50 @@ qrSaveBtn.onclick = () => {
 };
 
 // ----- Download Packet (PDF) -----
+// Pull guide definitions from settings.json (server-rendered into the page).
+//
+// Expected settings keys (see settings.example.json):
+//   DP_COLOR_BLUE, DP_COLOR_DARK_BLUE, ... DP_COLOR_YELLOW
+//   DP_ROLE_TEAM_MEMBER, DP_ROLE_TEAM_LEAD, ... DP_ROLE_K9
+const SETTINGS = <%- JSON.stringify(settings || {}) %>;
+
+function getSetting(key) {
+  const v = SETTINGS ? SETTINGS[key] : "";
+  return String(v ?? "").trim();
+}
+
+// If a color/role definition is blank, don't include it.
 const TEAM_COLORS = [
-  { name: "Blue", desc: "Aircraft", hex: "#1e88e5" },
-  { name: "Dark Blue", desc: "Law Enforcement", hex: "#0d47a1" },
-  { name: "Brown", desc: "State Defense Forces", hex: "#6d4c41" },
-  { name: "Cyan", desc: "SWAT / Sniper / Overwatch", hex: "#00acc1" },
-  { name: "Green", desc: "Military", hex: "#43a047" },
-  { name: "Dark Green", desc: "TWRA / NPS / Forestry", hex: "#1b5e20" },
-  { name: "Magenta", desc: "CBRNE / HAZMAT", hex: "#d81b60" },
-  { name: "Maroon", desc: "EMS", hex: "#800000" },
-  { name: "Orange", desc: "SAR / Technical", hex: "#fb8c00" },
-  { name: "Purple", desc: "Volunteers", hex: "#8e24aa" },
-  { name: "Red", desc: "Fire", hex: "#e53935" },
-  { name: "Teal", desc: "EMA", hex: "#00897b" },
-  { name: "White", desc: "Command Post", hex: "#ffffff" },
-  { name: "Yellow", desc: "", hex: "#fdd835" },
-];
+  { name: "Blue", key: "DP_COLOR_BLUE", hex: "#1e88e5" },
+  { name: "Dark Blue", key: "DP_COLOR_DARK_BLUE", hex: "#0d47a1" },
+  { name: "Brown", key: "DP_COLOR_BROWN", hex: "#6d4c41" },
+  { name: "Cyan", key: "DP_COLOR_CYAN", hex: "#00acc1" },
+  { name: "Green", key: "DP_COLOR_GREEN", hex: "#43a047" },
+  { name: "Dark Green", key: "DP_COLOR_DARK_GREEN", hex: "#1b5e20" },
+  { name: "Magenta", key: "DP_COLOR_MAGENTA", hex: "#d81b60" },
+  { name: "Maroon", key: "DP_COLOR_MAROON", hex: "#800000" },
+  { name: "Orange", key: "DP_COLOR_ORANGE", hex: "#fb8c00" },
+  { name: "Purple", key: "DP_COLOR_PURPLE", hex: "#8e24aa" },
+  { name: "Red", key: "DP_COLOR_RED", hex: "#e53935" },
+  { name: "Teal", key: "DP_COLOR_TEAL", hex: "#00897b" },
+  { name: "White", key: "DP_COLOR_WHITE", hex: "#ffffff" },
+  { name: "Yellow", key: "DP_COLOR_YELLOW", hex: "#fdd835" },
+]
+  .map(c => ({ name: c.name, hex: c.hex, desc: getSetting(c.key) }))
+  .filter(c => !!String(c.desc || "").trim());
 
 const TEAM_ROLES = [
-  { name: "Team Member", desc: "All Standard Operators" },
-  { name: "Team Lead", desc: "Team Leaders / Supervisors" },
-  { name: "HQ", desc: "Command Staff / Admin Support" },
-  { name: "Sniper", desc: "Advanced Marksman Capabilities" },
-  { name: "Medic", desc: "Advanced Medical Capabilities" },
-  { name: "Forward Observer", desc: "Drone or Surveillance" },
-  { name: "RTO", desc: "" },
-  { name: "K9", desc: "K9 Handlers" },
-];
+  { name: "Team Member", key: "DP_ROLE_TEAM_MEMBER" },
+  { name: "Team Lead", key: "DP_ROLE_TEAM_LEAD" },
+  { name: "HQ", key: "DP_ROLE_HQ" },
+  { name: "Sniper", key: "DP_ROLE_SNIPER" },
+  { name: "Medic", key: "DP_ROLE_MEDIC" },
+  { name: "Forward Observer", key: "DP_ROLE_FORWARD_OBSERVER" },
+  { name: "RTO", key: "DP_ROLE_RTO" },
+  { name: "K9", key: "DP_ROLE_K9" },
+]
+  .map(r => ({ name: r.name, desc: getSetting(r.key) }))
+  .filter(r => !!String(r.desc || "").trim());
 
 function hexToRgb(hex) {
   const h = String(hex || "").replace(/^#/, "");
@@ -614,7 +631,8 @@ async function downloadDeploymentPacket() {
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
 
-    const margin = 40;
+    // Slightly larger margins so content isn't so close to the page edges.
+    const margin = 54;
 
     // --- Page 1: App QR codes ---
     doc.setFont("helvetica", "bold");
@@ -635,7 +653,8 @@ async function downloadDeploymentPacket() {
 
     // --- Page 2: User + Mutual Aid QR ---
     doc.addPage();
-    const callsignText = String(qrActiveItem?.username || "AGENCY-LASTNAME-CALLSIGN").toUpperCase();
+    // Per request: show a fixed placeholder above the QR section.
+    const callsignText = "AGENCY-LASTNAME-CALLSIGN";
     doc.setFont("helvetica", "bold");
     fitOneLine(doc, callsignText, pageW - margin * 2, 36);
     doc.text(callsignText, pageW / 2, margin + 10, { align: "center" });
@@ -651,10 +670,10 @@ async function downloadDeploymentPacket() {
     doc.text("Team Color Guide", pageW / 2, margin, { align: "center" });
 
     let y = margin + 30;
-    const lineH = 42;
+    const lineH = 44;
     const swatch = 22;
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
+    doc.setFontSize(20);
     for (const c of TEAM_COLORS) {
       if (y + lineH > pageH - margin) break;
       const [r, g, b] = hexToRgb(c.hex);
@@ -683,7 +702,7 @@ async function downloadDeploymentPacket() {
 
     y = margin + 30;
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
+    doc.setFontSize(20);
     for (const r of TEAM_ROLES) {
       if (y + lineH > pageH - margin) break;
       const label = r.desc ? `${r.name} — ${r.desc}` : r.name;
