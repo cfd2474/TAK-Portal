@@ -399,132 +399,67 @@
           <script>
             (function () {
               var MAX = 20;
-              var form = document.getElementById('settingsForm');
-              var list = document.getElementById('bookmarkList');
-              var addBtn = document.getElementById('addBookmarkBtn');
-              var note = document.getElementById('bookmarkCountNote');
-              var hiddenHost = document.getElementById('bookmarkHiddenFields');
 
-              if (!form || !list || !addBtn || !hiddenHost) return;
+              var list = document.getElementById("bookmarkList");
+              var addBtn = document.getElementById("addBookmarkBtn");
+              var note = document.getElementById("bookmarkCountNote");
+              var hiddenHost = document.getElementById("bookmarkHiddenFields");
 
-              var initial = <%- JSON.stringify(initialBookmarks) %>;
-
-              function updateCount() {
-                var n = list.querySelectorAll('li[data-bookmark-row]').length;
-                if (note) note.textContent = n + ' / ' + MAX + ' bookmarks';
-                addBtn.disabled = n >= MAX;
+              function esc(str) {
+                return String(str || "")
+                  .replace(/&/g, "&amp;")
+                  .replace(/</g, "&lt;")
+                  .replace(/>/g, "&gt;")
+                  .replace(/\"/g, "&quot;")
+                  .replace(/'/g, "&#039;");
               }
 
-              function makeInput(placeholder, value) {
-                var inp = document.createElement('input');
-                inp.type = 'text';
-                inp.placeholder = placeholder;
-                inp.value = value || '';
-                inp.style.width = '100%';
-                return inp;
+              function updateNote() {
+                var count = list.querySelectorAll("li").length;
+                note.textContent = count + " / " + MAX + " bookmarks";
+                addBtn.disabled = count >= MAX;
               }
 
-              function createRow(bm) {
-                var li = document.createElement('li');
-                li.setAttribute('data-bookmark-row', '1');
-                li.draggable = true;
-                li.style.border = '1px solid #e5e7eb';
-                li.style.borderRadius = '0.5rem';
-                li.style.padding = '0.5rem';
-                li.style.background = '#fff0';
+              function makeItem(title, url) {
+                var li = document.createElement("li");
+                li.style.display = "flex";
+                li.style.gap = ".5rem";
+                li.style.flexWrap = "wrap";
+                li.style.alignItems = "center";
 
-                var wrap = document.createElement('div');
-                wrap.style.display = 'grid';
-                wrap.style.gridTemplateColumns = '32px 1fr 1fr 80px';
-                wrap.style.gap = '0.5rem';
-                wrap.style.alignItems = 'center';
+                li.innerHTML =
+                  '<input type="text" data-bm-title placeholder="Title" style="flex:1;min-width:180px;" value="' + esc(title) + '">' +
+                  '<input type="text" data-bm-url placeholder="URL" style="flex:2;min-width:240px;" value="' + esc(url) + '">' +
+                  '<button type="button" class="btn btn-warning" data-bm-remove>Remove</button>';
 
-                var handle = document.createElement('div');
-                handle.title = 'Drag to reorder';
-                handle.textContent = '⋮⋮';
-                handle.style.cursor = 'grab';
-                handle.style.userSelect = 'none';
-                handle.style.fontSize = '1.2rem';
-                handle.style.textAlign = 'center';
-
-                var title = makeInput('Title', bm && bm.title);
-                title.setAttribute('data-bm-title', '1');
-                var url = makeInput('URL (https://...)', bm && bm.url);
-                url.setAttribute('data-bm-url', '1');
-
-                var del = document.createElement('button');
-                del.type = 'button';
-                del.className = 'btn btn-warning';
-                del.textContent = 'Delete';
-                del.addEventListener('click', function () {
+                li.querySelector("[data-bm-remove]").addEventListener("click", function () {
                   li.remove();
-                  updateCount();
-                });
-
-                wrap.appendChild(handle);
-                wrap.appendChild(title);
-                wrap.appendChild(url);
-                wrap.appendChild(del);
-                li.appendChild(wrap);
-
-                // Drag/drop
-                li.addEventListener('dragstart', function (e) {
-                  li.classList.add('dragging');
-                  e.dataTransfer.effectAllowed = 'move';
-                });
-                li.addEventListener('dragend', function () {
-                  li.classList.remove('dragging');
+                  updateNote();
                 });
 
                 return li;
               }
 
-              function getDragAfterElement(container, y) {
-                var els = [].slice.call(container.querySelectorAll('li[data-bookmark-row]:not(.dragging)'));
-                return els.reduce(function (closest, child) {
-                  var box = child.getBoundingClientRect();
-                  var offset = y - box.top - box.height / 2;
-                  if (offset < 0 && offset > closest.offset) {
-                    return { offset: offset, element: child };
-                  }
-                  return closest;
-                }, { offset: Number.NEGATIVE_INFINITY, element: null }).element;
-              }
-
-              list.addEventListener('dragover', function (e) {
-                e.preventDefault();
-                var dragging = list.querySelector('.dragging');
-                if (!dragging) return;
-                var after = getDragAfterElement(list, e.clientY);
-                if (after == null) {
-                  list.appendChild(dragging);
-                } else {
-                  list.insertBefore(dragging, after);
-                }
+              var initial = <%- JSON.stringify(initialBookmarks || []) %>;
+              (initial || []).forEach(function (bm) {
+                list.appendChild(makeItem(bm.title, bm.url));
               });
 
-              addBtn.addEventListener('click', function () {
-                var n = list.querySelectorAll('li[data-bookmark-row]').length;
-                if (n >= MAX) return;
-                list.appendChild(createRow({ title: '', url: '' }));
-                updateCount();
+              updateNote();
+
+              addBtn.addEventListener("click", function () {
+                if (list.querySelectorAll("li").length >= MAX) return;
+                list.appendChild(makeItem("", ""));
+                updateNote();
               });
 
-              // Seed
-              if (Array.isArray(initial) && initial.length) {
-                initial.forEach(function (bm) {
-                  list.appendChild(createRow(bm));
-                });
-              }
-              updateCount();
+              // On submit, generate hidden BOOKMARKn_TITLE/URL inputs to keep storage flat.
+              var form = document.getElementById("settingsForm");
+              form.addEventListener("submit", function () {
+                hiddenHost.innerHTML = "";
 
-              // On submit, serialize into flat settings[BOOKMARKn_*] fields.
-              form.addEventListener('submit', function () {
-                // Clear any previous hidden fields
-                hiddenHost.innerHTML = '';
-
-                var rows = [].slice.call(list.querySelectorAll('li[data-bookmark-row]'));
-                var normalized = rows
+                var items = Array.prototype.slice.call(list.querySelectorAll("li"));
+                var normalized = items
                   .map(function (li) {
                     var t = (li.querySelector('[data-bm-title]') || {}).value || '';
                     var u = (li.querySelector('[data-bm-url]') || {}).value || '';
@@ -553,6 +488,47 @@
               });
             })();
           </script>
+        </div>
+      </details>
+    </div>
+
+    <!-- Deployment Packet Settings -->
+    <div class="card">
+      <details class="settings-section">
+        <summary class="settings-summary">Deployment Packet Settings</summary>
+
+        <div class="settings-body">
+          <h3 style="margin:0 0 .5rem 0;">Color / Team</h3>
+          <div class="grid2">
+            <% renderField("DP_COLOR_BLUE","Blue","Free text meaning for the color."); %>
+            <% renderField("DP_COLOR_DARK_BLUE","Dark Blue","Free text meaning for the color."); %>
+            <% renderField("DP_COLOR_BROWN","Brown","Free text meaning for the color."); %>
+            <% renderField("DP_COLOR_CYAN","Cyan","Free text meaning for the color."); %>
+            <% renderField("DP_COLOR_GREEN","Green","Free text meaning for the color."); %>
+            <% renderField("DP_COLOR_DARK_GREEN","Dark Green","Free text meaning for the color."); %>
+            <% renderField("DP_COLOR_MAGENTA","Magenta","Free text meaning for the color."); %>
+            <% renderField("DP_COLOR_MAROON","Maroon","Free text meaning for the color."); %>
+            <% renderField("DP_COLOR_ORANGE","Orange","Free text meaning for the color."); %>
+            <% renderField("DP_COLOR_PURPLE","Purple","Free text meaning for the color."); %>
+            <% renderField("DP_COLOR_RED","Red","Free text meaning for the color."); %>
+            <% renderField("DP_COLOR_TEAL","Teal","Free text meaning for the color."); %>
+            <% renderField("DP_COLOR_WHITE","White","Free text meaning for the color."); %>
+            <% renderField("DP_COLOR_YELLOW","Yellow","Free text meaning for the color."); %>
+          </div>
+
+          <hr style="margin:1rem 0;opacity:.35;" />
+
+          <h3 style="margin:0 0 .5rem 0;">Role</h3>
+          <div class="grid2">
+            <% renderField("DP_ROLE_TEAM_MEMBER","Team Member","Free text meaning/notes for the role."); %>
+            <% renderField("DP_ROLE_TEAM_LEAD","Team Lead","Free text meaning/notes for the role."); %>
+            <% renderField("DP_ROLE_HQ","HQ","Free text meaning/notes for the role."); %>
+            <% renderField("DP_ROLE_SNIPER","Sniper","Free text meaning/notes for the role."); %>
+            <% renderField("DP_ROLE_MEDIC","Medic","Free text meaning/notes for the role."); %>
+            <% renderField("DP_ROLE_FORWARD_OBSERVER","Forward Observer","Free text meaning/notes for the role."); %>
+            <% renderField("DP_ROLE_RTO","RTO","Free text meaning/notes for the role."); %>
+            <% renderField("DP_ROLE_K9","K9","Free text meaning/notes for the role."); %>
+          </div>
         </div>
       </details>
     </div>
