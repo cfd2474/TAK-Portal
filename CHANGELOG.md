@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.  Minor qual
 
 ## Version History
 
+### v1.1.45 - 1/17/26
+✨ `Enhancement` - Updated PDF Layout to include device enrollment instructions
+
 ### v1.1.44 - 1/17/26
 🐛 `Bug Fix` - Fixes issue with Mutual Aid not setting password properly
 
