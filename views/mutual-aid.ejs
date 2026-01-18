@@ -645,11 +645,11 @@ async function downloadDeploymentPacket() {
     const atakQr = makeQrDataUrl(atakUrl, 10, 2);
 
     /* =========================================================
-      TAK AWARE (iOS) — FIRST
+      TAK AWARE (iOS)
     ========================================================= */
 
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
+    doc.setFontSize(26);
     doc.text("Download TAK Aware (iOS)", margin, y);
 
     doc.addImage(takAwareQr, "PNG", margin, y + 12, qrSize1, qrSize1);
@@ -671,13 +671,13 @@ async function downloadDeploymentPacket() {
     );
 
     /* =========================================================
-      ATAK (Android) — SECOND
+      ATAK (Android)
     ========================================================= */
 
     y = y + qrSize1 + 90;
 
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
+    doc.setFontSize(26);
     doc.text("Download ATAK (Android)", margin, y);
 
     doc.addImage(atakQr, "PNG", margin, y + 12, qrSize1, qrSize1);
