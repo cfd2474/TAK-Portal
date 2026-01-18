@@ -549,7 +549,7 @@ const TEAM_COLORS = [
   { name: "Dark Green", key: "DP_COLOR_DARK_GREEN", hex: "#1b5e20" },
   { name: "Magenta", key: "DP_COLOR_MAGENTA", hex: "#d81b60" },
   { name: "Maroon", key: "DP_COLOR_MAROON", hex: "#800000" },
-  { name: "Orange", key: "DP_COLOR_ORANGE", hex: "#fb8c00" },
+  { name: "Orange", key: "DP_COLOR_ORANGE", hex: "#ff7b00" },
   { name: "Purple", key: "DP_COLOR_PURPLE", hex: "#8e24aa" },
   { name: "Red", key: "DP_COLOR_RED", hex: "#e53935" },
   { name: "Teal", key: "DP_COLOR_TEAL", hex: "#00897b" },
@@ -634,42 +634,105 @@ async function downloadDeploymentPacket() {
     // Slightly larger margins so content isn't so close to the page edges.
     const margin = 54;
 
-    // --- Page 1: App QR codes ---
+    // --- Page 1: App QR codes + Instructions ---
+
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
-    doc.text("Download TAK Aware (iOS)", pageW / 2, margin, { align: "center" });
+    doc.setFontSize(20);
+    doc.text("TAK Application Setup", pageW / 2, margin, { align: "center" });
+
+    // Shared values
+    const sectionTop = margin + 30;
+    const qrSize1 = 160;
+    const textWidth = pageW - margin * 2;
+
+    // URLs + QR
     const takAwareUrl = "https://apps.apple.com/us/app/tak-aware/id6738631659";
     const atakUrl = "https://play.google.com/store/apps/details?id=com.atakmap.app.civ";
     const takAwareQr = makeQrDataUrl(takAwareUrl, 10, 2);
     const atakQr = makeQrDataUrl(atakUrl, 10, 2);
 
-    const qrSize1 = 260;
-    doc.addImage(takAwareQr, "PNG", (pageW - qrSize1) / 2, margin + 20, qrSize1, qrSize1);
+    /* ---------- ATAK (Android) ---------- */
+    let y = sectionTop;
+
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text("ATAK (Android)", margin, y);
+
+    doc.addImage(atakQr, "PNG", margin, y + 10, qrSize1, qrSize1);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(12);
+
+    const atakInstructions = [
+      "1. Open the camera on your Android device.",
+      "2. Point your camera at the QR code and select the notification to open the link.",
+      "3. Install and open ATAK.",
+      "4. Select \"Yes\" to perform quick enrollment inside ATAK."
+    ];
+
+    doc.text(
+      atakInstructions.join("\n"),
+      margin + qrSize1 + 20,
+      y + 20,
+      { maxWidth: textWidth - qrSize1 - 20 }
+    );
+
+    /* ---------- TAK Aware (iOS) ---------- */
+    y = y + qrSize1 + 60;
 
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
-    doc.text("Download ATAK (Android)", pageW / 2, pageH - margin - qrSize1 - 20, { align: "center" });
-    doc.addImage(atakQr, "PNG", (pageW - qrSize1) / 2, pageH - margin - qrSize1, qrSize1, qrSize1);
+    doc.setFontSize(16);
+    doc.text("TAK Aware (iOS)", margin, y);
+
+    doc.addImage(takAwareQr, "PNG", margin, y + 10, qrSize1, qrSize1);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(12);
+
+    const takAwareInstructions = [
+      "1. Open TAK Aware on your iPhone or iPad.",
+      "2. When prompted, allow Location access and set it to “Always Allow”.",
+      "3. Enter your assigned Call Sign, Team, and Role (per your welcome email).",
+      "4. Tap \"Connect to a TAK Server\", then choose \"Scan QR Code\".",
+      "5. Allow camera access and scan the QR code.",
+      "6. Confirm the connection shows \"Status: Succeeded\"."
+    ];
+
+    doc.text(
+      takAwareInstructions.join("\n"),
+      margin + qrSize1 + 20,
+      y + 20,
+      { maxWidth: textWidth - qrSize1 - 20 }
+    );
 
     // --- Page 2: User + Mutual Aid QR ---
     doc.addPage();
-    // Per request: show a fixed placeholder above the QR section.
+
+    // Small header above callsign
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(12);
+    doc.setTextColor(80);
+    doc.text("Callsign Format:", pageW / 2, margin, { align: "center" });
+
+    // Callsign placeholder
     const callsignText = "AGENCY-LASTNAME-CALLSIGN";
     doc.setFont("helvetica", "bold");
-    fitOneLine(doc, callsignText, pageW - margin * 2, 36);
-    doc.text(callsignText, pageW / 2, margin + 10, { align: "center" });
+    doc.setFontSize(36);
+    doc.setTextColor(0);
+    doc.text(callsignText, pageW / 2, margin + 24, { align: "center" });
 
-    const qrSize2 = min(pageW - margin * 2, pageH - (margin * 2 + 80));
+    // QR code
+    const qrSize2 = min(pageW - margin * 2, pageH - (margin * 2 + 100));
     const qrY2 = margin + 50;
+
     doc.addImage(qrImg.src, "PNG", (pageW - qrSize2) / 2, qrY2, qrSize2, qrSize2);
 
-    // Username label under the QR (e.g., MA-XYZ)
+    // Username label under QR
     const userLabel = String(qrActiveItem?.username || "").trim();
     if (userLabel) {
       const userY = Math.min(pageH - margin, qrY2 + qrSize2 + 28);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(25);
-      doc.setTextColor(0);
       doc.text(userLabel, pageW / 2, userY, { align: "center" });
     }
 
