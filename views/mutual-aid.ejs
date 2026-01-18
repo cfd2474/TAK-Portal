@@ -635,7 +635,6 @@ async function downloadDeploymentPacket() {
     const margin = 54;
 
     // --- Page 1: App QR codes + Instructions ---
-    const qrSize1 = 240; // BIG download QR codes
     const textWidth = pageW - margin * 2;
     let y = margin;
 
@@ -644,57 +643,86 @@ async function downloadDeploymentPacket() {
     const takAwareQr = makeQrDataUrl(takAwareUrl, 10, 2);
     const atakQr = makeQrDataUrl(atakUrl, 10, 2);
 
+    // Instruction blocks
+    const takAwareSteps = [
+      "Open TAK Aware on your iPhone or iPad.",
+      "When prompted, allow Location access and set it to Always Allow.",
+      "Enter your assigned Call Sign, Team, and Role.",
+      "Tap Connect to a TAK Server, then select Scan QR Code.",
+      "Allow camera access and scan the QR code.",
+      "Confirm the status shows Succeeded."
+    ];
+
+    const atakSteps = [
+      "Open the camera on your Android device.",
+      "Point your camera at the QR code and open the link.",
+      "Install and open ATAK.",
+      "Select Yes to perform quick enrollment."
+    ];
+
+    // Layout math
+    const titleH = 32;
+    const instrLineH = 16;
+    const gap = 16;
+
+    // Estimate instruction heights
+    const takAwareInstrH = takAwareSteps.length * instrLineH;
+    const atakInstrH = atakSteps.length * instrLineH;
+
+    // Available height for BOTH QR codes
+    const availableQrHeight =
+      pageH -
+      margin * 2 -
+      (titleH * 2) -
+      (takAwareInstrH + atakInstrH) -
+      gap * 5;
+
+    // Max QR size that fits both sections
+    const qrSize1 = Math.floor(availableQrHeight / 2);
+    const qrX = (pageW - qrSize1) / 2;
+
     /* =========================================================
       TAK AWARE (iOS)
     ========================================================= */
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(26);
-    doc.text("Download TAK Aware (iOS)", margin, y);
+    doc.text("Download TAK Aware (iOS)", pageW / 2, y, { align: "center" });
+    y += titleH;
 
-    doc.addImage(takAwareQr, "PNG", margin, y + 12, qrSize1, qrSize1);
+    doc.addImage(takAwareQr, "PNG", qrX, y, qrSize1, qrSize1);
+    y += qrSize1 + 12;
 
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(12);
-    doc.text(
-      [
-        "1. Open TAK Aware on your iPhone or iPad.",
-        "2. When prompted, allow Location access and set it to Always Allow.",
-        "3. Enter your assigned Call Sign, Team, and Role.",
-        "4. Tap Connect to a TAK Server, then select Scan QR Code.",
-        "5. Allow camera access and scan the QR code.",
-        "6. Confirm the status shows Succeeded."
-      ].join("\n"),
-      margin + qrSize1 + 24,
-      y + 26,
-      { maxWidth: textWidth - qrSize1 - 24 }
+    drawNumberedList(
+      doc,
+      takAwareSteps,
+      margin,
+      y,
+      textWidth
     );
+
+    y += takAwareInstrH + gap * 2;
 
     /* =========================================================
       ATAK (Android)
     ========================================================= */
 
-    y = y + qrSize1 + 90;
-
     doc.setFont("helvetica", "bold");
     doc.setFontSize(26);
-    doc.text("Download ATAK (Android)", margin, y);
+    doc.text("Download ATAK (Android)", pageW / 2, y, { align: "center" });
+    y += titleH;
 
-    doc.addImage(atakQr, "PNG", margin, y + 12, qrSize1, qrSize1);
+    doc.addImage(atakQr, "PNG", qrX, y, qrSize1, qrSize1);
+    y += qrSize1 + 12;
 
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(12);
-    doc.text(
-      [
-        "1. Open the camera on your Android device.",
-        "2. Point your camera at the QR code and open the link.",
-        "3. Install and open ATAK.",
-        "4. Select Yes to perform quick enrollment."
-      ].join("\n"),
-      margin + qrSize1 + 24,
-      y + 26,
-      { maxWidth: textWidth - qrSize1 - 24 }
+    drawNumberedList(
+      doc,
+      atakSteps,
+      margin,
+      y,
+      textWidth
     );
+
 
     /* =========================================================
        PAGE 2 — USER QR + CALLSIGN FORMAT
@@ -704,7 +732,7 @@ async function downloadDeploymentPacket() {
 
     // Callsign header
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(12);
+    doc.setFontSize(20);
     doc.setTextColor(80);
     doc.text("Callsign Format:", pageW / 2, margin, { align: "center" });
 
