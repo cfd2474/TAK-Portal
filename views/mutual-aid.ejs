@@ -635,8 +635,6 @@ async function downloadDeploymentPacket() {
     const margin = 54;
 
     // --- Page 1: App QR codes + Instructions ---
-
-    
     const qrSize1 = 240; // BIG download QR codes
     const textWidth = pageW - margin * 2;
     let y = margin;
@@ -646,10 +644,41 @@ async function downloadDeploymentPacket() {
     const takAwareQr = makeQrDataUrl(takAwareUrl, 10, 2);
     const atakQr = makeQrDataUrl(atakUrl, 10, 2);
 
-    // ----- ATAK (Android) -----
+    /* =========================================================
+      TAK AWARE (iOS) — FIRST
+    ========================================================= */
+
     doc.setFont("helvetica", "bold");
     doc.setFontSize(18);
-    doc.text("ATAK (Android)", margin, y);
+    doc.text("Download TAK Aware (iOS)", margin, y);
+
+    doc.addImage(takAwareQr, "PNG", margin, y + 12, qrSize1, qrSize1);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(12);
+    doc.text(
+      [
+        "1. Open TAK Aware on your iPhone or iPad.",
+        "2. When prompted, allow Location access and set it to Always Allow.",
+        "3. Enter your assigned Call Sign, Team, and Role.",
+        "4. Tap Connect to a TAK Server, then select Scan QR Code.",
+        "5. Allow camera access and scan the QR code.",
+        "6. Confirm the status shows Succeeded."
+      ].join("\n"),
+      margin + qrSize1 + 24,
+      y + 26,
+      { maxWidth: textWidth - qrSize1 - 24 }
+    );
+
+    /* =========================================================
+      ATAK (Android) — SECOND
+    ========================================================= */
+
+    y = y + qrSize1 + 90;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text("Download ATAK (Android)", margin, y);
 
     doc.addImage(atakQr, "PNG", margin, y + 12, qrSize1, qrSize1);
 
@@ -660,35 +689,10 @@ async function downloadDeploymentPacket() {
         "1. Open the camera on your Android device.",
         "2. Point your camera at the QR code and open the link.",
         "3. Install and open ATAK.",
-        "4. Select “Yes” to perform quick enrollment."
+        "4. Select Yes to perform quick enrollment."
       ].join("\n"),
       margin + qrSize1 + 24,
-      y + 28,
-      { maxWidth: textWidth - qrSize1 - 24 }
-    );
-
-    // ----- TAK Aware (iOS) -----
-    y = y + qrSize1 + 80;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
-    doc.text("TAK Aware (iOS)", margin, y);
-
-    doc.addImage(takAwareQr, "PNG", margin, y + 12, qrSize1, qrSize1);
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(12);
-    doc.text(
-      [
-        "1. Open TAK Aware on your iPhone or iPad.",
-        "2. Allow Location access and set it to “Always Allow”.",
-        "3. Enter your assigned Call Sign, Team, and Role.",
-        "4. Tap “Connect to a TAK Server” → “Scan QR Code”.",
-        "5. Allow camera access and scan the QR code.",
-        "6. Confirm the status shows “Succeeded”."
-      ].join("\n"),
-      margin + qrSize1 + 24,
-      y + 28,
+      y + 26,
       { maxWidth: textWidth - qrSize1 - 24 }
     );
 
