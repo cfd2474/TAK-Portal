@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.  Minor qual
 
 ## Version History
 
+### v1.1.46 - 1/20/26
+✨ `Enhancement` - Added "Manual Login" button to the Setup My Device page to provide manual cert enrollment instructions for each device type
+
 ### v1.1.45 - 1/17/26
 ✨ `Enhancement` - Updated PDF Layout to include device enrollment instructions
 
