@@ -59,10 +59,10 @@
     <input id="maFilter" placeholder="Filter..." style="margin: 10px 0; min-width: 360px;" />
 
     <table class="table">
-      <thead>
+      <thead id="maThead">
         <tr>
-          <th style="width: 100px;">Type</th>
-          <th style="width: 140px;">Title</th>
+          <th class="sortable" data-key="type" style="width: 100px;">Type <span class="sortIndicator" aria-hidden="true"></span></th>
+          <th class="sortable" data-key="title" style="width: 140px;">Title <span class="sortIndicator" aria-hidden="true"></span></th>
           <th style="width: 380px;">Actions</th>
         </tr>
       </thead>
@@ -402,6 +402,75 @@ const maFilter = document.getElementById("maFilter");
 const maTbody = document.getElementById("maTbody");
 const maListMsg = document.getElementById("maListMsg");
 
+
+// ------- Sorting state -------
+let maSortState = {
+  key: "title",
+  dir: "asc"
+};
+
+function normalizeSortValue(v){
+  return String(v ?? "").trim().toLowerCase();
+}
+
+function maGetSortValue(it, key){
+  if (key === "type") return normalizeSortValue(it.type);
+  if (key === "title") return normalizeSortValue(it.title);
+  return "";
+}
+
+function stableSortedCopy(arr, key, dir){
+  const sign = dir === "desc" ? -1 : 1;
+  return (arr || [])
+    .map((item, idx) => ({ item, idx }))
+    .sort((a, b) => {
+      const av = maGetSortValue(a.item, key);
+      const bv = maGetSortValue(b.item, key);
+
+      const cmp = av.localeCompare(bv, undefined, { numeric: true, sensitivity: "base" });
+      if (cmp !== 0) return cmp * sign;
+      return a.idx - b.idx;
+    })
+    .map(x => x.item);
+}
+
+function updateSortIndicators(){
+  const thead = document.getElementById("maThead");
+  const ths = Array.from(thead ? thead.querySelectorAll("th.sortable") : []);
+  ths.forEach(th => {
+    const key = th.dataset.key;
+    const indicator = th.querySelector(".sortIndicator");
+    if (!indicator) return;
+
+    if (key === maSortState.key) {
+      indicator.textContent = maSortState.dir === "asc" ? "▲" : "▼";
+    } else {
+      indicator.textContent = "";
+    }
+  });
+}
+
+
+
+const maThead = document.getElementById("maThead");
+if (maThead){
+  maThead.addEventListener("click", (e) => {
+    const th = e.target && e.target.closest ? e.target.closest("th.sortable") : null;
+    if (!th) return;
+
+    const key = th.dataset.key;
+    if (!key) return;
+
+    if (maSortState.key === key){
+      maSortState.dir = maSortState.dir === "asc" ? "desc" : "asc";
+    } else {
+      maSortState.key = key;
+      maSortState.dir = "asc";
+    }
+
+    renderList();
+  });
+}
 let allItems = [];
 let activeItem = null;
 
@@ -1208,7 +1277,7 @@ massApplyBtn.onclick = async () => {
 // ----- List rendering -----
 function renderList(){
   const needle = String(maFilter.value||"").trim().toLowerCase();
-  const items = allItems.filter(it => {
+  let items = allItems.filter(it => {
     if(!needle) return true;
     return (
       String(it.type||"").toLowerCase().includes(needle) ||
@@ -1217,6 +1286,9 @@ function renderList(){
       String(it.username||"").toLowerCase().includes(needle)
     );
   });
+
+    items = stableSortedCopy(items, maSortState.key, maSortState.dir);
+  updateSortIndicators();
 
   maTbody.innerHTML = items.map(it => {
     const isExistingGroup = String(it.groupMode || "new").toLowerCase() === "existing";
