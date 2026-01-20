@@ -42,7 +42,7 @@ router.get("/", (req, res) => {
   const access = accessSvc.getAgencyAccess(authUser);
 
   if (access.isGlobalAdmin) {
-    return res.json(templates);
+    return res.json(templates.map((t, i) => ({ ...t, _index: i })));
   }
 
   const allowed = access.allowedAgencySuffixes || [];
@@ -51,9 +51,9 @@ router.get("/", (req, res) => {
   }
 
   const allowedSet = new Set(allowed.map((s) => String(s || "").trim().toLowerCase()));
-  const filtered = templates.filter((t) =>
-    allowedSet.has(String(t.agencySuffix || "").trim().toLowerCase())
-  );
+  const filtered = templates
+    .map((t, i) => ({ ...t, _index: i }))
+    .filter((t) => allowedSet.has(String(t.agencySuffix || "").trim().toLowerCase()));
 
   res.json(filtered);
 });
