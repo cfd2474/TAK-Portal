@@ -13,6 +13,7 @@ const mutualAidSvc = require("./services/mutualAid.service");
 const portalAuth = require("./services/portalAuth.middleware");
 const emailSvc = require("./services/email.service");
 const emailTemplatesSvc = require("./services/emailTemplates.service");
+const qrSvc = require("./services/qr.service");
 
 const app = express();
 
@@ -227,7 +228,11 @@ app.get("/mutual-aid", requireGlobalAdmin, (req, res) =>
 ); //require Global Admin
 app.get("/qr-generator", (req, res) => res.render("qr-generator"));
 
-app.get("/setup-my-device", (req, res) => res.render("setup-my-device"));
+app.get("/setup-my-device", (req, res) => {
+  // Used by the Setup My Device page to display the correct TAK server hostname.
+  const takHost = qrSvc.getTakHost();
+  return res.render("setup-my-device", { takHost });
+});
 
 app.get("/settings", requireGlobalAdmin, (req, res) => {
   const settings = settingsSvc.getSettings();
