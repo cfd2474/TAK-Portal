@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.  Minor qual
 
 ## Version History
 
+### v1.1.48 - 1/25/26
+✨ `Enhancement` - Removed dash for group naming - groups are now "AGENCY Title" or "County Co Title"
+
 ### v1.1.47 - 1/20/26
 ✨ `Enhancement` - Adds sorting to Groups, Templates, and Mutual Aid. Template creation form order also adjusted to match the order of other pages. <br>
 ✨ `Enhancement` - Adds "Private" column to Groups <br>
