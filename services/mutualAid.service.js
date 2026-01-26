@@ -107,7 +107,7 @@ function buildMutualAidUsername(type, title) {
 function buildGroupName(type, title) {
   const name = sanitizeTitle(title);
   if (!name) throw new Error("Name is required");
-  return `MA - ${name}`;
+  return `MA ${name}`;
 }
 
 function randomPassword(length = 18) {
