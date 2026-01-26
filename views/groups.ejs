@@ -597,6 +597,38 @@ function parseGroupName(fullName) {
     baseName = name;
   }
 
+
+  // Fallback parse for new format without " - "
+  // Agency: "<PREFIX> <Title>"
+  if (type === "generic") {
+    const upperName = name.toUpperCase();
+    const agencyPrefixes = (agenciesCache || [])
+      .map(a => String(a.groupPrefix || "").trim().toUpperCase())
+      .filter(Boolean)
+      .sort((a,b)=>b.length - a.length); // longest first, just in case
+    const hit = agencyPrefixes.find(pfx => upperName.startsWith(pfx + " "));
+    if (hit) {
+      type = "agency";
+      agencyPrefix = hit;
+      baseName = name.slice(hit.length + 1).trim(); // drop "<PREFIX> "
+    }
+  }
+
+  // County: "<County> Co <Title>"
+  if (type === "generic") {
+    const counties = Array.from(new Set(
+      (agenciesCache || [])
+        .map(a => String(a.county || "").trim())
+        .filter(Boolean)
+    )).sort((a,b)=>b.length - a.length); // longest first
+    const hitCounty = counties.find(cn => name.toLowerCase().startsWith((cn + " Co ").toLowerCase()));
+    if (hitCounty) {
+      type = "county";
+      county = hitCounty;
+      baseName = name.slice((hitCounty + " Co ").length).trim();
+    }
+  }
+
   return { type, agencyPrefix, county, baseName, behavior };
 }
 
@@ -628,12 +660,13 @@ function isGroupEditable(name){
   return true;
   <% } %>
 
-  const n = String(name || "");
-  const dashIdx = n.indexOf("-");
-  if (dashIdx <= 0) return false;
+  const n = String(name || "").trim();
+  // Agency-specific groups are formatted like "<PREFIX> <Title>"
+  const spIdx = n.indexOf(" ");
+  if (spIdx <= 0) return false;
 
   // trim, so "CPD " becomes "CPD"
-  const prefix = n.slice(0, dashIdx).trim().toUpperCase();
+  const prefix = n.slice(0, spIdx).trim().toUpperCase();
 
   // Agency-specific groups: editable only if the prefix matches one of the
   // current user's agency groupPrefixes (from agenciesCache).
@@ -772,11 +805,11 @@ createBtn.onclick = async () => {
   if (type === "agency") {
     const prefix = String(agencyPrefixSelect.value || "").trim().toUpperCase();
     if (!prefix) return setMsg(createMsg, "Select an agency prefix.", false);
-    name = `${prefix} - ${name}`;
+    name = `${prefix} ${name}`;
   } else if (type === "county") {
     const county = String(countySelect.value || "").trim();
     if (!county) return setMsg(createMsg, "Select a county.", false);
-    name = `${county} Co - ${name}`;
+    name = `${county} Co ${name}`;
   }
   // type === "generic" just uses the base name + behavior suffix
 
