@@ -556,7 +556,11 @@ function parseGroupName(fullName) {
   if (dashIdx > 0) {
     const left = name.slice(0, dashIdx).trim();
     const right = name.slice(dashIdx + 3).trim();
+    // County groups are formatted like "<County> Co - <Title>".
+    // Normalize the left side so we can correctly detect/edit them.
+    const leftNoCo = left.replace(/\s+co\s*$/i, "").trim();
     const leftUpper = left.toUpperCase();
+    const leftNoCoUpper = leftNoCo.toUpperCase();
 
     // Check for agency prefix
     const agencyMatch = (agenciesCache || []).find(a =>
@@ -575,9 +579,14 @@ function parseGroupName(fullName) {
           .filter(Boolean)
           .map(c => c.toUpperCase())
       );
-      if (countySet.has(leftUpper)) {
+      if (countySet.has(leftNoCoUpper) || countySet.has(leftUpper)) {
         type = "county";
-        county = left; // keep original case for the dropdown
+        // Use canonical casing from agenciesCache so the dropdown value matches.
+        const canonical = (agenciesCache || [])
+          .map(a => String(a.county || "").trim())
+          .filter(Boolean)
+          .find(c => c.toUpperCase() === leftNoCoUpper);
+        county = canonical || leftNoCo || left; // keep original case for the dropdown
         baseName = right || "";
       } else {
         // Fallback: treat everything as base name
@@ -607,7 +616,7 @@ function buildGroupNameFromParts({ type, baseName, behavior, prefix, county }) {
   } else if (type === "county") {
     const c = String(county || "").trim();
     if (!c) return "";
-    name = `${c.toUpperCase()} - ${name}`;
+    name = `${c} Co - ${name}`;
   }
 
   return name;
@@ -767,7 +776,7 @@ createBtn.onclick = async () => {
   } else if (type === "county") {
     const county = String(countySelect.value || "").trim();
     if (!county) return setMsg(createMsg, "Select a county.", false);
-    name = `${county.toUpperCase()} - ${name}`;
+    name = `${county} Co - ${name}`;
   }
   // type === "generic" just uses the base name + behavior suffix
 
