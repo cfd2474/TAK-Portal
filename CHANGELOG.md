@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.  Minor qual
 ## Version History
 
 ### v1.1.49 - 1/26/26
-✨ `Enhancement` - Simplified sidebar navigation wording
+✨ `Enhancement` - Minor Update - Simplified sidebar navigation wording
 
 ### v1.1.48 - 1/25/26
 ✨ `Enhancement` - Removed dash for group naming - groups are now "AGENCY Title" or "County Co Title"
