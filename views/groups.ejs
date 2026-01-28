@@ -475,8 +475,6 @@ function stripTakPrefix(name){
   return n.toLowerCase().startsWith("tak_") ? n.slice(4) : n;
 }
 
-}
-
 async function loadAgencies(){
   const res = await fetch("/api/agencies");
   const out = await res.json();
