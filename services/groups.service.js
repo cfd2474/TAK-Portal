@@ -71,16 +71,28 @@ function normalizeCNValue(rawValue, nameWithoutTak) {
   let v = String(rawValue ?? "").trim();
   if (!v) v = fallback;
 
-  // Remove accidental surrounding quotes (e.g. '"CN: Foo"')
-  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
-    v = v.slice(1, -1).trim();
-  }
+  // Strip surrounding quotes if present (common accidental JSON/string formatting issues)
+  const stripOuterQuotes = (s) => {
+    const t = String(s || "").trim();
+    if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) {
+      return t.slice(1, -1).trim();
+    }
+    return t;
+  };
 
-  // If it already contains a CN: prefix (any case), normalize to exactly "CN: <rest>"
-  const m = v.match(/^cn\s*:\s*(.*)$/i);
-  const rest = m ? String(m[1] || "").trim() : v;
+  v = stripOuterQuotes(v);
 
-  const finalRest = rest || fallback;
+  // Normalize any existing CN: prefix (any case)
+  let m = v.match(/^cn\s*:\s*(.*)$/i);
+  let rest = m ? String(m[1] || "").trim() : v;
+
+  // Handle the observed bad state: CN: "CN: <name>"
+  // After first strip, rest may still contain quotes and/or another CN: prefix.
+  rest = stripOuterQuotes(rest);
+  m = rest.match(/^cn\s*:\s*(.*)$/i);
+  rest = m ? String(m[1] || "").trim() : rest;
+
+  const finalRest = (rest || fallback).trim();
   return `CN: ${finalRest}`;
 }
 
