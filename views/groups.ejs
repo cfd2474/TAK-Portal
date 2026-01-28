@@ -464,6 +464,8 @@ function esc(s){
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#39;");
 
+}
+
 function ensureTakPrefix(name){
   const n = String(name || "").trim();
   if(!n) return "";
@@ -903,7 +905,10 @@ window.editGroupName = async (groupId) => {
   const g = (groupsCache || []).find(x => String(x.pk) === String(groupId));
   const currentName = String(g?.name || "").trim();
   const currentDescription = String(g?.attributes?.description || "").trim();
-  const currentPrivate = String(g?.attributes?.private || "no").trim().toLowerCase();
+	  const currentPrivateRaw = String(g?.attributes?.private || "no").trim().toLowerCase();
+	  const currentPrivate = (currentPrivateRaw === "yes" || currentPrivateRaw === "true" || currentPrivateRaw === "1")
+	    ? "yes"
+	    : "no";
 
   if (groupActionsLocked(currentName)) {
     setMsg(listMsg, `Actions are locked for group ${currentName || groupId}`, false);

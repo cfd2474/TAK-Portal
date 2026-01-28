@@ -50,6 +50,17 @@ function normalizeIdList(value) {
   return value.map(v => String(v).trim()).filter(Boolean);
 }
 
+function ensureTakPrefix(name) {
+  const n = String(name || "").trim();
+  if (!n) return "";
+  return n.toLowerCase().startsWith("tak_") ? n : `tak_${n}`;
+}
+
+function stripTakPrefix(name) {
+  const n = String(name || "").trim();
+  return n.toLowerCase().startsWith("tak_") ? n.slice(4) : n;
+}
+
 function applyUserVisibilityFilters(users) {
   let out = Array.isArray(users) ? users : [];
 
@@ -189,7 +200,7 @@ async function getUsersByGroupIdRaw({ groupId, agencyAbbreviation } = {}) {
 
 // ---------------- Group CRUD ----------------
 async function createGroup(name, opts = {}) {
-  const n = String(name || "").trim();
+  const n = ensureTakPrefix(String(name || "").trim());
   if (!n) throw new Error("Group name is required");
 
   const payload = { name: n };
@@ -200,6 +211,9 @@ async function createGroup(name, opts = {}) {
   if (description) {
     attributes.description = description;
   }
+
+  // Always maintain CN attribute (matches group name without tak_ prefix)
+  attributes.cn = `CN: ${stripTakPrefix(n)}`;
 
   if (Object.keys(attributes).length > 0) {
     payload.attributes = attributes;
@@ -237,41 +251,45 @@ async function renameGroup(groupId, newName, opts = {}) {
   // Block protected groups unless explicitly overridden
   const current = await assertGroupNotActionLocked(id, opts);
 
-  const n = String(newName || "").trim();
+  const n = ensureTakPrefix(String(newName || "").trim());
   if (!n) throw new Error("Group name is required");
 
   // Need old name so we can update templates that reference it
   const oldName = String(current?.name || "").trim();
   if (!oldName) throw new Error("Could not determine existing group name");
 
-  // Rename (and optionally update attributes) in Authentik
+  // Rename (and update attributes) in Authentik
   const payload = { name: n };
 
   const wantsDescription = Object.prototype.hasOwnProperty.call(opts, "description");
   const wantsPrivate = Object.prototype.hasOwnProperty.call(opts, "private");
   const wantsCn = Object.prototype.hasOwnProperty.call(opts, "cn");
 
-  if (wantsDescription || wantsPrivate || wantsCn) {
-    const existingAttrs =
-      current && typeof current.attributes === "object" && current.attributes
-        ? current.attributes
-        : {};
+  const existingAttrs =
+    current && typeof current.attributes === "object" && current.attributes
+      ? current.attributes
+      : {};
 
-    const nextAttrs = { ...existingAttrs };
+  const nextAttrs = { ...existingAttrs };
 
-    if (wantsDescription) {
-      const desc = String(opts.description || "").trim();
-      nextAttrs.description = desc;
-    }
-
-    if (wantsPrivate) {
-      const priv = String(opts.private || "").trim().toLowerCase();
-      // Normalize to "yes"/"no"; treat anything other than "yes" as "no"
-      nextAttrs.private = priv === "yes" ? "yes" : "no";
-    }
-
-    payload.attributes = nextAttrs;
+  if (wantsDescription) {
+    const desc = String(opts.description || "").trim();
+    nextAttrs.description = desc;
   }
+
+  if (wantsPrivate) {
+    const priv = String(opts.private || "").trim().toLowerCase();
+    // Normalize to "yes"/"no"; treat anything other than "yes" as "no"
+    nextAttrs.private = priv === "yes" ? "yes" : "no";
+  }
+
+  // Always maintain CN attribute (matches group name without tak_ prefix)
+  const cn = wantsCn && typeof opts.cn === "string" && opts.cn.trim()
+    ? String(opts.cn).trim()
+    : `CN: ${stripTakPrefix(n)}`;
+  nextAttrs.cn = cn;
+
+  payload.attributes = nextAttrs;
 
   const res = await api.patch(`/core/groups/${id}/`, payload);
   const updatedGroup = res.data;
