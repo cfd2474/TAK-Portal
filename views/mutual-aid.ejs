@@ -335,7 +335,7 @@ function renderMembersList() {
 
 async function openMutualAidMembers(groupId, groupName) {
   activeMembersGroupId = String(groupId || "");
-  activeMembersGroupName = String(groupName || "");
+  activeMembersGroupName = displayGroupName(groupName || "");
 
   membersSummary.textContent = "Loading members...";
   membersSummary.className = "msg";
@@ -356,7 +356,7 @@ async function openMutualAidMembers(groupId, groupName) {
     activeMembers = Array.isArray(out.users) ? out.users : [];
     const memberCount =
       typeof out.memberCount === "number" ? out.memberCount : activeMembers.length;
-    const label = activeMembersGroupName || out.group?.name || groupId;
+    const label = activeMembersGroupName || displayGroupName(out.group?.name || "") || groupId;
 
     membersSummary.textContent = `${memberCount} member${
       memberCount === 1 ? "" : "s"
@@ -564,7 +564,7 @@ function openQrModal(item){
   qrActiveId = item.id;
   qrActiveItem = item;
   qrDetails.innerHTML = `
-    <span class="chip">Group: ${esc(item.groupName || "")}</span>
+    <span class="chip">Group: ${esc(displayGroupName(item.groupName || ""))}</span>
     <span class="chip">Username: ${esc(item.username || "")}</span>
   `;
   setMsg(qrMsg, "Loading...", true);
@@ -1042,7 +1042,7 @@ function resetMassState() {
 
 function openMassAssign({ groupId, groupName }){
   activeMassGroupId = String(groupId || "");
-  activeMassGroupName = String(groupName || "");
+  activeMassGroupName = displayGroupName(groupName || "");
   massAction = "assign";
   massTitle.textContent = `Mass Assign — ${activeMassGroupName}`;
   massApplyBtn.textContent = "Mass Assign";
@@ -1057,7 +1057,7 @@ function openMassAssign({ groupId, groupName }){
 
 function openMassUnassign({ groupId, groupName }){
   activeMassGroupId = String(groupId || "");
-  activeMassGroupName = String(groupName || "");
+  activeMassGroupName = displayGroupName(groupName || "");
   massAction = "unassign";
   massTitle.textContent = `Mass Unassign — ${activeMassGroupName}`;
   massApplyBtn.textContent = "Mass Unassign";
@@ -1410,7 +1410,7 @@ maCreateBtn.onclick = async () => {
     if(!res.ok) throw new Error(data.error || "Create failed");
 
     const item = data.item;
-    setMsg(maCreateMsg, `Created ${item.groupName} (user: ${item.username}).`, true);
+    setMsg(maCreateMsg, `Created ${displayGroupName(item.groupName)} (user: ${item.username}).`, true);
     maTitle.value = "";
     maExpireEnabled.value = "no";
     maExpireAt.value = "";
@@ -1422,7 +1422,7 @@ maCreateBtn.onclick = async () => {
 
     // Immediately offer mass-assign (optional) ONLY when we created a new group.
     if (groupMode !== "existing") {
-      openMassAssign({ groupId: item.groupId, groupName: item.groupName });
+      openMassAssign({ groupId: item.groupId, groupName: displayGroupName(item.groupName) });
     }
   } catch (e){
     setMsg(maCreateMsg, e.message || String(e), false);
