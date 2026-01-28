@@ -61,6 +61,29 @@ function stripTakPrefix(name) {
   return n.toLowerCase().startsWith("tak_") ? n.slice(4) : n;
 }
 
+// Normalize the Authentik CN attribute:
+// - attribute key must be "CN" (uppercase)
+// - value must be exactly "CN: <nameWithoutTak>" (no surrounding quotes)
+// - if caller provides a value, accept either "<nameWithoutTak>" or "CN: <nameWithoutTak>"
+function normalizeCNValue(rawValue, nameWithoutTak) {
+  const fallback = String(nameWithoutTak || "").trim();
+
+  let v = String(rawValue ?? "").trim();
+  if (!v) v = fallback;
+
+  // Remove accidental surrounding quotes (e.g. '"CN: Foo"')
+  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+    v = v.slice(1, -1).trim();
+  }
+
+  // If it already contains a CN: prefix (any case), normalize to exactly "CN: <rest>"
+  const m = v.match(/^cn\s*:\s*(.*)$/i);
+  const rest = m ? String(m[1] || "").trim() : v;
+
+  const finalRest = rest || fallback;
+  return `CN: ${finalRest}`;
+}
+
 function applyUserVisibilityFilters(users) {
   let out = Array.isArray(users) ? users : [];
 
@@ -213,15 +236,13 @@ async function createGroup(name, opts = {}) {
   }
 
   // Always maintain the Authentik CN attribute (uppercase key).
-  // Value should be "CN: <group name without tak_>".
+  // Value should be exactly "CN: <group name without tak_>".
   // Also remove any legacy lowercase "cn" attribute to avoid duplicates.
   delete attributes.cn;
-  if (!Object.prototype.hasOwnProperty.call(attributes, "CN")) {
-    attributes.CN = `CN: ${stripTakPrefix(n)}`;
-  } else {
-    // Normalize if caller provided CN
-    attributes.CN = String(attributes.CN || "").trim();
-  }
+  attributes.CN = normalizeCNValue(
+    Object.prototype.hasOwnProperty.call(attributes, "CN") ? attributes.CN : "",
+    stripTakPrefix(n)
+  );
 
   if (Object.keys(attributes).length > 0) {
     payload.attributes = attributes;
@@ -293,13 +314,13 @@ async function renameGroup(groupId, newName, opts = {}) {
   }
 
   // Always maintain the Authentik CN attribute (uppercase key).
-  // Value should be "CN: <group name without tak_>".
+  // Value should be exactly "CN: <group name without tak_>".
   // Remove any legacy lowercase "cn" attribute to avoid duplicates.
   delete nextAttrs.cn;
-  const cnVal = wantsCN
-    ? String((Object.prototype.hasOwnProperty.call(opts, "CN") ? opts.CN : opts.cn) || "").trim()
+  const provided = wantsCN
+    ? (Object.prototype.hasOwnProperty.call(opts, "CN") ? opts.CN : opts.cn)
     : "";
-  nextAttrs.CN = cnVal || `CN: ${stripTakPrefix(n)}`;
+  nextAttrs.CN = normalizeCNValue(provided, stripTakPrefix(n));
 
   payload.attributes = nextAttrs;
 
