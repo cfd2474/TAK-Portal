@@ -71,7 +71,7 @@ function normalizeCNValue(rawValue, nameWithoutTak) {
   let v = String(rawValue ?? "").trim();
   if (!v) v = fallback;
 
-  // Strip surrounding quotes if present (common accidental JSON/string formatting issues)
+  // Strip surrounding quotes on the whole value
   const stripOuterQuotes = (s) => {
     const t = String(s || "").trim();
     if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) {
@@ -82,19 +82,21 @@ function normalizeCNValue(rawValue, nameWithoutTak) {
 
   v = stripOuterQuotes(v);
 
-  // Normalize any existing CN: prefix (any case)
-  let m = v.match(/^cn\s*:\s*(.*)$/i);
+  // If the value is already "CN: ...", take the rest; otherwise treat as the rest directly.
+  const m = v.match(/^cn\s*:\s*(.*)$/i);
   let rest = m ? String(m[1] || "").trim() : v;
 
-  // Handle the observed bad state: CN: "CN: <name>"
-  // After first strip, rest may still contain quotes and/or another CN: prefix.
+  // Handle broken nested cases like: CN: "CN: Foo"
   rest = stripOuterQuotes(rest);
-  m = rest.match(/^cn\s*:\s*(.*)$/i);
-  rest = m ? String(m[1] || "").trim() : rest;
+  const m2 = rest.match(/^cn\s*:\s*(.*)$/i);
+  if (m2) rest = String(m2[1] || "").trim();
 
-  const finalRest = (rest || fallback).trim();
+  rest = stripOuterQuotes(rest);
+
+  const finalRest = rest || fallback;
   return `CN: ${finalRest}`;
 }
+
 
 function applyUserVisibilityFilters(users) {
   let out = Array.isArray(users) ? users : [];
