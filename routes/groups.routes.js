@@ -153,8 +153,9 @@ if (access.isGlobalAdmin && typeof privateStatus === "string" && privateStatus) 
   const truthy = privateStatus === "yes" || privateStatus === "true" || privateStatus === "1";
   attributes.private = truthy ? "yes" : "no";
 }
-  // Authentik attribute: pass raw nameWithoutTak; service will normalize to canonical "CN: <name>"
-  attributes.CN = nameWithoutTak;
+// Authentik attribute: key "CN" is normalized in the service layer.
+// Here we pass ONLY the raw name (without tak_) to avoid double-prefixing.
+attributes.CN = nameWithoutTak;
 delete attributes.cn;
 
     const out = await groups.createGroup(name, { attributes });
@@ -197,7 +198,6 @@ router.patch("/:groupId", async (req, res) => {
     const out = await groups.renameGroup(req.params.groupId, name, {
       description,
       private: access.isGlobalAdmin ? privateStatus : undefined,
-      // Pass raw nameWithoutTak; service will normalize to canonical "CN: <name>"
       CN: nameWithoutTak,
     });
     res.json({ success: true, group: out });
