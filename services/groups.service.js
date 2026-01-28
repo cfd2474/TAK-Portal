@@ -66,34 +66,44 @@ function stripTakPrefix(name) {
 // - value must be exactly "CN: <nameWithoutTak>" (no surrounding quotes)
 // - if caller provides a value, accept either "<nameWithoutTak>" or "CN: <nameWithoutTak>"
 function normalizeCNValue(rawValue, nameWithoutTak) {
+  // Desired: CN attribute value should be JUST the group name (without "tak_" and without any "CN:" prefix).
   const fallback = String(nameWithoutTak || "").trim();
 
   let v = String(rawValue ?? "").trim();
   if (!v) v = fallback;
 
-  // We have seen inputs like:
-  //   CN: "CN: some group"
-  //   "CN: some group"
-  //   CN: some group
-  // Normalize by repeatedly stripping a leading CN: prefix and surrounding quotes.
-  // (Loop is bounded to avoid pathological cases.)
-  for (let i = 0; i < 5; i++) {
-    // Strip leading CN: (case-insensitive)
-    v = v.replace(/^\s*cn\s*:\s*/i, "").trim();
-
-    // Strip one layer of surrounding quotes
-    const hasDouble = v.startsWith('"') && v.endsWith('"');
-    const hasSingle = v.startsWith("'") && v.endsWith("'");
-    if (hasDouble || hasSingle) {
-      v = v.slice(1, -1).trim();
+  // unwrap surrounding quotes (single or double)
+  for (let i = 0; i < 3; i++) {
+    v = v.trim();
+    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+      v = v.slice(1, -1);
       continue;
     }
-
-    // No more wrapping to remove
     break;
   }
+  v = v.trim();
 
-  const finalRest = (v || fallback).trim();
+  // Strip any accidental "CN:" prefix (including nested cases like CN: "CN: name")
+  for (let i = 0; i < 3; i++) {
+    const m = v.match(/^cn\s*:\s*(.*)$/i);
+    if (!m) break;
+    v = String(m[1] || "").trim();
+
+    // after stripping CN:, unwrap quotes again if present
+    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+      v = v.slice(1, -1).trim();
+    }
+  }
+
+  v = v.trim();
+  return v || fallback;
+}
+
+  // If it already contains a CN: prefix (any case), normalize to exactly "CN: <rest>"
+  const m = v.match(/^cn\s*:\s*(.*)$/i);
+  const rest = m ? String(m[1] || "").trim() : v;
+
+  const finalRest = rest || fallback;
   return `CN: ${finalRest}`;
 }
 

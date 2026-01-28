@@ -153,10 +153,7 @@ if (access.isGlobalAdmin && typeof privateStatus === "string" && privateStatus) 
   const truthy = privateStatus === "yes" || privateStatus === "true" || privateStatus === "1";
   attributes.private = truthy ? "yes" : "no";
 }
-// Authentik attribute: uppercase key "CN".
-// IMPORTANT: pass the *raw* name (without tak_) to the service layer; it will
-// normalize to the required "CN: <name>" format and strip any accidental
-// nested prefixes/quotes.
+// Authentik attribute: uppercase key "CN" with value "CN: <name without tak_>"
 attributes.CN = nameWithoutTak;
 delete attributes.cn;
 
