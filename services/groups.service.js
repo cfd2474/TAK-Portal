@@ -105,7 +105,6 @@ function normalizeCNValue(rawValue, nameWithoutTak) {
 
   const finalRest = rest || fallback;
   return `CN: ${finalRest}`;
-}
 
 function applyUserVisibilityFilters(users) {
   let out = Array.isArray(users) ? users : [];
