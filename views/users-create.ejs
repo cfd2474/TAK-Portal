@@ -247,7 +247,8 @@ function renderGroupsBox() {
   groupsInner.innerHTML = filtered
     .map((g) => {
       const id = String(g.pk);
-      const name = String(g.name || "");
+      const rawName = String(g.name || "");
+      const name = rawName.replace(/^tak_/, "");
       return `
       <label class="groupItem">
         <input type="checkbox" value="${esc(id)}" />
