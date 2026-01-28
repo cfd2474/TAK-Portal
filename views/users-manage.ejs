@@ -308,6 +308,11 @@ function escapeHtml(s){
     .replace(/'/g,"&#39;");
 }
 
+function stripTakPrefix(name){
+  const n = String(name || "").trim();
+  return n.toLowerCase().startsWith("tak_") ? n.slice(4) : n;
+}
+
 async function readJsonSafe(res) {
   const text = await res.text();
   try {
@@ -619,7 +624,7 @@ function renderGroupChips(user){
     .sort((a,b)=>String(a).localeCompare(String(b)));
 
   groupChips.innerHTML = names.length
-    ? names.map(n => `<span class="chip">${escapeHtml(n)}</span>`).join("")
+    ? names.map(n => `<span class="chip">${escapeHtml(stripTakPrefix(n))}</span>`).join("")
     : `<span class="muted">None</span>`;
 }
 
@@ -811,7 +816,11 @@ function renderGroupsBox(){
 
   const filterText = groupFilter.value.trim().toLowerCase();
   const filteredGroups = filterText
-    ? allGroupsArray.filter(g => String(g.name || "").toLowerCase().includes(filterText))
+    ? allGroupsArray.filter(g => {
+        const raw = String(g.name || "").toLowerCase();
+        const display = stripTakPrefix(g.name).toLowerCase();
+        return raw.includes(filterText) || display.includes(filterText);
+      })
     : allGroupsArray;
 
   groupsInner.innerHTML = filteredGroups.map(g => {
@@ -820,7 +829,7 @@ function renderGroupsBox(){
     return `
       <label class="groupItem">
         <input type="checkbox" value="${escapeHtml(id)}" ${checked} />
-        <span>${escapeHtml(g.name)}</span>
+        <span>${escapeHtml(stripTakPrefix(g.name))}</span>
       </label>
     `;
   }).join("");
