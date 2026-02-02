@@ -84,24 +84,22 @@
   </div>
 
   <hr style="margin: 18px 0; border: none; border-top: 1px solid var(--line);" />
-
-
   <div class="card">
-    <h2>Search</h2>
-    <form id="searchForm" class="row">
-      <input
-        id="q"
-        placeholder="Search username, email, or name..."
-        style="min-width: 360px;"
-        autocomplete="off"
-      />
-    </form>
+    <div class="row" style="justify-content: space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+      <h2 style="margin:0;">Results</h2>
+
+      <form id="searchForm" class="row" style="margin:0;">
+        <input
+          id="q"
+          placeholder="Search username, email, or name..."
+          style="min-width: 360px;"
+          autocomplete="off"
+        />
+      </form>
+    </div>
 
     <div id="msg" class="msg"></div>
-  </div>
 
-  <div class="card">
-    <h2>Results</h2>
 
     <!-- Pagination controls (top) -->
     <div class="pagination" id="paginationTop">
