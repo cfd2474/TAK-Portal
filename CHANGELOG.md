@@ -10,6 +10,10 @@ All notable changes to this project will be documented in this file.  Minor qual
 
 ## Version History
 
+### v1.2.0 - 2/1/26
+✨ `Enhancement` - 'Create Users' and 'Manage Users' are now combined into a single 'Users' page <br>
+✨ `Enhancement` - Cleans up weird looks with Templates page
+
 ### v1.1.51 - 2/1/26
 🎉 `New Feature` - Added an 'Email Packet' button to Mutual Aid QR Codes, allowing you to email out the deployment packet to an IC or others without the need to download it first and manually email it.
 
