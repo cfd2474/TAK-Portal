@@ -87,16 +87,17 @@
   <div class="card">
     <div class="row" style="justify-content: space-between; align-items:center; gap:12px; flex-wrap:wrap;">
       <h2 style="margin:0;">Existing Users</h2>
-
-      <form id="searchForm" class="row" style="margin:0;">
-        <input
-          id="q"
-          placeholder="Search username, email, or name..."
-          style="min-width: 360px;"
-          autocomplete="off"
-        />
-      </form>
     </div>
+
+    <!-- Full-width search input (match Groups page styling) -->
+    <form id="searchForm" style="margin:0;">
+      <input
+        id="q"
+        placeholder="Search username, email, or name..."
+        style="margin: 10px 0; width: 100%; box-sizing: border-box;"
+        autocomplete="off"
+      />
+    </form>
 
     <div id="msg" class="msg"></div>
 
@@ -569,6 +570,9 @@ form.onsubmit = async (e) => {
   renderGroupsBox();
 
   await loadMeta();
+
+  // Refresh the Existing Users table after successful creation
+  window.dispatchEvent(new CustomEvent("users:refresh"));
 };
 
 // -------------------- Init --------------------
@@ -696,6 +700,9 @@ if (csvBtn && csvFileInput) {
         if (skippedArr.length) {
           console.warn("Skipped users during CSV import:", skippedArr);
         }
+
+        // Refresh the Existing Users table after the import completes
+        window.dispatchEvent(new CustomEvent("users:refresh"));
 
         if (pollTimer) clearInterval(pollTimer);
         pollTimer = null;
@@ -2021,6 +2028,13 @@ async function loadAllUsers(){
     setMsgEl(msg, "No users found.", true);
   }
 }
+
+// Allow other parts of the page (Create User + CSV import) to request a refresh
+window.addEventListener("users:refresh", () => {
+  loadAllUsers().catch((err) => {
+    setMsgEl(msg, err?.message || "Failed to refresh users", false);
+  });
+});
 
 searchForm.onsubmit = (e) => {
   e.preventDefault();
