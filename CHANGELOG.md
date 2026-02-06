@@ -2,6 +2,8 @@
 
 All notable changes to this project will be documented in this file.  Minor quality improvements or tweaks may not be listed.
 
+Planned features can be accessed [here](docs/roadmap.md)
+
 <!-- 🎉 `New Feature` - -->
 <!-- ✨ `Enhancement` - -->
 <!-- ✏️ `Documentation` - -->
