@@ -48,9 +48,9 @@ function normalizePath(p) {
 }
 
 function validateBadgeNumber(badge) {
-  return /^\d+$/.test(String(badge || ""))
-    ? null
-    : "Badge Number must contain numbers only.";
+  const b = String(badge || "").trim();
+  if (!b) return "Badge / Username is required.";
+  return null;
 }
 
 function validatePassword(password) {
@@ -635,9 +635,8 @@ async function createUser(
 
   const first = String(firstName || "").trim();
   const last = String(lastName || "").trim();
-  const mail = String(email || "").trim();
+  const mail = String(email || "").trim() || null;
 
-  if (!mail) throw new Error("Email required");
   if (!first) throw new Error("First name required");
   if (!last) throw new Error("Last name required");
 
@@ -887,7 +886,6 @@ async function importUsersFromCsvBuffer(buffer, opts = {}) {
     if (!agencyRaw) errors.push({ line: lineNum, message: "Missing agency" });
     if (!firstName) errors.push({ line: lineNum, message: "Missing first name" });
     if (!lastName) errors.push({ line: lineNum, message: "Missing last name" });
-    if (!email) errors.push({ line: lineNum, message: "Missing email" });
     if (!templateName) errors.push({ line: lineNum, message: "Missing template" });
 
     // Badge must be numerics only (same rule as UI)
@@ -1345,8 +1343,7 @@ async function resetPassword(userId, password) {
 
 async function updateEmail(userId, email) {
   await assertUserNotActionLocked(userId);
-  const mail = String(email || "").trim();
-  if (!mail) throw new Error("Email required");
+  const mail = String(email || "").trim() || null;
   await api.patch(`/core/users/${userId}/`, { email: mail });
   return true;
 }
