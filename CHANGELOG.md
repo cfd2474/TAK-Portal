@@ -12,6 +12,10 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
+### v1.2.1 - 2/17/26
+✨ `Enhancement` - Allows for users to be created with a username other than numbers and makes email field optional <br>
+🐛 `Bug Fix` - Fixes issue with agency admin groups getting created with a "tak_" prefix
+
 ### v1.2.0 - 2/1/26
 ✨ `Enhancement` - Removes 'Create Users' page and combines it with 'Manage Users' as a single 'Users' page <br>
 🐛 `Bug Fix` - Cleans up weird looks with Templates page
