@@ -552,8 +552,8 @@ form.onsubmit = async (e) => {
   const first = payload.firstName || "";
   const last = payload.lastName || "";
 
-  // Use the actual username returned from the API (already normalized)
-  const username = out.username || "";
+  // Pull actual normalized username from API response
+  const username = (out.user && out.user.username) || "";
 
   setMsg(`${username} – ${last}, ${first} created successfully`, true);
 
