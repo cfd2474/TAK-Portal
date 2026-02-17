@@ -12,6 +12,9 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
+### v1.2.2 - 2/17/26
+✨ `Enhancement` - Normalizes usernames to be all lowercase without spaces
+
 ### v1.2.1 - 2/17/26
 ✨ `Enhancement` - Allows for users to be created with a username other than numbers and makes email field optional <br>
 🐛 `Bug Fix` - Fixes issue with agency admin groups getting created with a "tak_" prefix
