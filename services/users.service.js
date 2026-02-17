@@ -1343,7 +1343,7 @@ async function resetPassword(userId, password) {
 
 async function updateEmail(userId, email) {
   await assertUserNotActionLocked(userId);
-  const mail = String(email || "").trim() || null;
+  const mail = String(email || "").trim();
   await api.patch(`/core/users/${userId}/`, { email: mail });
   return true;
 }
