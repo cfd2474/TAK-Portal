@@ -9,8 +9,8 @@
     <h2>Create User</h2>
 
     <form id="createForm" class="grid2" autocomplete="off">
-      <label>Badge Number
-        <input name="badge" placeholder="Numerics Only" required />
+      <label>Badge Number / Username
+        <input type="text" name="badge" placeholder="Enter Badge or Username" required />
       </label>
 
       <label>Agency
@@ -26,7 +26,7 @@
       </label>
 
       <label>Agency Email
-        <input name="email" type="email" placeholder="example@agency.gov" required />
+        <input name="email" type="email" placeholder="example@agency.gov" />
       </label>
 
       <label>Password (optional)
@@ -1828,7 +1828,12 @@ saveEmailBtn.onclick = async () => {
   setMsgEl(actionMsg, "");
 
   const email = String(emailInput.value || "").trim();
-  if (!email) return setMsgEl(actionMsg, "Email is required.", false);
+
+// If provided, must be valid format
+if (email && !emailInput.checkValidity()) {
+  return setMsgEl(actionMsg, "Invalid email format.", false);
+}
+
 
   let res;
   try {
