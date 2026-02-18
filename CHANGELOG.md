@@ -12,6 +12,9 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
+### v1.2.3 - 2/17/26
+✨ `Enhancement` - Adds a state dropdown to agency creation (not currently implemented elsewhere, but here for future planning)
+
 ### v1.2.2 - 2/17/26
 ✨ `Enhancement` - Normalizes usernames to be all lowercase without spaces
 
