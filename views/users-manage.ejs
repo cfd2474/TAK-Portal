@@ -1493,43 +1493,43 @@ window.editUser = async (userPk) => {
         : false;
       permissionsSelect.value = hasAdmin ? "agency_admin" : "user";
       permissionsSelect.disabled = false;
-      if (applyPermissionsBtn) applyPermissionsBtn.disabled = false;
-    } else {
-      permissionsSelect.value = "user";
-      permissionsSelect.disabled = true;
-      if (applyPermissionsBtn) applyPermissionsBtn.disabled = true;
+      if (applyPermissionsBtn) {
+  applyPermissionsBtn.addEventListener("click", async () => {
+    if (!selectedUser) return;
+
+    setMsgEl(actionMsg, "");
+    const desired = (permissionsSelect && permissionsSelect.value) || "user";
+
+    setMsgEl(actionMsg, "Updating permissions...", true);
+
+    try {
+      const res = await fetch(`/api/users/${selectedUser.pk}/set-role`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: desired }),
+      });
+
+      const out = await res.json();
+
+      if (!res.ok) {
+        setMsgEl(actionMsg, out.error || "Failed to update permissions.", false);
+        return;
+      }
+
+      selectedUser.groups = Array.isArray(out.groups)
+        ? out.groups
+        : selectedUser.groups;
+
+      setMsgEl(
+        actionMsg,
+        "Permissions updated successfully.",
+        true
+      );
+    } catch (err) {
+      setMsgEl(actionMsg, "Network error while updating permissions.", false);
     }
-  }
-
-  // modal-only action buttons are not present; guard if you ever add them back
-  if (toggleBtn) {
-    toggleBtn.textContent = selectedUser.is_active ? "Disable User" : "Enable User";
-  }
-
-  await loadTemplatesForAgency(
-    (selectedUser && selectedUser.attributes && selectedUser.attributes.agency) || ""
-  );
-
-  openModal();
-};
-
-// ---------- Permissions apply ----------
-if (applyPermissionsBtn) applyPermissionsBtn.addEventListener("click", async () => {
-  if (!selectedUser) return;
-
-  setMsgEl(actionMsg, "");
-
-  const desired = (permissionsSelect && permissionsSelect.value) || "user";
-
-  setMsgEl(actionMsg, "Updating permissions...", true);
-
-  let res;
-  try {
-    res = await fetch(`/api/users/${selectedUser.pk}/set-role`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role: desired }),
-    });
+  });
+}
   } catch (err) {
     setMsgEl(actionMsg, "Network error while updating permissions.", false);
     return;
