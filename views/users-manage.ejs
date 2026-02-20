@@ -1520,46 +1520,31 @@ if (applyPermissionsBtn) applyPermissionsBtn.addEventListener("click", async () 
   setMsgEl(actionMsg, "");
 
   const desired = (permissionsSelect && permissionsSelect.value) || "user";
-  const isAgencyAdmin = desired === "agency_admin";
-  const isGlobalAdmin = desired === "global_admin";
-  const adminGroupName = getAgencyAdminGroupNameForUser(selectedUser);
-
-  if (!adminGroupName) {
-    setMsgEl(actionMsg, "Cannot set permissions: user has no agency abbreviation.", false);
-    return;
-  }
-
-  const adminGroupId = await resolveGroupIdByName(adminGroupName);
-  if (!adminGroupId) {
-    setMsgEl(actionMsg, `Cannot find group: ${adminGroupName}.`, false);
-    return;
-  }
-
-  const currentlyHasAdmin = (selectedUser.groups || []).some(gid => String(gid) === String(adminGroupId));
-
-  // Keep behavior simple and predictable:
-  // - Selecting Agency Admin adds the group
-  // - Selecting User removes the group (if present)
-  const shouldHaveAdmin = isAgencyAdmin;
-
-  if (shouldHaveAdmin === currentlyHasAdmin) {
-    setMsgEl(actionMsg, shouldHaveAdmin ? "Already an Agency Admin." : "Already a User.", true);
-    return;
-  }
-
-  const url = shouldHaveAdmin
-    ? `/api/users/${selectedUser.pk}/groups/add`
-    : `/api/users/${selectedUser.pk}/groups/remove`;
 
   setMsgEl(actionMsg, "Updating permissions...", true);
 
   let res;
   try {
-    res = await fetch(url, {
+    res = await fetch(`/api/users/${selectedUser.pk}/set-role`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ groupIds: [String(adminGroupId)] }),
+      body: JSON.stringify({ role: desired }),
     });
+  } catch (err) {
+    setMsgEl(actionMsg, "Network error while updating permissions.", false);
+    return;
+  }
+
+  const out = await res.json();
+  if (!res.ok) {
+    setMsgEl(actionMsg, out.error || "Failed to update permissions.", false);
+    return;
+  }
+
+  selectedUser.groups = Array.isArray(out.groups) ? out.groups : selectedUser.groups;
+
+  setMsgEl(actionMsg, `Permissions updated: ${desired.replace("_", " ").toUpperCase()}.`, true);
+});
   } catch (err) {
     setMsgEl(actionMsg, "Network error while updating permissions.", false);
     return;
