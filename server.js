@@ -146,7 +146,7 @@ app.use((req, res, next) => {
 });
 
 // >>> Enforce optional Authentik/group access control <<<
-//app.use(portalAuth);
+app.use(portalAuth);
 
 // Helper: only allow Global Admins to access certain routes (e.g. settings, templates)
 function requireGlobalAdmin(req, res, next) {
