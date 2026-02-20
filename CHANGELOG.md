@@ -12,6 +12,9 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
+### v1.2.4 - 2/20/26
+✨ `Enhancement` - Adds State Wide Group creation for Global Admins with the ability for Agency Admins to assign the group
+
 ### v1.2.3 - 2/17/26
 ✨ `Enhancement` - Adds a state dropdown to agency creation (not currently implemented elsewhere, but here for future planning)
 
