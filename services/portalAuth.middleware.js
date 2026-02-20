@@ -21,6 +21,8 @@ const PUBLIC_PATHS = new Set([
   "/",
   "/dashboard",
   "/setup-my-device",
+  "/request-access",
+  "/request-access/confirmation",
   "/api/setup-my-device/enroll-qr",
   "/api/qr/download",
   "/styles.css",
@@ -56,6 +58,12 @@ function portalAuthMiddleware(req, res, next) {
 
   const normalizedPath = normalizePath(req.path);
   const isPublicPath = PUBLIC_PATHS.has(normalizedPath);
+
+  // Allow anonymous submission of access requests without exposing the
+  // admin-only listing endpoint.
+  const isPublicAccessRequestSubmit =
+    normalizedPath === "/api/user-requests" &&
+    String(req.method || "").toUpperCase() === "POST";
 
   // ============================================================
   // AUTH DISABLED => EVERYTHING WIDE OPEN + BOOTSTRAP ADMIN USER
@@ -95,7 +103,7 @@ function portalAuthMiddleware(req, res, next) {
   const groupsHeader = req.headers["x-authentik-groups"] || "";
 
   // Allow completely anonymous access to public paths
-  if (!username && isPublicPath) {
+  if (!username && (isPublicPath || isPublicAccessRequestSubmit)) {
     return next();
   }
 

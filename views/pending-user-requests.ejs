@@ -1,0 +1,471 @@
+<%- include("partials/header") %>
+<%- include("partials/sidebar") %>
+
+<main class="main">
+  <h1>Pending User Requests</h1>
+
+  <div class="card">
+    <div class="row" style="justify-content: space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+      <h2 style="margin:0;">Requests</h2>
+      <button class="btn" type="button" id="refreshBtn">Refresh</button>
+    </div>
+
+    <div id="listMsg" class="msg"></div>
+
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Submitted</th>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Badge</th>
+          <th>Agency</th>
+          <th>Other Details</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="reqTbody"></tbody>
+    </table>
+  </div>
+
+  <div class="card" id="approveCard" style="display:none;">
+    <h2>Create User (Approve Request)</h2>
+    <p class="muted" id="approveNote"></p>
+
+    <form id="createForm" class="grid2" autocomplete="off">
+      <input type="hidden" id="requestId" name="requestId" />
+
+      <label>Badge Number / Username
+        <input type="text" name="badge" id="badgeInput" placeholder="Enter Badge Number or Username" required />
+      </label>
+
+      <label>Agency
+        <select name="agencySuffix" id="createAgencySelect" required></select>
+      </label>
+
+      <label>First Name
+        <input name="firstName" id="firstNameInput" placeholder="John" required />
+      </label>
+
+      <label>Last Name
+        <input name="lastName" id="lastNameInput" placeholder="Doe" required />
+      </label>
+
+      <label>Email (optional)
+        <input name="email" id="emailInput" type="email" placeholder="example@agency.gov" />
+      </label>
+
+      <label>Password (optional)
+        <div class="passwordWrap">
+          <input
+            id="createPasswordInput"
+            name="password"
+            type="password"
+            placeholder="Min 12 characters: upper, lower, number, and symbol"
+            minlength="12"
+            pattern="^(?=.*[A-Z])(?=.*[a-z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{12,}$"
+          />
+          <button
+            type="button"
+            id="createPasswordToggle"
+            class="passwordToggle"
+            aria-label="Show password"
+          >👁</button>
+        </div>
+      </label>
+
+      <label>Template
+        <select name="templateIndex" id="createTemplateSelect"></select>
+      </label>
+
+      <!-- Manual Groups (checkbox picker) -->
+      <div id="createManualGroupsWrap" style="display:none; grid-column: 1 / -1;">
+        <h3 style="margin-top:0;">Manual Groups</h3>
+
+        <label style="display:block;">
+          Groups
+          <input id="createGroupFilter" placeholder="Search groups..." />
+
+          <div class="row" style="gap:10px; margin-top:8px;">
+            <button class="btn" id="createSelectAllBtn" type="button">Select All</button>
+            <button class="btn" id="createClearAllBtn" type="button">Clear</button>
+          </div>
+
+          <div id="createGroupsBox" class="groupsBox">
+            <div id="createGroupsInner" class="groupsInner"></div>
+          </div>
+        </label>
+      </div>
+
+      <div style="grid-column: 1 / -1; display:flex; align-items:center; gap:10px; flex-wrap: wrap;">
+        <button class="btn" type="submit">Create User</button>
+        <button class="btn" type="button" id="cancelApproveBtn">Cancel</button>
+        <span id="createMsg" class="msg"></span>
+      </div>
+    </form>
+  </div>
+</main>
+
+<script>
+(function(){
+  const tbody = document.getElementById('reqTbody');
+  const listMsg = document.getElementById('listMsg');
+  const refreshBtn = document.getElementById('refreshBtn');
+
+  const approveCard = document.getElementById('approveCard');
+  const approveNote = document.getElementById('approveNote');
+  const requestIdEl = document.getElementById('requestId');
+  const cancelApproveBtn = document.getElementById('cancelApproveBtn');
+
+  const agencySelect = document.getElementById('createAgencySelect');
+  const templateSelect = document.getElementById('createTemplateSelect');
+  const manualGroupsWrap = document.getElementById('createManualGroupsWrap');
+  const groupFilter = document.getElementById('createGroupFilter');
+  const groupsBox = document.getElementById('createGroupsBox');
+  const groupsInner = document.getElementById('createGroupsInner');
+  const selectAllBtn = document.getElementById('createSelectAllBtn');
+  const clearAllBtn = document.getElementById('createClearAllBtn');
+  const msg = document.getElementById('createMsg');
+  const form = document.getElementById('createForm');
+
+  const badgeInput = document.getElementById('badgeInput');
+  const firstNameInput = document.getElementById('firstNameInput');
+  const lastNameInput = document.getElementById('lastNameInput');
+  const emailInput = document.getElementById('emailInput');
+
+  // PASSWORD TOGGLE
+  const passwordInput = document.getElementById('createPasswordInput');
+  const passwordToggle = document.getElementById('createPasswordToggle');
+  if (passwordInput && passwordToggle) {
+    passwordToggle.textContent = '👁';
+    passwordToggle.addEventListener('click', () => {
+      const isHidden = passwordInput.type === 'password';
+      passwordInput.type = isHidden ? 'text' : 'password';
+      passwordToggle.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
+    });
+  }
+
+  let requestsCache = [];
+  let groupsCache = [];
+  let templatesCache = [];
+  let pickedManualGroupIds = new Set();
+
+  function setListMsg(text, ok = true) {
+    listMsg.textContent = text || '';
+    listMsg.className = 'msg ' + (ok ? 'ok' : 'bad');
+  }
+  function setMsg(text, ok = true) {
+    msg.textContent = text || '';
+    msg.className = 'msg ' + (ok ? 'ok' : 'bad');
+  }
+  function esc(s) {
+    return String(s ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  function fmtDate(iso) {
+    const d = iso ? new Date(iso) : null;
+    if (!d || isNaN(d.getTime())) return '';
+    return d.toLocaleString();
+  }
+
+  async function loadRequests() {
+    setListMsg('');
+    const res = await fetch('/api/user-requests');
+    const out = await res.json();
+    if (!res.ok) throw new Error(out.error || 'Failed to load requests');
+    requestsCache = Array.isArray(out) ? out : [];
+    renderTable();
+  }
+
+  function renderTable() {
+    if (!tbody) return;
+    if (!requestsCache.length) {
+      tbody.innerHTML = `<tr><td colspan="7" class="muted">No pending requests.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = requestsCache.map(r => {
+      const agencyLabel = r.agencySuffix === '__other__'
+        ? 'Other / Not Listed'
+        : (r.agencyName ? `${r.agencyName} (${r.agencySuffix})` : r.agencySuffix);
+      const other = r.agencySuffix === '__other__'
+        ? `<div><strong>${esc(r.otherAgency || '')}</strong><br>${esc(r.otherReason || '')}</div>`
+        : '';
+      return `
+        <tr>
+          <td>${esc(fmtDate(r.createdAt))}</td>
+          <td>${esc((r.firstName||'') + ' ' + (r.lastName||''))}</td>
+          <td>${esc(r.email||'')}</td>
+          <td>${esc(r.badgeNumber||'')}</td>
+          <td>${esc(agencyLabel)}</td>
+          <td>${other}</td>
+          <td>
+            <div class="row" style="gap:8px; flex-wrap:wrap;">
+              <button class="btn" type="button" data-action="approve" data-id="${esc(r.id)}">Approve</button>
+              <button class="btn" type="button" data-action="reject" data-id="${esc(r.id)}">Reject</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  tbody.addEventListener('click', async (e) => {
+    const btn = e.target && e.target.closest ? e.target.closest('button[data-action]') : null;
+    if (!btn) return;
+    const id = btn.getAttribute('data-id');
+    const action = btn.getAttribute('data-action');
+    const reqObj = requestsCache.find(r => String(r.id) === String(id));
+    if (!reqObj) return;
+
+    if (action === 'reject') {
+      if (!confirm('Reject this request? This will delete it.')) return;
+      try {
+        const res = await fetch('/api/user-requests/' + encodeURIComponent(id), { method: 'DELETE' });
+        const out = await res.json();
+        if (!res.ok) throw new Error(out.error || 'Failed to delete request');
+        setListMsg('Request rejected.', true);
+        await loadRequests();
+        hideApprove();
+      } catch (err) {
+        setListMsg(err.message || 'Failed to reject request', false);
+      }
+      return;
+    }
+
+    if (action === 'approve') {
+      showApprove(reqObj);
+    }
+  });
+
+  function hideApprove() {
+    approveCard.style.display = 'none';
+    requestIdEl.value = '';
+    setMsg('');
+  }
+
+  function showApprove(r) {
+    approveCard.style.display = 'block';
+    requestIdEl.value = r.id;
+
+    badgeInput.value = r.badgeNumber || '';
+    firstNameInput.value = r.firstName || '';
+    lastNameInput.value = r.lastName || '';
+    emailInput.value = r.email || '';
+
+    const isOther = r.agencySuffix === '__other__';
+    approveNote.textContent = isOther
+      ? `Requested agency: ${r.otherAgency || 'Other'} (not listed). Select the appropriate agency for the new user.`
+      : '';
+
+    // Best-effort preselect
+    if (!isOther && agencySelect) {
+      agencySelect.value = String(r.agencySuffix || '');
+    }
+
+    // Reload templates for selected agency
+    loadMeta().catch(err => setMsg(err.message || 'Failed to load templates', false));
+
+    approveCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  cancelApproveBtn.addEventListener('click', () => hideApprove());
+
+  // ----- Password validator -----
+  function isValidPassword(pwd) {
+    if (!pwd) return true;
+    const re = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{12,}$/;
+    return re.test(pwd);
+  }
+
+  // -------------------- Agencies --------------------
+  async function loadAgencies() {
+    const res = await fetch('/api/agencies');
+    const agencies = await res.json();
+    if (!res.ok) throw new Error(agencies.error || 'Failed to load agencies');
+
+    agencySelect.innerHTML = (agencies || [])
+      .slice()
+      .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+      .map(a => `<option value="${esc(a.suffix)}">${esc(a.name)} (${esc(a.suffix)})</option>`)
+      .join('');
+  }
+
+  // -------------------- Templates --------------------
+  async function loadMeta() {
+    const sfx = agencySelect.value || '';
+    const res = await fetch('/api/users/meta?agencySuffix=' + encodeURIComponent(sfx));
+    const meta = await res.json();
+    if (!res.ok) throw new Error(meta.error || 'Failed to load templates');
+
+    const raw = Array.isArray(meta.templates) ? meta.templates : [];
+    const all = raw.map((t, idx) => ({ ...t, name: t.name || t.label || `Template ${idx + 1}` }));
+
+    const manual =
+      all[0] && String(all[0].name || '').toLowerCase().includes('manual')
+        ? all[0]
+        : { name: 'Manual Group Selection', groups: [] };
+
+    const rest = all.slice(1).slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    templatesCache = [manual, ...rest];
+
+    templateSelect.innerHTML = templatesCache
+      .map((t, i) => `<option value="${i}">${esc(t.name)}</option>`)
+      .join('');
+
+    let defaultIndex = 0;
+    const defaultInRest = rest.findIndex((t) => !!t.isDefault);
+    if (defaultInRest >= 0) defaultIndex = 1 + defaultInRest;
+    else if (templatesCache.length > 1) defaultIndex = 1;
+
+    templateSelect.value = String(defaultIndex);
+    if (typeof templateSelect.onchange === 'function') templateSelect.onchange();
+  }
+
+  agencySelect.addEventListener('change', () => {
+    pickedManualGroupIds.clear();
+    groupFilter.value = '';
+    renderGroupsBox();
+    loadMeta().catch(err => setMsg(err.message || 'Failed to load templates', false));
+  });
+
+  // -------------------- Manual Groups --------------------
+  function renderGroupsBox() {
+    const needle = String(groupFilter.value || '').trim().toLowerCase();
+    const sorted = groupsCache
+      .slice()
+      .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    const filtered = needle
+      ? sorted.filter((g) => String(g.name || '').toLowerCase().includes(needle))
+      : sorted;
+
+    groupsInner.innerHTML = filtered
+      .map((g) => {
+        const id = String(g.pk);
+        const rawName = String(g.name || '');
+        const name = rawName.replace(/^tak_/, '');
+        return `
+          <label class="groupItem">
+            <input type="checkbox" value="${esc(id)}" />
+            <span>${esc(name)}</span>
+          </label>
+        `;
+      })
+      .join('');
+
+    Array.from(groupsBox.querySelectorAll('input[type="checkbox"]')).forEach((cb) => {
+      cb.checked = pickedManualGroupIds.has(String(cb.value));
+    });
+  }
+
+  groupsBox.addEventListener('change', (e) => {
+    const cb = e.target;
+    if (!cb || cb.tagName !== 'INPUT' || cb.type !== 'checkbox') return;
+    const id = String(cb.value);
+    if (cb.checked) pickedManualGroupIds.add(id);
+    else pickedManualGroupIds.delete(id);
+  });
+
+  groupFilter.oninput = () => renderGroupsBox();
+
+  selectAllBtn.onclick = () => {
+    Array.from(groupsBox.querySelectorAll('input[type="checkbox"]')).forEach((cb) => {
+      cb.checked = true;
+      pickedManualGroupIds.add(String(cb.value));
+    });
+  };
+
+  clearAllBtn.onclick = () => {
+    Array.from(groupsBox.querySelectorAll('input[type="checkbox"]')).forEach((cb) => (cb.checked = false));
+    pickedManualGroupIds.clear();
+  };
+
+  function getPickedManualGroupIds() {
+    return Array.from(pickedManualGroupIds);
+  }
+
+  async function loadGroups() {
+    const res = await fetch('/api/users/groups');
+    const out = await res.json();
+    if (!res.ok) throw new Error(out.error || 'Failed to load groups');
+    groupsCache = Array.isArray(out) ? out : [];
+    renderGroupsBox();
+  }
+
+  templateSelect.onchange = () => {
+    const isManual = templateSelect.value === '0';
+    manualGroupsWrap.style.display = isManual ? 'block' : 'none';
+  };
+
+  // -------------------- Submit (Create User) --------------------
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    setMsg('');
+
+    const fd = new FormData(form);
+    const payload = Object.fromEntries(fd.entries());
+
+    const pwd = String(payload.password || '').trim();
+    if (!isValidPassword(pwd)) {
+      setMsg('Password must be at least 12 characters with upper, lower, number, and symbol.', false);
+      return;
+    }
+
+    payload.templateIndex = Number(payload.templateIndex);
+
+    // If manual template selected, include manualGroupIds
+    if (String(payload.templateIndex) === '0') {
+      payload.manualGroupIds = getPickedManualGroupIds();
+    }
+
+    // Remove requestId before sending to /api/users
+    const requestId = String(payload.requestId || '').trim();
+    delete payload.requestId;
+
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const out = await res.json();
+      if (!res.ok) throw new Error(out.error?.message || out.error || 'Failed to create user');
+
+      // Delete the pending request after successful creation
+      if (requestId) {
+        await fetch('/api/user-requests/' + encodeURIComponent(requestId), { method: 'DELETE' });
+      }
+
+      setMsg('User created. Request approved.', true);
+      setListMsg('Request approved.', true);
+      await loadRequests();
+      hideApprove();
+    } catch (err) {
+      setMsg(err.message || 'Failed to create user', false);
+    }
+  };
+
+  refreshBtn.addEventListener('click', () => {
+    loadRequests().catch(err => setListMsg(err.message || 'Failed to load requests', false));
+  });
+
+  // Init
+  (async function init(){
+    try {
+      await loadAgencies();
+      await loadMeta();
+      await loadGroups();
+      await loadRequests();
+    } catch (err) {
+      setListMsg(err.message || 'Failed to load page data', false);
+    }
+  })();
+})();
+</script>
+
+</div></body></html>

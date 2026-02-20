@@ -1,0 +1,94 @@
+<%- include("partials/header") %>
+
+<main class="main" style="max-width: 980px; margin: 0 auto;">
+  <h1>Request Access</h1>
+
+  <div class="card">
+    <p>
+      Use this form to request access to the TAK Portal. A Global Administrator will review your request.
+    </p>
+
+    <% if (typeof error !== "undefined" && error) { %>
+      <div class="msg bad" style="margin-bottom: 12px;"><%= error %></div>
+    <% } %>
+
+    <form method="POST" action="/request-access" class="grid2" autocomplete="off">
+      <label>First Name
+        <input name="firstName" required value="<%= (form && form.firstName) ? form.firstName : '' %>" />
+      </label>
+
+      <label>Last Name
+        <input name="lastName" required value="<%= (form && form.lastName) ? form.lastName : '' %>" />
+      </label>
+
+      <label>Email Address
+        <input name="email" type="email" required value="<%= (form && form.email) ? form.email : '' %>" />
+      </label>
+
+      <label>Badge Number
+        <input name="badgeNumber" required value="<%= (form && form.badgeNumber) ? form.badgeNumber : '' %>" />
+      </label>
+
+      <label style="grid-column: 1 / -1;">Agency
+        <select name="agencySuffix" id="agencySelect" required>
+          <% 
+            const list = Array.isArray(agencies) ? agencies.slice() : [];
+            list.sort((a,b) => String(a?.name||'').localeCompare(String(b?.name||'')));
+            const selected = (form && form.agencySuffix) ? String(form.agencySuffix) : '';
+          %>
+          <% list.forEach(a => { %>
+            <option value="<%= a.suffix %>" <%= (selected && selected === a.suffix) ? 'selected' : '' %>>
+              <%= a.name %> (<%= a.suffix %>)
+            </option>
+          <% }) %>
+          <option value="__other__" <%= selected === '__other__' ? 'selected' : '' %>>Other / My Agency Isn't Listed</option>
+        </select>
+      </label>
+
+      <div id="otherWrap" style="grid-column: 1 / -1; display:none;">
+        <div class="card" style="margin: 0;">
+          <h3 style="margin-top: 0;">Other Agency</h3>
+
+          <label>Agency Name
+            <input name="otherAgency" id="otherAgency" value="<%= (form && form.otherAgency) ? form.otherAgency : '' %>" />
+          </label>
+
+          <label style="display:block; margin-top: 10px;">Reason for requesting access
+            <textarea
+              name="otherReason"
+              id="otherReason"
+              rows="4"
+              style="width: 100%; box-sizing: border-box;"
+            ><%= (form && form.otherReason) ? form.otherReason : '' %></textarea>
+          </label>
+        </div>
+      </div>
+
+      <div style="grid-column: 1 / -1; display:flex; align-items:center; gap:10px; flex-wrap: wrap;">
+        <button class="btn" type="submit">Submit Request</button>
+        <a class="btn" href="/setup-my-device" style="text-decoration:none;">Back</a>
+      </div>
+    </form>
+  </div>
+</main>
+
+<script>
+(function(){
+  const sel = document.getElementById('agencySelect');
+  const wrap = document.getElementById('otherWrap');
+  const otherAgency = document.getElementById('otherAgency');
+  const otherReason = document.getElementById('otherReason');
+
+  function update() {
+    const isOther = sel && sel.value === '__other__';
+    if (wrap) wrap.style.display = isOther ? 'block' : 'none';
+    if (otherAgency) otherAgency.required = !!isOther;
+    if (otherReason) otherReason.required = !!isOther;
+  }
+
+  if (sel) sel.addEventListener('change', update);
+  update();
+})();
+</script>
+
+</div></body></html>

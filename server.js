@@ -14,6 +14,8 @@ const portalAuth = require("./services/portalAuth.middleware");
 const emailSvc = require("./services/email.service");
 const emailTemplatesSvc = require("./services/emailTemplates.service");
 const qrSvc = require("./services/qr.service");
+const agenciesStore = require("./services/agencies.service");
+const userRequestsSvc = require("./services/userRequests.service");
 
 const app = express();
 
@@ -205,6 +207,7 @@ app.use("/api/qr", require("./routes/qr.routes"));
 app.use("/api/setup-my-device", require("./routes/setupDevice.routes"));
 app.use("/api/mutual-aid", require("./routes/mutualAid.routes"));
 app.use("/api/tak", require("./routes/takMetrics.routes"));
+app.use("/api/user-requests", require("./routes/userRequests.routes"));
 app.use("/dashboard", require("./routes/dashboard.routes"));
 
 // UI Routes
@@ -232,6 +235,44 @@ app.get("/setup-my-device", (req, res) => {
   // Used by the Setup My Device page to display the correct TAK server hostname.
   const takHost = qrSvc.getTakHost();
   return res.render("setup-my-device", { takHost });
+});
+
+// Public: request access form (must remain reachable by non-authenticated users)
+app.get("/request-access", (req, res) => {
+  const agencies = agenciesStore.load();
+  return res.render("request-access", { agencies });
+});
+
+app.post("/request-access", (req, res) => {
+  try {
+    const body = req.body || {};
+    userRequestsSvc.createRequest({
+      firstName: body.firstName,
+      lastName: body.lastName,
+      email: body.email,
+      badgeNumber: body.badgeNumber,
+      agencySuffix: body.agencySuffix,
+      otherAgency: body.otherAgency,
+      otherReason: body.otherReason,
+    });
+    return res.redirect("/request-access/confirmation");
+  } catch (err) {
+    const agencies = agenciesStore.load();
+    return res.status(400).render("request-access", {
+      agencies,
+      error: err?.message || "Failed to submit request",
+      form: req.body || {},
+    });
+  }
+});
+
+app.get("/request-access/confirmation", (req, res) => {
+  return res.render("request-access-confirmation");
+});
+
+// Admin: review pending access requests
+app.get("/pending-user-requests", requireGlobalAdmin, (req, res) => {
+  return res.render("pending-user-requests");
 });
 
 app.get("/settings", requireGlobalAdmin, (req, res) => {
