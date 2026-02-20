@@ -78,8 +78,12 @@ router.post("/", async (req, res) => {
 
       const upperName = nameWithoutTak.toUpperCase();
       const canCreateForAny = allowedPrefixes.some((prefix) => {
-        // Support both "CPD-GROUP" and "CPD - GROUP"
+        // Allow:
+        // PREFIX <space>
+        // PREFIX-...
+        // PREFIX -...
         return (
+          upperName.startsWith(prefix + " ") ||
           upperName.startsWith(prefix + "-") ||
           upperName.startsWith(prefix + " -")
         );
