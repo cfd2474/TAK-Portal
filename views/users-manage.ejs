@@ -241,7 +241,6 @@
             <select id="permissionsSelect">
               <option value="user">User</option>
               <option value="agency_admin">Agency Admin</option>
-              <option value="global_admin">Global Admin</option>
             </select>
 
             <button class="btn" id="applyPermissionsBtn" type="button">
@@ -1493,39 +1492,71 @@ window.editUser = async (userPk) => {
         : false;
       permissionsSelect.value = hasAdmin ? "agency_admin" : "user";
       permissionsSelect.disabled = false;
-      if (applyPermissionsBtn) applyPermissionsBtn.addEventListener("click", async () => {
+      if (applyPermissionsBtn) applyPermissionsBtn.disabled = false;
+    } else {
+      permissionsSelect.value = "user";
+      permissionsSelect.disabled = true;
+      if (applyPermissionsBtn) applyPermissionsBtn.disabled = true;
+    }
+  }
+
+  // modal-only action buttons are not present; guard if you ever add them back
+  if (toggleBtn) {
+    toggleBtn.textContent = selectedUser.is_active ? "Disable User" : "Enable User";
+  }
+
+  await loadTemplatesForAgency(
+    (selectedUser && selectedUser.attributes && selectedUser.attributes.agency) || ""
+  );
+
+  openModal();
+};
+
+// ---------- Permissions apply ----------
+if (applyPermissionsBtn) applyPermissionsBtn.addEventListener("click", async () => {
   if (!selectedUser) return;
 
   setMsgEl(actionMsg, "");
 
   const desired = (permissionsSelect && permissionsSelect.value) || "user";
+  const adminGroupName = getAgencyAdminGroupNameForUser(selectedUser);
+
+  if (!adminGroupName) {
+    setMsgEl(actionMsg, "Cannot set permissions: user has no agency abbreviation.", false);
+    return;
+  }
+
+  const adminGroupId = await resolveGroupIdByName(adminGroupName);
+  if (!adminGroupId) {
+    setMsgEl(actionMsg, `Cannot find group: ${adminGroupName}.`, false);
+    return;
+  }
+
+  const currentlyHasAdmin = (selectedUser.groups || []).some(gid => String(gid) === String(adminGroupId));
+
+  // Keep behavior simple and predictable:
+  // - Selecting Agency Admin adds the group
+  // - Selecting User removes the group (if present)
+  const shouldHaveAdmin = desired === "agency_admin";
+
+  if (shouldHaveAdmin === currentlyHasAdmin) {
+    setMsgEl(actionMsg, shouldHaveAdmin ? "Already an Agency Admin." : "Already a User.", true);
+    return;
+  }
+
+  const url = shouldHaveAdmin
+    ? `/api/users/${selectedUser.pk}/groups/add`
+    : `/api/users/${selectedUser.pk}/groups/remove`;
 
   setMsgEl(actionMsg, "Updating permissions...", true);
 
+  let res;
   try {
-    const res = await fetch(`/api/users/${selectedUser.pk}/set-role`, {
+    res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role: desired }),
+      body: JSON.stringify({ groupIds: [String(adminGroupId)] }),
     });
-
-    const out = await res.json();
-
-    if (!res.ok) {
-      setMsgEl(actionMsg, out.error || "Failed to update permissions.", false);
-      return;
-    }
-
-    selectedUser.groups = Array.isArray(out.groups)
-      ? out.groups
-      : selectedUser.groups;
-
-    setMsgEl(actionMsg, "Permissions updated successfully.", true);
-
-  } catch (err) {
-    setMsgEl(actionMsg, "Network error while updating permissions.", false);
-  }
-});
   } catch (err) {
     setMsgEl(actionMsg, "Network error while updating permissions.", false);
     return;
