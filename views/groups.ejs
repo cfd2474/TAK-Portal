@@ -12,8 +12,8 @@
       <select id="createType">
         <option value="agency" selected>Agency-Specific Group</option>
         <% if (isGlobalAdmin) { %>
-        <option value="county">County-Specific</option>
-                <option value="state">State-Specific Group</option>
+        <option value="county">County-Specific Group</option>
+        <option value="state">State-Specific Group</option>
         <option value="generic">Global Group</option>
         <% } %>
       </select>
@@ -31,7 +31,14 @@
       </select>
     </label>
 
-    <label style="flex: 1; min-width: 160px;">Group Name
+    
+
+    <label id="stateWrap" style="display:none;">Select State
+      <select id="stateSelect">
+        <option value="">Select State</option>
+      </select>
+    </label>
+<label style="flex: 1; min-width: 160px;">Group Name
       <input
         id="groupName"
         placeholder="Group name"
@@ -125,8 +132,7 @@
             <select id="editType">
               <option value="agency">Agency-Specific Group</option>
               <% if (isGlobalAdmin) { %>
-              <option value="county">County-Specific</option>
-                <option value="state">State-Specific Group</option>
+              <option value="county">County-Specific Group</option>
               <option value="generic">Global Group</option>
               <% } %>
             </select>
@@ -144,7 +150,14 @@
             </select>
           </label>
 
-          <label style="flex: 1; min-width: 160px;">Group Name
+          
+
+        <label id="editStateWrap" style="display:none;">Select State
+          <select id="editStateSelect">
+            <option value="">Select State</option>
+          </select>
+        </label>
+<label style="flex: 1; min-width: 160px;">Group Name
             <input
               id="editGroupName"
               placeholder="Group name"
@@ -304,12 +317,15 @@ const membersHint = document.getElementById("membersHint");
 const createType = document.getElementById("createType");
 const agencyPrefixSelect = document.getElementById("agencyPrefixSelect");
 const countySelect = document.getElementById("countySelect");
+const stateSelect = document.getElementById("stateSelect");
 const groupName = document.getElementById("groupName");
 const groupDescription = document.getElementById("groupDescription");
 const agencyPrefixWrap = document.getElementById("agencyPrefixWrap");
 const countyWrap = document.getElementById("countyWrap");
+const stateWrap = document.getElementById("stateWrap");
 const editAgencyPrefixWrap = document.getElementById("editAgencyPrefixWrap");
 const editCountyWrap = document.getElementById("editCountyWrap");
+const editStateWrap = document.getElementById("editStateWrap");
 
 // Private dropdown (Global Admins only)
 const privateSelect = document.getElementById("privateSelect");
@@ -420,6 +436,7 @@ const userClearAll = document.getElementById("userClearAll");
 const editType = document.getElementById("editType");
 const editAgencyPrefixSelect = document.getElementById("editAgencyPrefixSelect");
 const editCountySelect = document.getElementById("editCountySelect");
+const editStateSelect = document.getElementById("editStateSelect");
 const editBehaviorSelect = document.getElementById("editBehaviorSelect");
 
 // Private dropdown (Global Admins only)
@@ -486,12 +503,16 @@ async function loadAgencies(){
     agenciesCache = [];
     agencyPrefixSelect.innerHTML = `<option value="">No agencies loaded</option>`;
     countySelect.innerHTML = `<option value="">No counties loaded</option>`;
+    if (stateSelect) stateSelect.innerHTML = `<option value="">No states loaded</option>`;
     // Mirror into edit selects even in error case
     if (editAgencyPrefixSelect) {
       editAgencyPrefixSelect.innerHTML = agencyPrefixSelect.innerHTML;
     }
     if (editCountySelect) {
       editCountySelect.innerHTML = countySelect.innerHTML;
+    }
+    if (editStateSelect && stateSelect) {
+      editStateSelect.innerHTML = stateSelect.innerHTML;
     }
     return;
   }
@@ -524,12 +545,29 @@ async function loadAgencies(){
     `<option value="">Select County</option>` +
     countyList.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join("");
 
-  // Mirror options into Edit modal dropdowns
+  
+  // --- State dropdown (unique states from agencies) ---
+  const stateSet = new Set(
+    agenciesCache
+      .map(a => String(a.state || "").trim().toUpperCase())
+      .filter(s => s)
+  );
+  const stateList = Array.from(stateSet).sort((a, b) => a.localeCompare(b));
+
+  if (stateSelect) {
+    stateSelect.innerHTML =
+      `<option value="">Select State</option>` +
+      stateList.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join("");
+  }
+// Mirror options into Edit modal dropdowns
   if (editAgencyPrefixSelect) {
     editAgencyPrefixSelect.innerHTML = agencyPrefixSelect.innerHTML;
   }
   if (editCountySelect) {
     editCountySelect.innerHTML = countySelect.innerHTML;
+  }
+  if (editStateSelect && stateSelect) {
+    editStateSelect.innerHTML = stateSelect.innerHTML;
   }
 
   renderAgencyList();
@@ -565,6 +603,7 @@ function parseGroupName(fullName) {
   let type = "generic";
   let agencyPrefix = "";
   let county = "";
+  let state = "";
   let baseName = name;
 
   // Try to split on " - "
@@ -605,8 +644,25 @@ function parseGroupName(fullName) {
         county = canonical || leftNoCo || left; // keep original case for the dropdown
         baseName = right || "";
       } else {
-        // Fallback: treat everything as base name
-        baseName = name;
+        // Try State (compare uppercase abbreviations)
+        const stateSet = new Set(
+          (agenciesCache || [])
+            .map(a => String(a.state || "").trim())
+            .filter(Boolean)
+            .map(s => s.toUpperCase())
+        );
+        if (stateSet.has(leftUpper) || stateSet.has(leftNoCoUpper)) {
+          type = "state";
+          const canonical = (agenciesCache || [])
+            .map(a => String(a.state || "").trim())
+            .filter(Boolean)
+            .find(s => s.toUpperCase() === leftUpper);
+          state = (canonical || left).toUpperCase();
+          baseName = right || "";
+        } else {
+          // Fallback: treat everything as base name
+          baseName = name;
+        }
       }
     }
   } else {
@@ -630,7 +686,24 @@ function parseGroupName(fullName) {
     }
   }
 
-  // County: "<County> Co <Title>"
+  
+  // State: "<STATE> <Title>" (when saved without " - ")
+  if (type === "generic") {
+    const upperName = name.toUpperCase();
+    const states = Array.from(new Set(
+      (agenciesCache || [])
+        .map(a => String(a.state || "").trim().toUpperCase())
+        .filter(Boolean)
+    )).sort((a,b)=>b.length - a.length);
+    const hitState = states.find(st => upperName.startsWith(st + " "));
+    if (hitState) {
+      type = "state";
+      state = hitState;
+      baseName = name.slice(hitState.length + 1).trim();
+    }
+  }
+
+// County: "<County> Co <Title>"
   if (type === "generic") {
     const counties = Array.from(new Set(
       (agenciesCache || [])
@@ -645,11 +718,11 @@ function parseGroupName(fullName) {
     }
   }
 
-  return { type, agencyPrefix, county, baseName, behavior };
+  return { type, agencyPrefix, county, state, baseName, behavior };
 }
 
 // Build a full group name from broken-out fields
-function buildGroupNameFromParts({ type, baseName, behavior, prefix, county }) {
+function buildGroupNameFromParts({ type, baseName, behavior, prefix, county, state }) {
   let name = String(baseName || "").trim();
   if (!name) return "";
 
@@ -665,6 +738,11 @@ function buildGroupNameFromParts({ type, baseName, behavior, prefix, county }) {
     const c = String(county || "").trim();
     if (!c) return "";
     name = `${c} Co ${name}`;
+  }
+  else if (type === "state") {
+    const s = String(state || "").trim().toUpperCase();
+    if (!s) return "";
+    name = `${s} - ${name}`;
   }
 
   return ensureTakPrefix(name);
@@ -717,9 +795,12 @@ createType.onchange = () => {
   const v = createType.value;
   const isAgency = v === "agency";
   const isCounty = v === "county";
+    const isState = v === "state";
+  const isState = v === "state";
 
   if (agencyPrefixWrap) agencyPrefixWrap.style.display = isAgency ? "flex" : "none";
   if (countyWrap) countyWrap.style.display = isCounty ? "flex" : "none";
+  if (stateWrap) stateWrap.style.display = isState ? "flex" : "none";
 };
 
 // Show/hide edit agency / county selects based on type
@@ -728,9 +809,11 @@ if (editType) {
     const v = editType.value;
     const isAgency = v === "agency";
     const isCounty = v === "county";
+  const isState = v === "state";
 
     if (editAgencyPrefixWrap) editAgencyPrefixWrap.style.display = isAgency ? "flex" : "none";
     if (editCountyWrap) editCountyWrap.style.display = isCounty ? "flex" : "none";
+    if (editStateWrap) editStateWrap.style.display = isState ? "flex" : "none";
   };
 }
 
@@ -826,6 +909,10 @@ createBtn.onclick = async () => {
     const county = String(countySelect.value || "").trim();
     if (!county) return setMsg(createMsg, "Select a county.", false);
     name = `${county} Co ${name}`;
+  } else if (type === "state") {
+    const st = String(stateSelect?.value || "").trim().toUpperCase();
+    if (!st) return setMsg(createMsg, "Select a state.", false);
+    name = `${st} - ${name}`;
   }
   // type === "generic" just uses the base name + behavior suffix
 
@@ -855,6 +942,12 @@ createBtn.onclick = async () => {
     const county = String(countySelect.value || "").trim();
     if (county) {
       groupTypeDetail = county;
+    }
+  } else if (type === "state") {
+    groupType = "State";
+    const st = String(stateSelect?.value || "").trim().toUpperCase();
+    if (st) {
+      groupTypeDetail = st;
     }
   }
 
@@ -943,6 +1036,9 @@ window.editGroupName = async (groupId) => {
   }
   if (editCountySelect) {
     editCountySelect.value = parsed.county || "";
+  }
+  if (editStateSelect) {
+    editStateSelect.value = (parsed.state || "").toUpperCase();
   }
 
   // Base name (no prefix, no behavior suffix)
@@ -1241,6 +1337,8 @@ editGroupSaveBtn.onclick = async () => {
 
   let prefix = "";
   let county = "";
+  let state = "";
+  let state = "";
 
   if (!baseName) {
     setMsg(editGroupMsg, "Group name cannot be empty.", false);
@@ -1265,6 +1363,12 @@ editGroupSaveBtn.onclick = async () => {
       setMsg(editGroupMsg, "Select a county.", false);
       return;
     }
+  } else if (type === "state") {
+    state = String(editStateSelect?.value || "").trim().toUpperCase();
+    if (!state) {
+      setMsg(editGroupMsg, "Select a state.", false);
+      return;
+    }
   }
 
   const newName = buildGroupNameFromParts({
@@ -1273,6 +1377,7 @@ editGroupSaveBtn.onclick = async () => {
     behavior,
     prefix,
     county,
+    state,
   });
 
   const newDescription = String(editGroupDescriptionInput.value || "").trim();
