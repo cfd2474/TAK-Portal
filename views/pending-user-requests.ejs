@@ -199,7 +199,7 @@
       return `
         <tr>
           <td>${esc(fmtDate(r.createdAt))}</td>
-          <td>${esc((r.firstName||'') + ' ' + (r.lastName||''))}</td>
+          <td>${esc((r.lastName || '') + ', ' + (r.firstName || ''))}</td>  
           <td>${esc(r.email||'')}</td>
           <td>${esc(r.badgeNumber||'')}</td>
           <td>${esc(agencyLabel)}</td>
