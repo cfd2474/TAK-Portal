@@ -4,16 +4,23 @@
 <main class="main">
   <h1>Dashboard</h1>
 
-  <% if (mutualAid && (mutualAid.activeIncidents > 0 || mutualAid.activeEvents > 0)) { %>
+  <% 
+    const hasMutualAid = mutualAid && (mutualAid.activeIncidents > 0 || mutualAid.activeEvents > 0);
+    const hasUserRequests = typeof pendingUserRequestsCount !== "undefined" && pendingUserRequestsCount > 0;
+  %>
+
+  <% if (hasMutualAid || hasUserRequests) { %>
     <div style="margin: 10px 0 14px 0;">
 
-      <% if (mutualAid.activeIncidents > 0) { %>
+      <!-- Mutual Aid Incident -->
+      <% if (mutualAid && mutualAid.activeIncidents > 0) { %>
         <% if (isGlobalAdmin) { %>
           <a href="/mutual-aid" style="text-decoration:none;">
         <% } %>
 
         <div class="maBanner maBannerIncident">
-          <%= mutualAid.activeIncidents %> Mutual Aid Incident<%= mutualAid.activeIncidents === 1 ? "" : "s" %> <%= mutualAid.activeIncidents === 1 ? "Is" : "Are" %> Active
+          <%= mutualAid.activeIncidents %> Mutual Aid Incident<%= mutualAid.activeIncidents === 1 ? "" : "s" %> 
+          <%= mutualAid.activeIncidents === 1 ? "Is" : "Are" %> Active
         </div>
 
         <% if (isGlobalAdmin) { %>
@@ -21,13 +28,30 @@
         <% } %>
       <% } %>
 
-      <% if (mutualAid.activeEvents > 0) { %>
+      <!-- Mutual Aid Event -->
+      <% if (mutualAid && mutualAid.activeEvents > 0) { %>
         <% if (isGlobalAdmin) { %>
           <a href="/mutual-aid" style="text-decoration:none;">
         <% } %>
 
         <div class="maBanner maBannerEvent">
-          <%= mutualAid.activeEvents %> Mutual Aid Event<%= mutualAid.activeEvents === 1 ? "" : "s" %> <%= mutualAid.activeEvents === 1 ? "is" : "Are" %> Active
+          <%= mutualAid.activeEvents %> Mutual Aid Event<%= mutualAid.activeEvents === 1 ? "" : "s" %> 
+          <%= mutualAid.activeEvents === 1 ? "is" : "Are" %> Active
+        </div>
+
+        <% if (isGlobalAdmin) { %>
+          </a>
+        <% } %>
+      <% } %>
+
+      <!-- Pending User Requests -->
+      <% if (hasUserRequests) { %>
+        <% if (isGlobalAdmin) { %>
+          <a href="/pending-user-requests" style="text-decoration:none;">
+        <% } %>
+
+        <div class="userReqBanner">
+          <%= pendingUserRequestsCount %> Pending User Request<%= pendingUserRequestsCount === 1 ? "" : "s" %>
         </div>
 
         <% if (isGlobalAdmin) { %>
@@ -36,20 +60,6 @@
       <% } %>
 
     </div>
-  <% } %>
-
-  <% if (typeof pendingUserRequestsCount !== "undefined" && pendingUserRequestsCount > 0) { %>
-    <% if (isAgencyAdmin) { %>
-      <a href="/pending-user-requests" style="text-decoration:none;">
-    <% } %>
-
-    <div class="userReqBanner" style="margin: 0 0 14px 0;">
-      <%= pendingUserRequestsCount %> Pending User Request<%= pendingUserRequestsCount === 1 ? "" : "s" %>
-    </div>
-
-    <% if (isAgencyAdmin) { %>
-      </a>
-    <% } %>
   <% } %>
 
   <% if (typeof error !== "undefined" && error) { %>
