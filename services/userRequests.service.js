@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const agenciesStore = require("./agencies.service");
+const accessSvc = require("./access.service");
 const store = require("./userRequests.store");
 
 function genId() {
@@ -65,6 +66,27 @@ function listRequests() {
     .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
 }
 
+function listRequestsForUser(authUser) {
+  const user = authUser || null;
+  // Global admins can see everything.
+  if (user && user.isGlobalAdmin) return listRequests();
+
+  // Agency admins can see only their own agency requests.
+  if (user && user.isAgencyAdmin) {
+    const allowed = listRequests().filter((r) =>
+      accessSvc.isSuffixAllowed(user, r && r.agencySuffix)
+    );
+    return allowed;
+  }
+
+  // Everyone else sees nothing.
+  return [];
+}
+
+function countRequestsForUser(authUser) {
+  return listRequestsForUser(authUser).length;
+}
+
 function createRequest(input) {
   const v = validateCreate(input || {});
   const agencies = agenciesStore.load();
@@ -92,6 +114,22 @@ function createRequest(input) {
   return reqObj;
 }
 
+
+function deleteRequestForUser(id, authUser) {
+  const user = authUser || null;
+  if (user && user.isGlobalAdmin) return deleteRequest(id);
+
+  // Agency admins can delete only requests in agencies they manage.
+  if (user && user.isAgencyAdmin) {
+    const reqObj = getById(id);
+    if (!reqObj) return false;
+    if (!accessSvc.isSuffixAllowed(user, reqObj.agencySuffix)) return false;
+    return deleteRequest(id);
+  }
+
+  return false;
+}
+
 function deleteRequest(id) {
   const rid = String(id || "").trim();
   if (!rid) return false;
@@ -111,7 +149,10 @@ function getById(id) {
 
 module.exports = {
   listRequests,
+  listRequestsForUser,
+  countRequestsForUser,
   createRequest,
   deleteRequest,
+  deleteRequestForUser,
   getById,
 };
