@@ -1,9 +1,23 @@
 const router = require("express").Router();
+const fs = require("fs");
+const path = require("path");
 
 const dashboardStatsCache = require("../services/dashboardStatsCache.service");
 const mutualAidService = require("../services/mutualAid.service");
 const bookmarksService = require("../services/bookmarks.service");
 const { getTakMetricsSnapshot } = require("../services/takMetrics.service");
+
+function getPendingUserRequestsCount() {
+  try {
+    const filePath = path.join(__dirname, "../data/user-requests.json");
+    const raw = fs.readFileSync(filePath, "utf8");
+    const list = JSON.parse(raw);
+    return Array.isArray(list) ? list.length : 0;
+  } catch (err) {
+    console.error("[DASHBOARD] Failed to read user-requests.json:", err?.message || err);
+    return 0;
+  }
+}
 
 router.get("/", async (req, res) => {
   try {
@@ -14,6 +28,7 @@ router.get("/", async (req, res) => {
     const takMetrics = await getTakMetricsSnapshot().catch(() => null);
 
     // --- Mutual Aid active banners ---
+    const pendingUserRequestsCount = getPendingUserRequestsCount();
     let activeIncidentCount = 0;
     let activeEventCount = 0;
     try {
@@ -50,6 +65,7 @@ router.get("/", async (req, res) => {
       },
       bookmarks,
       takMetrics,
+      pendingUserRequestsCount, 
     };
 
     res.render("dashboard", viewModel);
@@ -75,6 +91,7 @@ router.get("/", async (req, res) => {
       },
       bookmarks,
       takMetrics: null,
+      pendingUserRequestsCount: getPendingUserRequestsCount(), 
       error: err?.response?.data || err?.message || "Failed to load dashboard",
     };
 

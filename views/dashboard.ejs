@@ -19,10 +19,10 @@
     </div>
   <% } %>
 
-  <% if (typeof pendingUserRequestsCount !== "undefined" && pendingUserRequestsCount > 1) { %>
+  <% if (typeof pendingUserRequestsCount !== "undefined" && pendingUserRequestsCount > 0) { %>
     <a href="/pending-user-requests" style="text-decoration:none;">
       <div class="userReqBanner" style="margin: 0 0 14px 0;">
-        <%= pendingUserRequestsCount %> User Requests Pending
+        <%= pendingUserRequestsCount %> User Request<%= pendingUserRequestsCount === 1 ? "" : "s" %> Pending
       </div>
     </a>
   <% } %>
@@ -31,14 +31,6 @@
     <div class="card">
       <div class="msg bad"><%= typeof error === "string" ? error : JSON.stringify(error) %></div>
     </div>
-  <% } %>
-
-  <% if (typeof pendingUserRequestsCount !== "undefined" && pendingUserRequestsCount > 1) { %>
-    <a href="/pending-user-requests" style="text-decoration:none;">
-      <div class="userReqBanner" style="margin: 0 0 14px 0;">
-        <%= pendingUserRequestsCount %> User Requests Pending
-      </div>
-    </a>
   <% } %>
 
   <!-- Top stats (unchanged) -->
@@ -111,14 +103,6 @@
         <% }); %>
       </div>
     </div>
-  <% } %>
-
-  <% if (typeof pendingUserRequestsCount !== "undefined" && pendingUserRequestsCount > 1) { %>
-    <a href="/pending-user-requests" style="text-decoration:none;">
-      <div class="userReqBanner" style="margin: 0 0 14px 0;">
-        <%= pendingUserRequestsCount %> User Requests Pending
-      </div>
-    </a>
   <% } %>
 
   <script>
