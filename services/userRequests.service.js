@@ -173,7 +173,7 @@ const reasonLine = reqObj.otherReason
 await emailSvc.sendMail({
   to: recipients.join(","),
   subject: "New TAK Portal Access Request",
-  text: `A new user has requested access to TAK Portal. Please login to TAK Portal and review the request and approve or deny access as appropriate.
+  text: `A new user has requested access to TAK Portal. Please login to TAK Portal to review the request and approve or deny access as appropriate.
 
 Name: ${reqObj.lastName}, ${reqObj.firstName}
 Email: ${reqObj.email}
