@@ -5,7 +5,7 @@
   <h1>Dashboard</h1>
 
   <% 
-    const hasMutualAid = mutualAid && (mutualAid.activeIncidents > 0 || mutualAid.activeEvents > 0);
+    const hasMutualAid = isGlobalAdmin && mutualAid && (mutualAid.activeIncidents > 0 || mutualAid.activeEvents > 0);
     const hasUserRequests = typeof pendingUserRequestsCount !== "undefined" && pendingUserRequestsCount > 0;
   %>
 
@@ -13,8 +13,8 @@
     <div style="margin: 10px 0 14px 0;">
 
       <!-- Mutual Aid Incident -->
-      <% if (mutualAid && mutualAid.activeIncidents > 0) { %>
-        <% if (isGlobalAdmin || isAgencyAdmin) { %>
+      <% if (isGlobalAdmin && mutualAid && mutualAid.activeIncidents > 0) { %>
+        <% if (isGlobalAdmin) { %>
           <a href="/mutual-aid" style="text-decoration:none;">
         <% } %>
 
@@ -29,8 +29,8 @@
       <% } %>
 
       <!-- Mutual Aid Event -->
-      <% if (mutualAid && mutualAid.activeEvents > 0) { %>
-        <% if (isGlobalAdmin || isAgencyAdmin) { %>
+      <% if (isGlobalAdmin && mutualAid && mutualAid.activeEvents > 0) { %>
+        <% if (isGlobalAdmin) { %>
           <a href="/mutual-aid" style="text-decoration:none;">
         <% } %>
 
@@ -127,7 +127,7 @@
     </div>
   </div>
 
-  <% if (isGlobalAdmin || isAgencyAdmin) { %>
+  <% if (isGlobalAdmin) { %>
     <div class="card" style="margin-top:8px;">
       <h2>Bookmarks</h2>
       <div class="row" style="flex-wrap:wrap; gap:10px;">
