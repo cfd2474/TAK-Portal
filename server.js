@@ -266,16 +266,49 @@ app.get("/setup-my-device", (req, res) => {
 // Public: request access form (must remain reachable by non-authenticated users)
 app.get("/request-access", (req, res) => {
   const agencies = agenciesStore.load();
-  return res.render("request-access", { hcaptchaSiteKey: settings.portalAccessControl?.hcaptcha?.siteKey || null,
+  const settings = (res.locals && res.locals.settings) ? res.locals.settings : (settingsSvc.getSettings() || {});
+  const hcaptchaSiteKey = String(settings.HCAPTCHA_SITE_KEY || "").trim();
+  const hcaptchaSecretKey = String(settings.HCAPTCHA_SECRET_KEY || "").trim();
+  const hcaptchaEnabled = !!(hcaptchaSiteKey && hcaptchaSecretKey);
+
+  return res.render("request-access", {
     agencies,
     form: {},
-    error: null
+    error: null,
+    hcaptchaEnabled,
+    hcaptchaSiteKey: hcaptchaEnabled ? hcaptchaSiteKey : ""
   });
 });
 
-app.post("/request-access", (req, res) => {
+app.post("/request-access", async (req, res) => {
   try {
     const body = req.body || {};
+
+    // hCaptcha enforcement (enabled only if BOTH keys are set)
+    const settings = (res.locals && res.locals.settings) ? res.locals.settings : (settingsSvc.getSettings() || {});
+    const hcaptchaSiteKey = String(settings.HCAPTCHA_SITE_KEY || "").trim();
+    const hcaptchaSecretKey = String(settings.HCAPTCHA_SECRET_KEY || "").trim();
+    const hcaptchaEnabled = !!(hcaptchaSiteKey && hcaptchaSecretKey);
+
+    if (hcaptchaEnabled) {
+      const token = body["h-captcha-response"];
+      if (!token) {
+        throw new Error("Please complete the captcha before submitting.");
+      }
+
+      const params = new URLSearchParams();
+      params.append("secret", hcaptchaSecretKey);
+      params.append("response", token);
+
+      const verifyResp = await axios.post("https://hcaptcha.com/siteverify", params.toString(), {
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      });
+
+      if (!verifyResp?.data?.success) {
+        throw new Error("Captcha verification failed. Please try again.");
+      }
+    }
+
     userRequestsSvc.createRequest({
       firstName: body.firstName,
       lastName: body.lastName,
@@ -285,13 +318,21 @@ app.post("/request-access", (req, res) => {
       otherAgency: body.otherAgency,
       otherReason: body.otherReason,
     });
+
     return res.redirect("/request-access/confirmation");
   } catch (err) {
     const agencies = agenciesStore.load();
+    const settings = (res.locals && res.locals.settings) ? res.locals.settings : (settingsSvc.getSettings() || {});
+    const hcaptchaSiteKey = String(settings.HCAPTCHA_SITE_KEY || "").trim();
+    const hcaptchaSecretKey = String(settings.HCAPTCHA_SECRET_KEY || "").trim();
+    const hcaptchaEnabled = !!(hcaptchaSiteKey && hcaptchaSecretKey);
+
     return res.status(400).render("request-access", {
       agencies,
       error: err?.message || "Failed to submit request",
       form: req.body || {},
+      hcaptchaEnabled,
+      hcaptchaSiteKey: hcaptchaEnabled ? hcaptchaSiteKey : "",
     });
   }
 });

@@ -82,14 +82,17 @@
       </div>
 
       <div style="grid-column: 1 / -1; display:flex; align-items:center; gap:10px; flex-wrap: wrap;">
-        
-<% if (hcaptchaSiteKey) { %>
-  <script src="https://js.hcaptcha.com/1/api.js" async defer></script>
-  <div class="h-captcha" data-sitekey="<%= hcaptchaSiteKey %>"></div>
-<% } %>
-
-\1
+        <button class="btn" id="submitRequestBtn" type="submit">Submit Request</button>
       </div>
+
+      <% if (hcaptchaEnabled && hcaptchaSiteKey) { %>
+        <div style="grid-column: 1 / -1;">
+          <div id="hcaptchaWidget"></div>
+          <div class="msg" id="hcaptchaHelp" style="margin-top: 8px;">
+            Please complete the captcha to enable submission.
+          </div>
+        </div>
+      <% } %>
     </form>
   </div>
 </main>
@@ -113,5 +116,53 @@
 })();
 
 </script>
+
+
+<% if (hcaptchaEnabled && hcaptchaSiteKey) { %>
+<script>
+(function(){
+  var form = document.querySelector('form[action="/request-access"]');
+  var submitBtn = document.getElementById('submitRequestBtn');
+  var help = document.getElementById('hcaptchaHelp');
+
+  if (!form || !submitBtn) return;
+
+  // lock submission until hCaptcha callback fires
+  submitBtn.disabled = true;
+
+  window.hcaptchaOnLoad = function() {
+    try {
+      hcaptcha.render('hcaptchaWidget', {
+        sitekey: "<%= hcaptchaSiteKey %>",
+        callback: function() {
+          submitBtn.disabled = false;
+          if (help) help.style.display = 'none';
+        },
+        'expired-callback': function() {
+          submitBtn.disabled = true;
+          if (help) help.style.display = 'block';
+        },
+        'error-callback': function() {
+          submitBtn.disabled = true;
+          if (help) help.style.display = 'block';
+        }
+      });
+    } catch (e) {
+      // If rendering fails, keep the form locked.
+      submitBtn.disabled = true;
+    }
+  };
+
+  form.addEventListener('submit', function(e) {
+    if (submitBtn.disabled) {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    }
+  });
+})();
+</script>
+<script src="https://js.hcaptcha.com/1/api.js?onload=hcaptchaOnLoad&render=explicit" async defer></script>
+<% } %>
 
 </div></body></html>
