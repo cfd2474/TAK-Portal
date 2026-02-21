@@ -179,7 +179,9 @@ tr.row-disabled td {
           <th>Email</th>
           <th>Badge</th>
           <th>Agency</th>
-          <th>Details</th>
+          <% if (isGlobalAdmin) { %>
+            <th>Details</th>
+          <% } %>
           <th>Actions</th>
         </tr>
       </thead>
@@ -267,6 +269,7 @@ tr.row-disabled td {
 
 <script>
 (function(){
+  window.IS_GLOBAL_ADMIN = <%- JSON.stringify(!!isGlobalAdmin) %>;
   const tbody = document.getElementById('reqTbody');
   const listMsg = document.getElementById('listMsg');
   const refreshBtn = document.getElementById('refreshBtn');
@@ -344,7 +347,8 @@ tr.row-disabled td {
   function renderTable() {
     if (!tbody) return;
     if (!requestsCache.length) {
-      tbody.innerHTML = `<tr><td colspan="7" class="muted">No pending requests.</td></tr>`;
+      const colSpan = window.IS_GLOBAL_ADMIN ? 7 : 6;
+      tbody.innerHTML = `<tr><td colspan="${colSpan}" class="muted">No pending requests.</td></tr>`;
       return;
     }
 
@@ -362,7 +366,7 @@ tr.row-disabled td {
           <td>${esc(r.email||'')}</td>
           <td>${esc(r.badgeNumber||'')}</td>
           <td>${esc(agencyLabel)}</td>
-          <td>${other}</td>
+          ${window.IS_GLOBAL_ADMIN ? `<td>${other}</td>` : ``}
           <td>
             <div class="row" style="gap:8px; flex-wrap:wrap;">
               <button class="btn success" type="button" data-action="approve" data-id="${esc(r.id)}">Approve</button>
