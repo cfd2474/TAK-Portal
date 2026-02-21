@@ -158,15 +158,6 @@ function requireGlobalAdmin(req, res, next) {
   next();
 }
 
-function requireAnyAdmin(req, res, next) {
-  const user = req.authentikUser;
-  if (!user || (!user.isGlobalAdmin && !user.isAgencyAdmin)) {
-    const username = user && user.username ? user.username : "";
-    return res.status(403).render("access-denied", { username });
-  }
-  next();
-}
-
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
@@ -228,11 +219,15 @@ app.get("/", (req, res) => {
   return res.redirect("dashboard");
 });
 
-app.get("/users/manage", (req, res) => {
-  const pendingUserRequestsCount = userRequestsSvc.countRequestsForUser(req.authentikUser);
-  return res.render("users-manage", { pendingUserRequestsCount });
-});
 app.get("/users/create", (req, res) => res.render("users-create"));
+app.get("/users/manage", (req, res) => {
+  const pendingUserRequestsCount =
+    userRequestsSvc.countRequestsForUser(req.authentikUser);
+
+  return res.render("users-manage", {
+    pendingUserRequestsCount,
+  });
+});
 app.get("/groups", (req, res) => res.render("groups"));
 app.get("/agencies", requireGlobalAdmin, (req, res) =>
   res.render("agencies")
@@ -287,7 +282,7 @@ app.get("/request-access/confirmation", (req, res) => {
 });
 
 // Admin: review pending access requests
-app.get("/pending-user-requests", requireAnyAdmin, (req, res) => {
+app.get("/pending-user-requests", requireGlobalAdmin, (req, res) => {
   return res.render("pending-user-requests");
 });
 
