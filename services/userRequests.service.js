@@ -166,21 +166,25 @@ async function createRequest(input) {
     }
 
     if (recipients.length) {
-      await emailSvc.sendMail({
-        to: recipients.join(","),
-        subject: "New TAK Portal Access Request",
-        text: `A new user has requested access to TAK Portal. Please login to TAK Portal and review the request and approve or deny access as appropriate.
+const reasonLine = reqObj.otherReason
+  ? `Reason for requesting access: ${reqObj.otherReason}\n`
+  : "";
 
-Name: ${reqObj.lastName} ', '${reqObj.firstName} 
+await emailSvc.sendMail({
+  to: recipients.join(","),
+  subject: "New TAK Portal Access Request",
+  text: `A new user has requested access to TAK Portal. Please login to TAK Portal and review the request and approve or deny access as appropriate.
+
+Name: ${reqObj.lastName}, ${reqObj.firstName}
 Email: ${reqObj.email}
 Badge: ${reqObj.badgeNumber}
 Agency: ${
-          reqObj.agencyName ||
-          reqObj.otherAgency ||
-          reqObj.agencySuffix
-        }
-`,
-      });
+    reqObj.agencyName ||
+    reqObj.otherAgency ||
+    reqObj.agencySuffix
+  }
+${reasonLine}`,
+});
 
       console.log("Access request notification sent to:", recipients);
     } else {
