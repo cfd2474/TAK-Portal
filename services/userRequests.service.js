@@ -169,9 +169,9 @@ async function createRequest(input) {
       await emailSvc.sendMail({
         to: recipients.join(","),
         subject: "New TAK Portal Access Request",
-        text: `A new user has requested access:
+        text: `A new user has requested access to TAK Portal. Please login to TAK Portal and review the request and approve or deny access as appropriate.
 
-Name: ${reqObj.firstName} ${reqObj.lastName}
+Name: ${reqObj.lastName} ', '${reqObj.firstName} 
 Email: ${reqObj.email}
 Badge: ${reqObj.badgeNumber}
 Agency: ${
