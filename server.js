@@ -220,10 +220,6 @@ app.get("/", (req, res) => {
 });
 
 app.get("/users/create", (req, res) => res.render("users-create"));
-app.get("/users/manage", (req, res) => {
-  const pendingUserRequestsCount = userRequestsSvc.countRequestsForUser(req.authentikUser);
-  return res.render("users-manage", { pendingUserRequestsCount });
-});
 app.get("/groups", (req, res) => res.render("groups"));
 app.get("/agencies", requireGlobalAdmin, (req, res) =>
   res.render("agencies")

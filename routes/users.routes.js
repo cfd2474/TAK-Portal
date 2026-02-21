@@ -4,6 +4,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 const users = require("../services/users.service");
 const groupsSvc = require("../services/groups.service");
 const accessSvc = require("../services/access.service");
+const userRequestsSvc = require("../services/userRequests.service");
 const qrSvc = require("../services/qr.service");
 const tokensSvc = require("../services/authentikTokens.service");
 
