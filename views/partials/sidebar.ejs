@@ -91,9 +91,29 @@
       <div class="update-modal-dialog">
         <h3 class="update-modal-title">Update Available</h3>
 
+        <p class="update-meta">
+          Current: <strong>v<%= APP_VERSION %></strong>
+          <% if (typeof APP_LATEST_VERSION !== "undefined" && APP_LATEST_VERSION) { %>
+            &nbsp;•&nbsp;Latest: <strong>v<%= APP_LATEST_VERSION %></strong>
+          <% } %>
+        </p>
+
         <% if (_isGlobalAdmin) { %>
-          <p>To update TAK Portal, log into the server CLI and run:</p>
-          <pre><code>cd ~/TAK-Portal && ./takportal update</code></pre>
+          <p>
+            You can update right from the Web UI. The server will pull the latest code,
+            install dependencies, then restart.
+          </p>
+
+          <div class="update-actions">
+            <button type="button" class="update-primary-btn" id="update-start-btn">
+              Update Now
+            </button>
+            <span class="update-status" id="update-status">Idle</span>
+          </div>
+
+          <div class="update-log-wrap">
+            <div class="update-log" id="update-log"></div>
+          </div>
         <% } else { %>
           <p>Please contact your Global Administrator to update TAK Portal.</p>
         <% } %>
@@ -119,18 +139,120 @@
       (function () {
         var pill = document.getElementById('update-pill');
         var modal = document.getElementById('update-modal');
+        var startBtn = document.getElementById('update-start-btn');
+        var statusEl = document.getElementById('update-status');
+        var logEl = document.getElementById('update-log');
+
+        var es = null;
+        var isRunning = false;
+
         if (!pill || !modal) return;
 
         var closers = modal.querySelectorAll('.update-modal-close');
-        pill.addEventListener('click', function () {
+
+        function setStatus(text) {
+          if (!statusEl) return;
+          statusEl.textContent = text;
+        }
+
+        function appendLog(line) {
+          if (!logEl) return;
+          var div = document.createElement('div');
+          div.className = 'update-log-line';
+          div.textContent = line;
+          logEl.appendChild(div);
+          logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function connectStream() {
+          if (es || !logEl) return;
+          es = new EventSource('/api/update/stream');
+
+          es.addEventListener('status', function (ev) {
+            try {
+              var s = JSON.parse(ev.data || '{}');
+              isRunning = !!s.running;
+              if (startBtn) startBtn.disabled = isRunning;
+              if (isRunning) {
+                setStatus('Updating…');
+              } else if (s.exitCode === 0 && s.finishedAt) {
+                setStatus('Update complete. Restarting…');
+              } else if (s.exitCode && s.exitCode !== 0) {
+                setStatus('Update failed');
+              } else {
+                setStatus('Idle');
+              }
+            } catch (e) {}
+          });
+
+          es.addEventListener('log', function (ev) {
+            try {
+              var entry = JSON.parse(ev.data || '{}');
+              var line = entry && entry.line ? entry.line : '';
+              if (line) appendLog(line);
+            } catch (e) {}
+          });
+
+          es.onerror = function () {
+            // Connection may drop during restart; that's expected.
+            // Keep UI friendly.
+            if (isRunning) setStatus('Updating… (connection lost; server may be restarting)');
+          };
+        }
+
+        function openModal() {
           modal.classList.add('is-open');
-        });
+          if (logEl) logEl.innerHTML = '';
+          setStatus('Idle');
+          connectStream();
+        }
+
+        function closeModal() {
+          modal.classList.remove('is-open');
+          if (es) {
+            es.close();
+            es = null;
+          }
+        }
+
+        pill.addEventListener('click', openModal);
 
         closers.forEach(function (el) {
           el.addEventListener('click', function () {
-            modal.classList.remove('is-open');
+            closeModal();
           });
         });
+
+        if (startBtn) {
+          startBtn.addEventListener('click', function () {
+            if (startBtn.disabled) return;
+            startBtn.disabled = true;
+            setStatus('Starting…');
+            appendLog('Starting update…');
+
+            fetch('/api/update/start', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({})
+            })
+              .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, json: j }; }); })
+              .then(function (payload) {
+                if (!payload.ok) {
+                  var msg = (payload.json && (payload.json.error || payload.json.code)) ? (payload.json.error || payload.json.code) : 'Update failed to start';
+                  appendLog('ERROR: ' + msg);
+                  setStatus('Update failed');
+                  startBtn.disabled = false;
+                  return;
+                }
+                setStatus('Updating…');
+              })
+              .catch(function (err) {
+                appendLog('ERROR: ' + (err && err.message ? err.message : String(err)));
+                setStatus('Update failed');
+                startBtn.disabled = false;
+              });
+          });
+        }
       })();
     </script>
   <% } %>

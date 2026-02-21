@@ -204,6 +204,61 @@ body {
     font-size: 13px;
 }
 
+.update-meta {
+    margin: 0 0 10px;
+    opacity: 0.85;
+}
+
+.update-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 10px 0 10px;
+}
+
+.update-primary-btn {
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: none;
+    background: var(--btn);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.update-primary-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.update-status {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+.update-log-wrap {
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid rgba(255,255,255,0.08);
+    overflow: hidden;
+}
+
+.update-log {
+    height: 180px;
+    overflow: auto;
+    padding: 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.update-log-line {
+    white-space: pre-wrap;
+    word-break: break-word;
+    opacity: 0.95;
+}
+
 .update-modal-title {
     margin: 0 0 8px;
     font-size: 15px;
