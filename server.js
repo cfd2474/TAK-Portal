@@ -266,7 +266,7 @@ app.get("/setup-my-device", (req, res) => {
 // Public: request access form (must remain reachable by non-authenticated users)
 app.get("/request-access", (req, res) => {
   const agencies = agenciesStore.load();
-  return res.render("request-access", {
+  return res.render("request-access", { hcaptchaSiteKey: settings.portalAccessControl?.hcaptcha?.siteKey || null,
     agencies,
     form: {},
     error: null
