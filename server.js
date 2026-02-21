@@ -158,15 +158,6 @@ function requireGlobalAdmin(req, res, next) {
   next();
 }
 
-function requireAnyAdmin(req, res, next) {
-  const user = req.authentikUser;
-  if (!user || (!user.isGlobalAdmin && !user.isAgencyAdmin)) {
-    const username = user && user.username ? user.username : "";
-    return res.status(403).render("access-denied", { username });
-  }
-  next();
-}
-
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
@@ -287,7 +278,7 @@ app.get("/request-access/confirmation", (req, res) => {
 });
 
 // Admin: review pending access requests
-app.get("/pending-user-requests", requireAnyAdmin, (req, res) => {
+app.get("/pending-user-requests", requireGlobalAdmin, (req, res) => {
   return res.render("pending-user-requests");
 });
 
