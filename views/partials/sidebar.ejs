@@ -86,54 +86,34 @@
 
   <% /* Only admins get the update modal + script */ %>
   <% if (isAdmin && typeof APP_UPDATE_AVAILABLE !== "undefined" && APP_UPDATE_AVAILABLE) { %>
-    
-    <div id="update-modal" class="modalOverlay" style="display:none;">
-      <div class="modal">
-        <div class="modalHeader">
-          <strong>Update Available</strong>
-          <button type="button" class="btn" id="update-close-btn">Close</button>
-        </div>
-        <div class="modalBody">
-          <p class="update-meta">
-            Current: <strong>v<%= APP_VERSION %></strong>
-            <% if (typeof APP_LATEST_VERSION !== "undefined" && APP_LATEST_VERSION) { %>
-              &nbsp;•&nbsp;Latest: <strong>v<%= APP_LATEST_VERSION %></strong>
-            <% } %>
-          </p>
+    <div id="update-modal" class="update-modal">
+      <div class="update-modal-backdrop update-modal-close"></div>
+      <div class="update-modal-dialog">
+        <h3 class="update-modal-title">Update Available</h3>
 
-          <% if (_isGlobalAdmin) { %>
-            <p>
-              The server will pull the latest code, install dependencies, then restart.
-            </p>
-
-            <div class="update-actions">
-              <button type="button" class="btn success" id="update-start-btn">
-                Update Now
-              </button>
-              <span class="update-status" id="update-status">Idle</span>
-            </div>
-
-            <div class="update-log-wrap">
-              <div class="update-log" id="update-log"></div>
-            </div>
-          <% } else { %>
-            <p>Please contact your Global Administrator to update TAK Portal.</p>
+        <p class="update-meta">
+          Current: <strong>v<%= APP_VERSION %></strong>
+          <% if (typeof APP_LATEST_VERSION !== "undefined" && APP_LATEST_VERSION) { %>
+            &nbsp;•&nbsp;Latest: <strong>v<%= APP_LATEST_VERSION %></strong>
           <% } %>
+        </p>
 
-          <p style="margin-top:12px;">
-            View the
-            <a
-              href="https://github.com/AdventureSeeker423/TAK-Portal/blob/main/CHANGELOG.md"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              changelog
-            </a>.
+        <% if (_isGlobalAdmin) { %>
+          <p>
+            You can update right from the Web UI. The server will pull the latest code,
+            install dependencies, then restart.
           </p>
-        </div>
-      </div>
-    </div>
 
+          <div class="update-actions">
+            <button type="button" class="update-primary-btn" id="update-start-btn">
+              Update Now
+            </button>
+            <span class="update-status" id="update-status">Idle</span>
+          </div>
+
+          <div class="update-log-wrap">
+            <div class="update-log" id="update-log"></div>
+          </div>
         <% } else { %>
           <p>Please contact your Global Administrator to update TAK Portal.</p>
         <% } %>
@@ -155,7 +135,6 @@
       </div>
     </div>
 
-    
     <script>
       (function () {
         var pill = document.getElementById('update-pill');
@@ -163,15 +142,17 @@
         var startBtn = document.getElementById('update-start-btn');
         var statusEl = document.getElementById('update-status');
         var logEl = document.getElementById('update-log');
-        var closeBtn = document.getElementById('update-close-btn');
 
         var es = null;
         var isRunning = false;
 
         if (!pill || !modal) return;
 
+        var closers = modal.querySelectorAll('.update-modal-close');
+
         function setStatus(text) {
-          if (statusEl) statusEl.textContent = text;
+          if (!statusEl) return;
+          statusEl.textContent = text;
         }
 
         function appendLog(line) {
@@ -183,25 +164,8 @@
           logEl.scrollTop = logEl.scrollHeight;
         }
 
-        function openModal() {
-          modal.style.display = 'flex';
-          document.body.classList.add('noScroll');
-          if (logEl) logEl.innerHTML = '';
-          setStatus('Idle');
-          connectStream();
-        }
-
-        function closeModal() {
-          modal.style.display = 'none';
-          document.body.classList.remove('noScroll');
-          if (es) {
-            es.close();
-            es = null;
-          }
-        }
-
         function connectStream() {
-          if (es) return;
+          if (es || !logEl) return;
           es = new EventSource('/api/update/stream');
 
           es.addEventListener('status', function (ev) {
@@ -209,14 +173,14 @@
               var s = JSON.parse(ev.data || '{}');
               isRunning = !!s.running;
               if (startBtn) startBtn.disabled = isRunning;
-
-              if (!isRunning && s.exitCode === 0 && s.finishedAt) {
-                setStatus('Update complete. Restarting...');
-                setTimeout(function () {
-                  window.location.reload();
-                }, 5000);
-              } else if (isRunning) {
-                setStatus('Updating...');
+              if (isRunning) {
+                setStatus('Updating…');
+              } else if (s.exitCode === 0 && s.finishedAt) {
+                setStatus('Update complete. Restarting…');
+              } else if (s.exitCode && s.exitCode !== 0) {
+                setStatus('Update failed');
+              } else {
+                setStatus('Idle');
               }
             } catch (e) {}
           });
@@ -224,28 +188,66 @@
           es.addEventListener('log', function (ev) {
             try {
               var entry = JSON.parse(ev.data || '{}');
-              if (entry && entry.line) appendLog(entry.line);
+              var line = entry && entry.line ? entry.line : '';
+              if (line) appendLog(line);
             } catch (e) {}
           });
+
+          es.onerror = function () {
+            // Connection may drop during restart; that's expected.
+            // Keep UI friendly.
+            if (isRunning) setStatus('Updating… (connection lost; server may be restarting)');
+          };
+        }
+
+        function openModal() {
+          modal.classList.add('is-open');
+          if (logEl) logEl.innerHTML = '';
+          setStatus('Idle');
+          connectStream();
+        }
+
+        function closeModal() {
+          modal.classList.remove('is-open');
+          if (es) {
+            es.close();
+            es = null;
+          }
         }
 
         pill.addEventListener('click', openModal);
-        if (closeBtn) closeBtn.addEventListener('click', closeModal);
+
+        closers.forEach(function (el) {
+          el.addEventListener('click', function () {
+            closeModal();
+          });
+        });
 
         if (startBtn) {
           startBtn.addEventListener('click', function () {
             if (startBtn.disabled) return;
             startBtn.disabled = true;
-            setStatus('Starting...');
-            appendLog('Starting update...');
+            setStatus('Starting…');
+            appendLog('Starting update…');
 
-            fetch('/api/update/start', { method: 'POST' })
-              .then(function (r) { return r.json().catch(function(){return {};}); })
-              .then(function () {
-                setStatus('Updating...');
+            fetch('/api/update/start', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({})
+            })
+              .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, json: j }; }); })
+              .then(function (payload) {
+                if (!payload.ok) {
+                  var msg = (payload.json && (payload.json.error || payload.json.code)) ? (payload.json.error || payload.json.code) : 'Update failed to start';
+                  appendLog('ERROR: ' + msg);
+                  setStatus('Update failed');
+                  startBtn.disabled = false;
+                  return;
+                }
+                setStatus('Updating…');
               })
               .catch(function (err) {
-                appendLog('ERROR: ' + err.message);
+                appendLog('ERROR: ' + (err && err.message ? err.message : String(err)));
                 setStatus('Update failed');
                 startBtn.disabled = false;
               });
@@ -253,6 +255,5 @@
         }
       })();
     </script>
-
   <% } %>
 </aside>
