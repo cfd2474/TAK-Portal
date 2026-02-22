@@ -54,7 +54,7 @@
           %>
           <% list.forEach(a => { %>
             <option value="<%= a.suffix %>" <%= (selected && selected === a.suffix) ? 'selected' : '' %>>
-              <%= a.name %> (<%= a.suffix %>)
+              <%= a.name %> (<%= a.groupPrefix %>)
             </option>
           <% }) %>
           <option value="__other__" <%= selected === '__other__' ? 'selected' : '' %>>Other / My Agency Isn't Listed</option>
