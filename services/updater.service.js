@@ -69,7 +69,7 @@ class UpdaterService extends EventEmitter {
     const scriptPath = path.resolve(process.cwd(), "./takportal");
 
     // Run via bash so it works even if the takportal file lost its executable bit
-    const child = spawn("bash", [scriptPath, "update"], {
+    const child = spawn("sh", [scriptPath, "update"], {
       stdio: ["ignore", "pipe", "pipe"],
       env: process.env,
       cwd: process.cwd(),
