@@ -67,12 +67,8 @@
             <td>
               <%
                 const sfx = String(log.agencySuffix || '').toLowerCase();
-              <%
-                const sfx = String(log.agencySuffix || '').toLowerCase();
                 const agencyObj = agencyMap?.[sfx];
                 const prefix = agencyObj?.groupPrefix || '-';
-              %>
-              <%= prefix %>
               %>
               <%= prefix %>
             </td>
