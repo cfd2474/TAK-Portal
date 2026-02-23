@@ -224,7 +224,7 @@ app.use("/api/setup-my-device", require("./routes/setupDevice.routes"));
 app.use("/api/mutual-aid", require("./routes/mutualAid.routes"));
 app.use("/api/tak", require("./routes/takMetrics.routes"));
 app.use("/api/user-requests", require("./routes/userRequests.routes"));
-app.use("/api/audit-log", requireGlobalAdmin, require("./routes/auditLog.routes"));
+app.use("/api/audit-log", requireOnlyGlobalAdmin, require("./routes/auditLog.routes"));
 app.use(
   "/api/update",
   requireOnlyGlobalAdmin,
@@ -259,12 +259,10 @@ app.get("/mutual-aid", requireGlobalAdmin, (req, res) =>
   res.render("mutual-aid")
 ); //require Global Admin
 
-// Admin: audit log
-app.get("/audit-log", requireGlobalAdmin, (req, res) => {
-  const authUser = req.authentikUser || null;
-  const access = accessSvc.getAgencyAccess(authUser);
-
+// Admin: audit log (GLOBAL ADMINS ONLY)
+app.get("/audit-log", requireOnlyGlobalAdmin, (req, res) => {
   const raw = req.query || {};
+
   const filters = {
     q: raw.q || "",
     actor: raw.actor || "",
@@ -277,88 +275,15 @@ app.get("/audit-log", requireGlobalAdmin, (req, res) => {
     pageSize: raw.pageSize || "50",
   };
 
-  // Agency admins can only see their allowed agencies.
-  const allowed = Array.isArray(access.allowedAgencySuffixes)
-    ? access.allowedAgencySuffixes.map((s) => String(s || "").trim().toLowerCase())
-    : null;
-
-  if (!access.isGlobalAdmin) {
-    if (!allowed || !allowed.length) {
-      const username = authUser && authUser.username ? authUser.username : "";
-      return res.status(403).render("access-denied", { username });
-    }
-
-    if (filters.agencySuffix) {
-      const sfx = String(filters.agencySuffix || "").trim().toLowerCase();
-      if (!allowed.includes(sfx)) {
-        const username = authUser && authUser.username ? authUser.username : "";
-        return res.status(403).render("access-denied", { username });
-      }
-    }
-
-    // Filter-first then paginate for agency admins.
-    const requestedPage = Math.max(1, Number(filters.page) || 1);
-    const requestedPageSize = Math.min(500, Math.max(10, Number(filters.pageSize) || 50));
-    const unpaged = auditSvc.queryLogs({
-      ...filters,
-      page: 1,
-      pageSize: 5000,
-    });
-
-    const scoped = (unpaged.items || []).filter((it) => {
-      const sfx = String(it?.agencySuffix || "").trim().toLowerCase();
-      return sfx && allowed.includes(sfx);
-    });
-
-    const total = scoped.length;
-    const pageCount = Math.max(1, Math.ceil(total / requestedPageSize));
-    const page = Math.min(pageCount, requestedPage);
-    const start = (page - 1) * requestedPageSize;
-    const items = scoped.slice(start, start + requestedPageSize);
-    const result = { items, total, page, pageSize: requestedPageSize, pageCount };
-
-    // Build select options (restricted)
-    const agencies = agenciesStore.load();
-    const agencyOptions = (Array.isArray(agencies) ? agencies : [])
-      .filter((a) => allowed.includes(String(a?.suffix || "").trim().toLowerCase()))
-      .map((a) => ({
-        value: String(a?.suffix || "").trim().toLowerCase(),
-        label: `${String(a?.name || a?.groupPrefix || a?.suffix || "").trim()} (${String(a?.suffix || "").trim()})`,
-      }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-
-    const actionOptions = auditSvc.listDistinctValues({ field: "actions" });
-    const targetTypeOptions = auditSvc.listDistinctValues({ field: "targetTypes" });
-
-    function buildLink(newPage) {
-      const u = new URL(`${req.protocol}://${req.get("host")}${req.path}`);
-      Object.entries(filters).forEach(([k, v]) => {
-        if (k === "page") return;
-        if (v != null && String(v).trim() !== "") u.searchParams.set(k, String(v));
-      });
-      u.searchParams.set("page", String(newPage));
-      u.searchParams.set("pageSize", String(requestedPageSize));
-      return u.pathname + u.search;
-    }
-
-    const pageLinks = {
-      prev: buildLink(Math.max(1, page - 1)),
-      next: buildLink(Math.min(pageCount, page + 1)),
-    };
-
-    return res.render("audit-log", {
-      filters: { ...filters, page: String(page), pageSize: String(requestedPageSize) },
-      result,
-      pageLinks,
-      agencyOptions,
-      actionOptions,
-      targetTypeOptions,
-    });
-  }
-
-  // Global admin: normal query + paginate
   const result = auditSvc.queryLogs(filters);
   const agencies = agenciesStore.load();
+
+  // Build agency lookup map by suffix
+  const agencyMap = {};
+  (Array.isArray(agencies) ? agencies : []).forEach(a => {
+    const sfx = String(a?.suffix || "").trim().toLowerCase();
+    if (sfx) agencyMap[sfx] = a;
+  });
 
   const agencyOptions = (Array.isArray(agencies) ? agencies : [])
     .map((a) => ({
@@ -374,10 +299,14 @@ app.get("/audit-log", requireGlobalAdmin, (req, res) => {
     const u = new URL(`${req.protocol}://${req.get("host")}${req.path}`);
     Object.entries(filters).forEach(([k, v]) => {
       if (k === "page") return;
-      if (v != null && String(v).trim() !== "") u.searchParams.set(k, String(v));
+      if (v != null && String(v).trim() !== "") {
+        u.searchParams.set(k, String(v));
+      }
     });
     u.searchParams.set("page", String(newPage));
-    if (filters.pageSize) u.searchParams.set("pageSize", String(filters.pageSize));
+    if (filters.pageSize) {
+      u.searchParams.set("pageSize", String(filters.pageSize));
+    }
     return u.pathname + u.search;
   }
 
@@ -393,6 +322,7 @@ app.get("/audit-log", requireGlobalAdmin, (req, res) => {
     agencyOptions,
     actionOptions,
     targetTypeOptions,
+    agencyMap
   });
 });
 
