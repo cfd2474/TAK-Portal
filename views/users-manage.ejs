@@ -1294,10 +1294,27 @@ async function ensureAgencyAdminIdsForUsers(users){
 }
 
 function roleForUser(user){
+  const groups = Array.isArray(user && user.groups)
+    ? user.groups.map(x => String(x))
+    : [];
+
+  // 1 Global Admin takes precedence
+  if (globalAdminGroupIdsCache && globalAdminGroupIdsCache.length) {
+    if (globalAdminGroupIdsCache.some(id => groups.includes(String(id)))) {
+      return "Global Admin";
+    }
+  }
+
+  // 2 Agency Admin
   const abbr = String(getUserAgencyAbbreviation(user) || '').trim().toUpperCase();
   const adminId = abbr ? agencyAdminGroupIdByAbbr.get(abbr) : null;
-  const groups = Array.isArray(user && user.groups) ? user.groups.map(x => String(x)) : [];
-  return (adminId && groups.includes(String(adminId))) ? 'Admin' : 'User';
+
+  if (adminId && groups.includes(String(adminId))) {
+    return "Agency Admin";
+  }
+
+  // 3 Default
+  return "User";
 }
 
 async function loadGroups(){
@@ -1627,8 +1644,14 @@ if (applyPermissionsBtn) applyPermissionsBtn.addEventListener("click", async () 
       setMsgEl(actionMsg, "Global admin groups are not configured on the server.", false);
       return;
     }
+
+    // Add global admin group(s)
     globalIds.forEach(id => toAdd.add(String(id)));
-    // Do not force-remove agency admin; leave it as-is.
+
+    // If user is currently an agency admin, remove that group
+    if (adminGroupId) {
+      toRemove.add(String(adminGroupId));
+    }
   }
 
   // Remove anything already satisfied
