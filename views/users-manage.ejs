@@ -1480,18 +1480,21 @@ async function resolveGroupIdByName(name){
 // Only meaningful for viewers who are already global admins (they can access /api/users/group-lookup).
 let globalAdminGroupIdsCache = null;
 async function getGlobalAdminGroupIds(){
-  if (!IS_GLOBAL_ADMIN) return [];
   if (globalAdminGroupIdsCache) return globalAdminGroupIdsCache.slice();
+
   const names = PORTAL_GLOBAL_ADMIN_GROUP_NAMES.slice();
   if (!names.length) {
     globalAdminGroupIdsCache = [];
     return [];
   }
+
   const ids = [];
+
   for (const nm of names) {
     const id = await resolveGroupIdByName(nm);
     if (id) ids.push(String(id));
   }
+
   globalAdminGroupIdsCache = ids;
   return ids.slice();
 }
