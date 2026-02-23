@@ -215,9 +215,6 @@ tr.row-disabled td {
           <th>Email</th>
           <th>Badge</th>
           <th>Agency</th>
-          <% if (isGlobalAdmin) { %>
-            <th>Details</th>
-          <% } %>
           <th>Actions</th>
         </tr>
       </thead>
@@ -373,7 +370,7 @@ tr.row-disabled td {
     closeInlineApprove(); // inline form is tied to specific rows; close on rerender
 
     if (!requestsCache.length) {
-      const colSpan = window.IS_GLOBAL_ADMIN ? 7 : 6;
+      const colSpan = 6;
       tbody.innerHTML = `<tr><td colspan="${colSpan}" class="muted">No pending requests.</td></tr>`;
       return;
     }
@@ -382,9 +379,6 @@ tr.row-disabled td {
       const agencyLabel = r.agencySuffix === '__other__'
         ? 'Other / Not Listed'
         : (r.agencyName ? `${r.agencyName} (${r.agencySuffix})` : r.agencySuffix);
-      const other = r.agencySuffix === '__other__'
-        ? `<div><strong>${esc(r.otherAgency || '')}</strong><br>${esc(r.otherReason || '')}</div>`
-        : '';
       return `
         <tr data-request-row="1" data-request-id="${esc(r.id)}">
           <td>${esc(fmtDate(r.createdAt))}</td>
@@ -392,7 +386,6 @@ tr.row-disabled td {
           <td>${esc(r.email||'')}</td>
           <td>${esc(r.badgeNumber||'')}</td>
           <td>${esc(agencyLabel)}</td>
-          ${window.IS_GLOBAL_ADMIN ? `<td>${other}</td>` : ``}
           <td>
             <div class="row" style="gap:8px; flex-wrap:wrap;">
               <button class="btn success" type="button" data-action="approve" data-id="${esc(r.id)}">Approve</button>
@@ -467,7 +460,7 @@ tr.row-disabled td {
     const msg = frag.querySelector('.createMsg');
 
     // Make td span the whole table
-    approveTd.colSpan = window.IS_GLOBAL_ADMIN ? 7 : 6;
+    approveTd.colSpan = 6;
 
     // Attach under clicked row
     clickedRow.parentNode.insertBefore(approveRow, clickedRow.nextSibling);
@@ -501,11 +494,20 @@ tr.row-disabled td {
       });
     }
 
-    // Note for "Other"
+    // Note for agency + reason
     const isOther = reqObj.agencySuffix === '__other__';
-    note.textContent = isOther
-      ? `Requested agency: ${reqObj.otherAgency || 'Other'} (not listed). Select the appropriate agency for the new user.`
-      : '';
+
+    if (isOther) {
+      const agencyName = esc(reqObj.otherAgency || 'Other');
+      const reason = esc(reqObj.otherReason || '');
+
+      note.innerHTML = `
+        <strong>Requested Agency:</strong> ${agencyName}<br>
+        ${reason ? `<strong>Reason for Access:</strong> ${reason}` : ''}
+      `;
+    } else {
+      note.textContent = '';
+    }
 
     // Setup cancel
     cancelBtn.addEventListener('click', () => approveRow.remove());
