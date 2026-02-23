@@ -191,6 +191,22 @@ tr.row-disabled td {
   outline: 2px solid var(--accent, #fff);
   outline-offset: 2px;
 }
+
+/* -------------------- NEW: Sortable header UI (matches Users page) -------------------- */
+th.sortable{
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+th.sortable:hover{
+  text-decoration: underline;
+}
+.sortIndicator{
+  display: inline-block;
+  min-width: 12px;
+  margin-left: 6px;
+  opacity: 0.9;
+}
 </style>
 
 <%- include("partials/header") %>
@@ -208,13 +224,14 @@ tr.row-disabled td {
     <div id="listMsg" class="msg"></div>
 
     <table class="table">
-      <thead>
+      <!-- -------------------- UPDATED: sortable headers (Actions not sortable) -------------------- -->
+      <thead id="thead">
         <tr>
-          <th>Submitted</th>
-          <th>Name</th>
-          <th>Email</th>
-          <th>Badge</th>
-          <th>Agency</th>
+          <th class="sortable" data-key="submitted">Submitted <span class="sortIndicator" aria-hidden="true"></span></th>
+          <th class="sortable" data-key="name">Name <span class="sortIndicator" aria-hidden="true"></span></th>
+          <th class="sortable" data-key="email">Email <span class="sortIndicator" aria-hidden="true"></span></th>
+          <th class="sortable" data-key="badge">Badge <span class="sortIndicator" aria-hidden="true"></span></th>
+          <th class="sortable" data-key="agency">Agency <span class="sortIndicator" aria-hidden="true"></span></th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -314,9 +331,18 @@ tr.row-disabled td {
   const refreshBtn = document.getElementById('refreshBtn');
   const tpl = document.getElementById('inlineApproveTemplate');
 
+  // -------------------- NEW: table head for sorting --------------------
+  const thead = document.getElementById('thead');
+
   let requestsCache = [];
   let groupsCache = [];
   let agenciesCache = [];
+
+  // -------------------- NEW: Sorting state (matches Users page style) --------------------
+  let sortState = {
+    key: "submitted",   // default sort
+    dir: "desc"         // newest first
+  };
 
   function setListMsg(text, ok = true) {
     listMsg.textContent = text || '';
@@ -356,6 +382,86 @@ tr.row-disabled td {
     if (existing) existing.remove();
   }
 
+  // -------------------- NEW: Sorting helpers (ported from Users page pattern) --------------------
+  function normalizeSortValue(v) {
+    return String(v || "").trim().toLowerCase();
+  }
+
+  // For name sorting: last name primary, then first name
+  function nameForSort(req) {
+    const first = String(req?.firstName || "").trim();
+    const last = String(req?.lastName || "").trim();
+    // same spirit as Users page: sort by last then first
+    return normalizeSortValue(`${last} ${first}`.trim());
+  }
+
+  function agencyLabelForSort(req) {
+    const sfx = String(req?.agencySuffix || "").trim();
+    if (sfx === "__other__") return normalizeSortValue("Other / Not Listed");
+    const nm = String(req?.agencyName || "").trim();
+    return normalizeSortValue(nm ? `${nm} (${sfx})` : sfx);
+  }
+
+  function getSortValue(req, key) {
+    if (!req) return "";
+
+    if (key === "submitted") {
+      // numeric time; treat invalid as 0
+      const t = req.createdAt ? new Date(req.createdAt).getTime() : 0;
+      return Number.isFinite(t) ? t : 0;
+    }
+    if (key === "name") return nameForSort(req);
+    if (key === "email") return normalizeSortValue(req.email);
+    if (key === "badge") return normalizeSortValue(req.badgeNumber);
+    if (key === "agency") return agencyLabelForSort(req);
+
+    return "";
+  }
+
+  function stableSortedCopy(arr, key, dir) {
+    const sign = dir === "desc" ? -1 : 1;
+
+    return arr
+      .map((item, idx) => ({ item, idx }))
+      .sort((a, b) => {
+        const av = getSortValue(a.item, key);
+        const bv = getSortValue(b.item, key);
+
+        // numeric sort for submitted timestamp
+        if (typeof av === "number" && typeof bv === "number") {
+          if (av !== bv) return (av - bv) * sign;
+          return a.idx - b.idx;
+        }
+
+        const aBlank = !String(av || "").trim();
+        const bBlank = !String(bv || "").trim();
+        if (aBlank && !bBlank) return 1 * sign;
+        if (!aBlank && bBlank) return -1 * sign;
+
+        const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" });
+        if (cmp !== 0) return cmp * sign;
+
+        return (a.idx - b.idx);
+      })
+      .map(x => x.item);
+  }
+
+  function updateSortIndicators() {
+    if (!thead) return;
+    const ths = Array.from(thead.querySelectorAll("th.sortable"));
+    ths.forEach(th => {
+      const key = th.dataset.key;
+      const indicator = th.querySelector(".sortIndicator");
+      if (!indicator) return;
+
+      if (key === sortState.key) {
+        indicator.textContent = sortState.dir === "asc" ? "▲" : "▼";
+      } else {
+        indicator.textContent = "";
+      }
+    });
+  }
+
   async function loadRequests() {
     setListMsg('');
     const res = await fetch('/api/user-requests');
@@ -372,10 +478,14 @@ tr.row-disabled td {
     if (!requestsCache.length) {
       const colSpan = 6;
       tbody.innerHTML = `<tr><td colspan="${colSpan}" class="muted">No pending requests.</td></tr>`;
+      updateSortIndicators();
       return;
     }
 
-    tbody.innerHTML = requestsCache.map(r => {
+    // -------------------- NEW: sort before render (does NOT mutate requestsCache) --------------------
+    const sorted = stableSortedCopy(requestsCache.slice(), sortState.key, sortState.dir);
+
+    tbody.innerHTML = sorted.map(r => {
       const agencyLabel = r.agencySuffix === '__other__'
         ? 'Other / Not Listed'
         : (r.agencyName ? `${r.agencyName} (${r.agencySuffix})` : r.agencySuffix);
@@ -399,6 +509,28 @@ tr.row-disabled td {
         </tr>
       `;
     }).join('');
+
+    updateSortIndicators();
+  }
+
+  // -------------------- NEW: header click handler (matches Users page pattern) --------------------
+  if (thead) {
+    thead.addEventListener("click", (e) => {
+      const th = e.target && e.target.closest ? e.target.closest("th.sortable") : null;
+      if (!th) return;
+
+      const key = th.dataset.key;
+      if (!key) return;
+
+      if (sortState.key === key) {
+        sortState.dir = (sortState.dir === "asc") ? "desc" : "asc";
+      } else {
+        sortState.key = key;
+        sortState.dir = "asc";
+      }
+
+      renderTable();
+    });
   }
 
   // -------------------- Agencies (cache once) --------------------
@@ -708,6 +840,7 @@ tr.row-disabled td {
       await loadAgencies();
       await loadGroups();
       await loadRequests();
+      updateSortIndicators(); // ensure default indicator appears after initial render
     } catch (err) {
       setListMsg(err.message || 'Failed to load page data', false);
     }
