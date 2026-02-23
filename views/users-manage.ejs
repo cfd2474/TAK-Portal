@@ -1533,8 +1533,8 @@ window.editUser = async (userPk) => {
     ? await resolveGroupIdByName(adminGroupName)
     : null;
 
-    // Also resolve configured Global Admin group names so chips display correctly
-  if (IS_GLOBAL_ADMIN && PORTAL_GLOBAL_ADMIN_GROUP_NAMES.length) {
+  // Resolve configured Global Admin group names so chips display correctly
+  if (PORTAL_GLOBAL_ADMIN_GROUP_NAMES.length) {
     for (const gName of PORTAL_GLOBAL_ADMIN_GROUP_NAMES) {
       await resolveGroupIdByName(gName);
     }
