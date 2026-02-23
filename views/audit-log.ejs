@@ -1,6 +1,6 @@
 <%
-  const safeLogs = Array.isArray(logs) ? logs : [];
-  const safeFilters = filters || {};
+  const safeLogs = typeof logs !== "undefined" && Array.isArray(logs) ? logs : [];
+  const safeFilters = typeof filters !== "undefined" ? filters : {};
 %>
 
 <div class="page-header">
