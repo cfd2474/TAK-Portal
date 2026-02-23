@@ -7,6 +7,59 @@ const accessSvc = require("../services/access.service");
 const userRequestsSvc = require("../services/userRequests.service");
 const qrSvc = require("../services/qr.service");
 const tokensSvc = require("../services/authentikTokens.service");
+const { getString } = require("../services/env");
+
+// Cache resolved Global Admin group PKs (from PORTAL_AUTH_REQUIRED_GROUP)
+// so we can cheaply hide global-admin users from agency-admin views.
+// Keep TTL short so changes in settings take effect quickly.
+const GLOBAL_ADMIN_GROUP_CACHE_TTL_MS = 5 * 60 * 1000;
+let _globalAdminGroupPkCache = {
+  key: "",
+  loadedAt: 0,
+  pks: [],
+};
+
+function parseGroupList(raw) {
+  if (!raw) return [];
+  return String(raw)
+    .split(",")
+    .map((g) => String(g || "").trim().toLowerCase())
+    .filter(Boolean);
+}
+
+async function getGlobalAdminGroupPks() {
+  const raw = String(getString("PORTAL_AUTH_REQUIRED_GROUP", "").trim());
+  const namesLower = parseGroupList(raw);
+  const key = namesLower.join(",");
+
+  if (!namesLower.length) return [];
+
+  const now = Date.now();
+  if (
+    _globalAdminGroupPkCache.key === key &&
+    now - _globalAdminGroupPkCache.loadedAt < GLOBAL_ADMIN_GROUP_CACHE_TTL_MS
+  ) {
+    return _globalAdminGroupPkCache.pks.slice();
+  }
+
+  // Resolve group names -> PKs (including hidden groups).
+  const allGroups = await groupsSvc.getAllGroups({ includeHidden: true });
+  const byNameLower = new Map(
+    (Array.isArray(allGroups) ? allGroups : []).map((g) => [
+      String(g?.name || "").trim().toLowerCase(),
+      String(g?.pk),
+    ])
+  );
+
+  const pks = [];
+  for (const nm of namesLower) {
+    const pk = byNameLower.get(nm);
+    if (pk) pks.push(String(pk));
+  }
+
+  _globalAdminGroupPkCache = { key, loadedAt: now, pks };
+  return pks.slice();
+}
 
 // -------------------- CSV import progress (in-memory) --------------------
 // Lightweight job store for progress reporting.
@@ -349,53 +402,38 @@ router.get("/search", async (req, res) => {
       return res.json(result);
     }
 
-    
 // ---------------- Non-global admins ----------------
-// For an agency admin (non-global), avoid pulling the entire Authentik user list.
-// Instead, filter server-side in Authentik using the user's `attributes.agency_abbreviation`.
+// Agency admins can only see their allowed agencies. Additionally, if the viewer is an
+// agency admin (non-global), hide anyone who is in a configured Global Admin group
+// (PORTAL_AUTH_REQUIRED_GROUP).
 //
-// NOTE: If the current user appears to administer multiple agencies (multiple allowed suffixes),
-// we fall back to the legacy suffix-based filtering to avoid accidentally hiding valid results.
-const allowedSuffixes = Array.isArray(access.allowedAgencySuffixes)
-  ? access.allowedAgencySuffixes.filter(Boolean)
-  : [];
+// We intentionally do deterministic in-memory paging for agency admins when global
+// admin groups are configured, so the returned totals/pagination stay correct after
+// removing global-admin users.
 
-const canUseAttributeFilter =
-  authUser &&
-  authUser.uid &&
-  allowedSuffixes.length === 1; // typical "single-agency admin" case
-
-if (canUseAttributeFilter) {
-  let agencyAbbr = "";
-  try {
-    const me = await users.getUserById(authUser.uid);
-    agencyAbbr = String(me?.attributes?.agency_abbreviation || "").trim();
-  } catch (e) {
-    agencyAbbr = "";
-  }
-
-  if (agencyAbbr) {
-    const result = await users.searchUsersByAgencyAbbreviationPaged({
-      agencyAbbreviation: agencyAbbr,
-      q,
-      page: requestedPage,
-      pageSize,
-    });
-    return res.json(result);
-  }
-}
-
-// ---------------- Legacy fallback (suffix-based) ----------------
-// Deterministic in-memory paging over the fully filtered set.
 const currentPageRequested = requestedPage < 1 ? 1 : requestedPage;
 
 // 1) Get all matching users (path + hidden-prefix filters already applied inside findUsers)
 const allMatching = await users.findUsers({ q, forceRefresh: false });
 
 // 2) Filter to only the users in allowed agencies for this authUser
-const visible = allMatching.filter((u) =>
+let visible = allMatching.filter((u) =>
   accessSvc.isUsernameInAllowedAgencies(authUser, u.username)
 );
+
+// 3) If the viewer is an agency admin (non-global), remove global-admin users
+// from their list. Global admins already take the fast path above.
+if (access.isAgencyAdmin) {
+  const globalAdminGroupPks = await getGlobalAdminGroupPks();
+  if (globalAdminGroupPks.length) {
+    const pkSet = new Set(globalAdminGroupPks.map(String));
+    visible = visible.filter((u) => {
+      const gs = Array.isArray(u?.groups) ? u.groups.map((x) => String(x)) : [];
+      // keep the user only if they are NOT in any global-admin group
+      return !gs.some((gid) => pkSet.has(String(gid)));
+    });
+  }
+}
 
 const total = visible.length;
 
