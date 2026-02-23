@@ -359,6 +359,7 @@ app.get("/audit-log", requireGlobalAdmin, (req, res) => {
   // Global admin: normal query + paginate
   const result = auditSvc.queryLogs(filters);
   const agencies = agenciesStore.load();
+
   const agencyOptions = (Array.isArray(agencies) ? agencies : [])
     .map((a) => ({
       value: String(a?.suffix || "").trim().toLowerCase(),
@@ -385,12 +386,14 @@ app.get("/audit-log", requireGlobalAdmin, (req, res) => {
     next: buildLink(Math.min(result.pageCount, result.page + 1)),
   };
 
-res.render("audit-log", {
-  logs: auditLog.getAll(),
-  filters: req.query || {},
-  user: res.locals.user,
-  isGlobalAdmin: res.locals.isGlobalAdmin,
-  isAgencyAdmin: res.locals.isAgencyAdmin
+  return res.render("audit-log", {
+    filters,
+    result,
+    pageLinks,
+    agencyOptions,
+    actionOptions,
+    targetTypeOptions,
+  });
 });
 
 app.get("/qr-generator", (req, res) => res.render("qr-generator"));
