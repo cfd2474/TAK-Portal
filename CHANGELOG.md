@@ -12,6 +12,11 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
+### v1.2.14 - 2/22/26
+✨ `Enhancement` - Modified Pending User Requests page to accept requests inline rather than at the bottom of the page. <br>
+🐛 `Bug Fix` - Fixes issue with password field on the pending user requests page not displaying as full width <br>
+🐛 `Bug Fix` - Fixes issue with password field on the pending user requests page not validating passwords properly.  Cleaned up logic for the Pending User Requests Page and Users page to behave identically.
+
 ### v1.2.13 - 2/22/26
 ✨ `Enhancement` - Adds an additional dropdown option on the edit user page for converting existing users to global admins. This also in turn hides the global admins from agency admins to protect permission overrides from a lower level.
 
