@@ -711,11 +711,6 @@ async function createUser(
   const finalGroups = [
     ...new Map(selectedGroups.map(g => [g.pk, g])).values(),
   ];
-  console.log(
-  "Final deduped groups to apply:",
-  finalGroups.map(g => ({ name: g.name, pk: g.pk }))
-);
-
   // Build payload
   const attributes = {
     agency: agency.suffix,
@@ -774,17 +769,14 @@ async function createUser(
   // Apply groups
   if (finalGroups.length) {
     const before = await getUserById(user.pk);
-    console.log("Groups BEFORE patch:", before.groups);
 
     await api.patch(`/core/users/${user.pk}/`, {
       groups: finalGroups.map(g => g.pk),
     });
 
     const after = await getUserById(user.pk);
-    console.log("Groups AFTER patch:", after.groups);
   }
 
-  console.log("---- END CREATE USER DEBUG ----");
 
   // Email notification (never includes the password)
   try {
