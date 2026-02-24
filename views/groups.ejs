@@ -287,12 +287,6 @@
     </div>
     <div class="modalBody">
       <div id="membersSummary" class="msg"></div>
-      <div style="margin-top:8px;">
-        <button class="btn" id="exportMembersBtn" type="button" style="display:none;">
-          Export CSV
-        </button>
-      </div>
-
 
       <div style="margin-top:14px;">
         <input
@@ -1300,7 +1294,6 @@ window.openGroupMembers = async (groupId) => {
     const groupLabel = activeMembersGroupName || out.group && name || groupId;
 
     membersSummary.textContent = `${memberCount} member${memberCount === 1 ? "" : "s"} in group "${groupLabel}".`;
-    updateExportButtonVisibility(memberCount);
     membersSummary.className = "msg ok";
     membersHint.textContent = memberCount
   const exportBtn = document.getElementById("exportMembersBtn");
@@ -1315,7 +1308,6 @@ window.openGroupMembers = async (groupId) => {
     renderMembersList();
   } catch (e) {
     membersSummary.textContent = "Failed to load members.";
-    updateExportButtonVisibility(0);
     membersSummary.className = "msg bad";
     membersList.innerHTML = "";
     membersHint.textContent = "";
@@ -1617,22 +1609,6 @@ membersOverlay.addEventListener("click", (e) => {
   if (e.target === membersOverlay) showMembersModal(false);
 });
 membersFilter.oninput = renderMembersList;
-
-const exportMembersBtn = document.getElementById("exportMembersBtn");
-
-function updateExportButtonVisibility(count){
-  if (!exportMembersBtn) return;
-  exportMembersBtn.style.display = count > 0 ? "inline-block" : "none";
-}
-
-if (exportMembersBtn){
-  exportMembersBtn.onclick = function(){
-    if (!activeMembersGroupId) return;
-    const url = `/api/groups/${encodeURIComponent(activeMembersGroupId)}/members/export-csv`;
-    window.location = url;
-  };
-}
-
 
 window.openMassAssign = async (groupId) => {
   const g = (groupsCache || []).find(x => String(x.pk) === String(groupId));
