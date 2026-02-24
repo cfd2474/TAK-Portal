@@ -353,7 +353,7 @@ function getSortValue(group, key){
   if (!group) return "";
   if (key === "name") return normalizeSortValue(group.name);
   if (key === "private") {
-    const isPriv = normalizeSortValue(group?.attributes?.private) === "yes";
+    const isPriv = normalizeSortValue(group && attributes && private) === "yes";
     // Sort as 0/1 so non-private comes first in ascending order
     return isPriv ? "1" : "0";
   }
@@ -477,7 +477,7 @@ function setMsg(el, text, ok=true){
 }
 
 function esc(s){
-  return String(s ?? "")
+  return String((s == null ? "" : s))
     .replaceAll("&","&amp;")
     .replaceAll("<","&lt;")
     .replaceAll(">","&gt;")
@@ -834,7 +834,7 @@ function renderGroups(){
   const filteredRaw = needle
     ? groupsCache.filter(g => {
         const name = String(g.name || "").toLowerCase();
-        const desc = String(g?.attributes?.description || "").toLowerCase();
+        const desc = String(g && attributes && description || "").toLowerCase();
         return name.includes(needle) || desc.includes(needle);
       })
     : groupsCache;
@@ -844,8 +844,8 @@ function renderGroups(){
   tbody.innerHTML = filtered.map(g => {
     const locked = groupActionsLocked(g.name);
     const editable = !locked && isGroupEditable(g.name);
-    const desc = String(g?.attributes?.description || "").trim();
-    const isPrivate = String(g?.attributes?.private || "").trim().toLowerCase() === "yes";
+    const desc = String(g && attributes && description || "").trim();
+    const isPrivate = String(g && attributes && private || "").trim().toLowerCase() === "yes";
 
     return `
     <tr>
@@ -921,7 +921,7 @@ createBtn.onclick = async () => {
     if (!county) return setMsg(createMsg, "Select a county.", false);
     name = `${county} Co ${name}`;
   } else if (type === "state") {
-    const state = String(stateSelect?.value || "").trim().toUpperCase();
+    const state = String(stateSelect && value || "").trim().toUpperCase();
     if (!state) return setMsg(createMsg, "Select a state.", false);
     name = `${state} ${name}`;
   }
@@ -956,7 +956,7 @@ createBtn.onclick = async () => {
     }
   } else if (type === "state") {
     groupType = "State";
-    const state = String(stateSelect?.value || "").trim().toUpperCase();
+    const state = String(stateSelect && value || "").trim().toUpperCase();
     if (state) {
       groupTypeDetail = state;
     }
@@ -1009,9 +1009,9 @@ window.editGroupName = async (groupId) => {
   setMsg(listMsg, "");
 
   const g = (groupsCache || []).find(x => String(x.pk) === String(groupId));
-  const currentName = String(g?.name || "").trim();
-  const currentDescription = String(g?.attributes?.description || "").trim();
-	  const currentPrivateRaw = String(g?.attributes?.private || "no").trim().toLowerCase();
+  const currentName = String(g && name || "").trim();
+  const currentDescription = String(g && attributes && description || "").trim();
+	  const currentPrivateRaw = String(g && attributes && private || "no").trim().toLowerCase();
 	  const currentPrivate = (currentPrivateRaw === "yes" || currentPrivateRaw === "true" || currentPrivateRaw === "1")
 	    ? "yes"
 	    : "no";
@@ -1083,7 +1083,7 @@ window.deleteGroup = async (groupId) => {
   setMsg(listMsg, "Calculating delete impact...", true);
 
   const g = (groupsCache || []).find(x => String(x.pk) === String(groupId));
-  const name = String(g?.name || "").trim();
+  const name = String(g && name || "").trim();
   if (name && groupActionsLocked(name)) {
     setMsg(listMsg, `Actions are locked for group ${name}`, false);
     return;
@@ -1255,7 +1255,7 @@ window.openGroupMembers = async (groupId) => {
   setMsg(listMsg, "");
 
   const g = (groupsCache || []).find(x => String(x.pk) === String(groupId));
-  activeMembersGroupName = String(g?.name || "");
+  activeMembersGroupName = String(g && name || "");
   activeMembersGroupId = String(groupId || "");
 
   membersSummary.textContent = "Loading members...";
@@ -1291,7 +1291,7 @@ window.openGroupMembers = async (groupId) => {
       ? out.memberCount
       : activeMembers.length;
 
-    const groupLabel = activeMembersGroupName || out.group?.name || groupId;
+    const groupLabel = activeMembersGroupName || out.group && name || groupId;
 
     membersSummary.textContent = `${memberCount} member${memberCount === 1 ? "" : "s"} in group "${groupLabel}".`;
     membersSummary.className = "msg ok";
@@ -1390,19 +1390,19 @@ editGroupSaveBtn.onclick = async () => {
   }
 
   if (type === "agency") {
-    prefix = String(editAgencyPrefixSelect?.value || "").trim().toUpperCase();
+    prefix = String(editAgencyPrefixSelect && value || "").trim().toUpperCase();
     if (!prefix) {
       setMsg(editGroupMsg, "Select an agency prefix.", false);
       return;
     }
   } else if (type === "county") {
-    county = String(editCountySelect?.value || "").trim();
+    county = String(editCountySelect && value || "").trim();
     if (!county) {
       setMsg(editGroupMsg, "Select a county.", false);
       return;
     }
   } else if (type === "state") {
-    state = String(editStateSelect?.value || "").trim().toUpperCase();
+    state = String(editStateSelect && value || "").trim().toUpperCase();
     if (!state) {
       setMsg(editGroupMsg, "Select a state.", false);
       return;
@@ -1504,7 +1504,7 @@ window.exportGroupMembersCsv = function() {
   if (!filtered.length) return;
 
   const escapeCsv = (val) => {
-    const s = String(val ?? "");
+    const s = String((val == null ? "" : val));
     if (s.includes('"') || s.includes(',') || s.includes('\n')) {
       return '"' + s.replace(/"/g, '""') + '"';
     }
@@ -1559,7 +1559,7 @@ window.openMassAssign = async (groupId) => {
     return;
   }
   activeMassGroupId = String(groupId);
-  activeMassGroupName = String(g?.name || "");
+  activeMassGroupName = String(g && name || "");
   setMassAction("assign");
 
   agencySearch.value = "";
@@ -1584,7 +1584,7 @@ window.openMassUnassign = async (groupId) => {
     return;
   }
   activeMassGroupId = String(groupId);
-  activeMassGroupName = String(g?.name || "");
+  activeMassGroupName = String(g && name || "");
   setMassAction("unassign");
 
   agencySearch.value = "";
@@ -1689,7 +1689,7 @@ userClearAll.onclick = () => {
 };
 
 function renderSourceGroupList(){
-  const needle = String(sourceGroupSearch?.value || "").trim().toLowerCase();
+  const needle = String(sourceGroupSearch && value || "").trim().toLowerCase();
   const items = (groupsCache || [])
     .filter(g => String(g.pk) !== String(activeMassGroupId))
     .slice()
