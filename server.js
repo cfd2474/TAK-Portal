@@ -315,8 +315,6 @@ app.get("/audit-log", requireOnlyGlobalAdmin, (req, res) => {
     next: buildLink(Math.min(result.pageCount, result.page + 1)),
   };
 
-const serverTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
   return res.render("audit-log", {
     filters,
     result,
@@ -324,8 +322,7 @@ const serverTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     agencyOptions,
     actionOptions,
     targetTypeOptions,
-    agencyMap,
-    serverTimeZone
+    agencyMap
   });
 });
 

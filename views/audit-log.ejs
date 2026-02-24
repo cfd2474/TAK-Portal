@@ -41,28 +41,9 @@
         <% (result?.items || []).forEach((log) => { %>
           <tr data-details='<%- JSON.stringify(log.details || {}) %>'>
 
-            <!-- Time -->           
+            <!-- Time -->
             <td>
-              <%
-                let formatted = '';
-                try {
-                  const tz =
-                    typeof serverTimeZone !== 'undefined' && serverTimeZone
-                      ? serverTimeZone
-                      : Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-                  if (log.timestamp) {
-                    formatted = new Date(log.timestamp).toLocaleString(undefined, {
-                      timeZone: tz
-                    });
-                  }
-                } catch (err) {
-                  if (log.timestamp) {
-                    formatted = new Date(log.timestamp).toLocaleString();
-                  }
-                }
-              %>
-              <%= formatted %>
+              <%= log.timestamp ? new Date(log.timestamp).toLocaleString() : '' %>
             </td>
 
             <!-- Actor -->
