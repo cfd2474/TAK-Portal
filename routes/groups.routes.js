@@ -369,6 +369,58 @@ router.get("/:groupId/members", async (req, res) => {
       agencyAbbreviation,
     });
 
+
+// Export members of a group as CSV
+router.get("/:groupId/members/export-csv", async (req, res) => {
+  try {
+    const groupId = req.params.groupId;
+    const group = await groups.getGroupById(groupId);
+    const authUser = req.authentikUser || null;
+
+    const users = await groups.getGroupMembers(groupId, { authUser });
+
+    const headers = ["username", "last_name", "first_name", "agency_abbreviation", "email"];
+
+    const escapeCsv = (val) => {
+      const s = String(val ?? "");
+      if (s.includes('"') || s.includes(',') || s.includes('\n')) {
+        return '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    };
+
+    const rows = (users || []).map(u => {
+      const fullName = String(u.name || "").trim();
+      let firstName = "";
+      let lastName = "";
+      if (fullName) {
+        const parts = fullName.split(" ");
+        firstName = parts.slice(0, -1).join(" ") || parts[0] || "";
+        lastName = parts.length > 1 ? parts[parts.length - 1] : "";
+      }
+      const agencyAbbr = String(u.attributes?.agency_abbreviation || "");
+      return [
+        escapeCsv(u.username),
+        escapeCsv(lastName),
+        escapeCsv(firstName),
+        escapeCsv(agencyAbbr),
+        escapeCsv(u.email),
+      ].join(",");
+    });
+
+    const csv = [headers.join(","), ...rows].join("\n");
+
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${String(group?.name || "group")}_members.csv"`
+    );
+    res.send(csv);
+  } catch (err) {
+    res.status(400).json({ error: toErrorPayload(err) });
+  }
+});
+
     let mutual = [];
     try {
       const items = mutualAid.list() || [];

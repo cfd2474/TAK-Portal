@@ -1263,6 +1263,17 @@ window.openGroupMembers = async (groupId) => {
   membersList.innerHTML = "";
   membersHint.textContent = "";
   membersFilter.value = "";
+  const btn = document.getElementById("exportMembersBtn");
+  if (!btn) {
+    const newBtn = document.createElement("button");
+    newBtn.id = "exportMembersBtn";
+    newBtn.className = "btn";
+    newBtn.type = "button";
+    newBtn.textContent = "Export CSV";
+    newBtn.style.marginLeft = "10px";
+    membersSummary.parentNode.insertBefore(newBtn, membersSummary.nextSibling);
+  }
+
 
   showMembersModal(true);
 
@@ -1285,6 +1296,12 @@ window.openGroupMembers = async (groupId) => {
     membersSummary.textContent = `${memberCount} member${memberCount === 1 ? "" : "s"} in group "${groupLabel}".`;
     membersSummary.className = "msg ok";
     membersHint.textContent = memberCount
+  const exportBtn = document.getElementById("exportMembersBtn");
+  if (exportBtn) {
+    exportBtn.onclick = exportGroupMembersCsv;
+    exportBtn.style.display = memberCount ? "inline-block" : "none";
+  }
+
       ? "Showing current members of this group. Use Remove to strip this group from individual users."
       : "No users are currently assigned to this group.";
 
@@ -1328,6 +1345,12 @@ window.removeUserFromGroup = async (userPk) => {
     membersSummary.className = "msg ok";
 
     membersHint.textContent = memberCount
+  const exportBtn = document.getElementById("exportMembersBtn");
+  if (exportBtn) {
+    exportBtn.onclick = exportGroupMembersCsv;
+    exportBtn.style.display = memberCount ? "inline-block" : "none";
+  }
+
       ? "Showing current members of this group. Use Remove to strip this group from individual users."
       : "No users are currently assigned to this group.";
 
@@ -1452,6 +1475,19 @@ window.addEventListener("keydown", (e) => {
     showEditGroupModal(false);
   }
 });
+
+
+
+window.exportGroupMembersCsv = function() {
+  if (!activeMembersGroupId) return;
+  const url = `/api/groups/${encodeURIComponent(activeMembersGroupId)}/members/export-csv`;
+  const a = document.createElement("a");
+  a.href = url;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+};
 
 membersCloseBtn.onclick = () => showMembersModal(false);
 membersOverlay.addEventListener("click", (e) => {
