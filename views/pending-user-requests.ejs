@@ -581,20 +581,17 @@ th.sortable:hover{
     const raw = Array.isArray(meta.templates) ? meta.templates : [];
     const all = raw.map((t, idx) => ({ ...t, name: t.name || t.label || `Template ${idx + 1}` }));
 
-    const manual =
-      all[0] && String(all[0].name || '').toLowerCase().includes('manual')
-        ? all[0]
-        : { name: 'Manual Group Selection', groups: [] };
+    // Ensure Manual Group Selection exists and is first
+    const manual = { name: "Manual Group Selection", groups: [] };
 
-    const rest = all.slice(1).slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    const rest = all
+      .filter(t => String(t.name || "").trim().toLowerCase() !== "manual group selection")
+      .slice()
+      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+
     const templates = [manual, ...rest];
 
-    let defaultIndex = 0;
-    const defaultInRest = rest.findIndex((t) => !!t.isDefault);
-    if (defaultInRest >= 0) defaultIndex = 1 + defaultInRest;
-    else if (templates.length > 1) defaultIndex = 1;
-
-    return { templates, defaultIndex };
+    return { templates };
   }
 
   // -------------------- Inline approve form --------------------
@@ -728,18 +725,35 @@ th.sortable:hover{
 
       templatesCache = meta.templates;
 
-      templateSelect.innerHTML = templatesCache
-        .map((t, i) => `<option value="${i}">${esc(t.name)}</option>`)
-        .join('');
+    // Use template NAME as value (stable), not index
+    templateSelect.innerHTML = templatesCache
+      .map((t) => `<option value="${esc(t.name)}">${esc(t.name)}</option>`)
+      .join('');
 
-      templateSelect.value = String(meta.defaultIndex);
-      templateSelect.dispatchEvent(new Event('change'));
+    // Determine default template by name
+    let defaultName = "Manual Group Selection";
+
+    // Prefer explicitly marked default
+    const defaultTpl = templatesCache.find(t => !!t.isDefault && String(t.name || "").trim());
+    if (defaultTpl) {
+      defaultName = String(defaultTpl.name).trim();
+    } else {
+      const firstNonManual = templatesCache.find(t =>
+        String(t.name || "").trim().toLowerCase() !== "manual group selection"
+      );
+      if (firstNonManual) defaultName = String(firstNonManual.name).trim();
+    }
+
+    templateSelect.value = defaultName;
+    templateSelect.dispatchEvent(new Event('change'));
     }
 
     templateSelect.addEventListener('change', () => {
-      const isManual = templateSelect.value === '0';
+      const isManual =
+        String(templateSelect.value || "").trim().toLowerCase() === "manual group selection";
+
       manualGroupsWrap.style.display = isManual ? 'block' : 'none';
-      // When switching to manual, render immediately
+
       if (isManual) renderGroupsBox();
     });
 
@@ -778,9 +792,8 @@ th.sortable:hover{
         return;
       }
 
-      payload.templateIndex = Number(payload.templateIndex);
-
-      if (String(payload.templateIndex) === '0') {
+      // templateIndex is now a TEMPLATE NAME (string)
+      if (String(payload.templateIndex || "").trim().toLowerCase() === "manual group selection") {
         payload.manualGroupIds = getPickedManualGroupIds();
       }
 
