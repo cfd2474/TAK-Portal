@@ -1522,7 +1522,7 @@ window.exportGroupMembersCsv = function() {
       firstName = parts.slice(0, -1).join(" ") || parts[0] || "";
       lastName = parts.length > 1 ? parts[parts.length - 1] : "";
     }
-    const agencyAbbr = String(u.attributes?.agency_abbreviation || "");
+    const agencyAbbr = String((u.attributes && u.attributes.agency_abbreviation) || "");
     return [
       escapeCsv(u.username),
       escapeCsv(lastName),
