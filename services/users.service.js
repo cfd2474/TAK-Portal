@@ -663,6 +663,11 @@ async function createUser(
   let selectedGroups = [];
   const tIdx = Number(templateIndex);
 
+  console.log("---- CREATE USER DEBUG ----");
+  console.log("Incoming templateIndex:", templateIndex);
+  console.log("Parsed templateIndex (Number):", tIdx);
+  console.log("Agency suffix:", agency.suffix);
+
   // Index 0 = Manual Group Selection
   if (Number.isInteger(tIdx) && tIdx === 0) {
     templateNameUsed = "Manual Group Selection";
@@ -686,6 +691,12 @@ async function createUser(
       })
       .filter(Boolean);
 
+      console.log("Manual selection group IDs (raw):", raw);
+      console.log(
+        "Manual resolved groups:",
+        selectedGroups.map(g => ({ name: g.name, pk: g.pk }))
+      );
+
     if (!selectedGroups.length) {
       throw new Error(
         "Manual group selection did not match any Authentik groups."
@@ -697,20 +708,33 @@ async function createUser(
     const selectedTemplate = dynTemplates[tIdx - 1]; // subtract 1 because index 0 is manual
 
     if (selectedTemplate) {
-      templateNameUsed = String(selectedTemplate.name || "") || null;
+    templateNameUsed = String(selectedTemplate.name || "") || null;
 
-      selectedGroups = (selectedTemplate.groups || [])
-        .map(n =>
-          byNameLower.get(String(n).trim().toLowerCase())
-        )
-        .filter(Boolean);
-    }
+    console.log("Selected template:", selectedTemplate.name);
+    console.log("Template groups (names from template):", selectedTemplate.groups);
+
+    selectedGroups = (selectedTemplate.groups || [])
+      .map(n =>
+        byNameLower.get(String(n).trim().toLowerCase())
+      )
+      .filter(Boolean);
+
+    console.log(
+      "Resolved template groups:",
+      selectedGroups.map(g => ({ name: g.name, pk: g.pk }))
+    );
+  } else {
+    console.log("No template resolved for index:", tIdx);
   }
 
   // Merge + dedupe by PK (selected groups only)
   const finalGroups = [
     ...new Map(selectedGroups.map(g => [g.pk, g])).values(),
   ];
+  console.log(
+  "Final deduped groups to apply:",
+  finalGroups.map(g => ({ name: g.name, pk: g.pk }))
+);
 
   // Build payload
   const attributes = {
@@ -769,10 +793,18 @@ async function createUser(
 
   // Apply groups
   if (finalGroups.length) {
+    const before = await getUserById(user.pk);
+    console.log("Groups BEFORE patch:", before.groups);
+
     await api.patch(`/core/users/${user.pk}/`, {
       groups: finalGroups.map(g => g.pk),
     });
+
+    const after = await getUserById(user.pk);
+    console.log("Groups AFTER patch:", after.groups);
   }
+
+  console.log("---- END CREATE USER DEBUG ----");
 
   // Email notification (never includes the password)
   try {
