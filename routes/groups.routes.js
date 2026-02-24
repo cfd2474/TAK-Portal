@@ -335,43 +335,15 @@ router.post("/mass-unassign", async (req, res) => {
   }
 });
 
+
 // Fetch members of a single group, plus related mutual-aid entries
 router.get("/:groupId/members", async (req, res) => {
   try {
     const groupId = req.params.groupId;
     const group = await groups.getGroupById(groupId);
     const authUser = req.authentikUser || null;
-    const access = accessSvc.getAgencyAccess(authUser);
 
-    // For agency admins, try to use their agency_abbreviation attribute
-    // to allow Authentik to filter members server-side.
-    let agencyAbbreviation = null;
-    if (!access.isGlobalAdmin && authUser?.uid) {
-      try {
-        // Only use attribute-based filtering when the user appears to be a
-        // single-agency admin; otherwise fall back to legacy suffix gate.
-        const allowed = access.allowedAgencySuffixes || [];
-        if (allowed.length === 1) {
-          const me = await usersService.getUserById(authUser.uid);
-          const attrs = me?.attributes || {};
-          const abbr = String(attrs.agency_abbreviation || "").trim();
-          if (abbr) {
-            agencyAbbreviation = abbr;
-          }
-        }
-      } catch (e) {
-        agencyAbbreviation = null;
-      }
-    }
-
-    const users = await groups.getGroupMembers(groupId, {
-      authUser,
-      agencyAbbreviation,
-    });
-
-
-  }
-});
+    const users = await groups.getGroupMembers(groupId, { authUser });
 
     let mutual = [];
     try {
@@ -398,8 +370,7 @@ router.get("/:groupId/members", async (req, res) => {
   }
 });
 
-
-// Export members of a group as CSV (respects simple search filter via ?search=)
+// Export members of a group as CSV
 router.get("/:groupId/members/export-csv", async (req, res) => {
   try {
     const groupId = req.params.groupId;
