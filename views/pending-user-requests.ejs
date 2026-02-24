@@ -396,10 +396,19 @@ th.sortable:hover{
   }
 
   function agencyLabelForSort(req) {
-    const prefix = String(req?.groupPrefix || "").trim();
-    if (prefix === "__other__") return normalizeSortValue("Other / Not Listed");
-    const nm = String(req?.agencyName || "").trim();
-    return normalizeSortValue(nm ? `${nm} (${prefix})` : prefix);
+    if (!req) return "";
+
+    if (req.agencySuffix === "__other__") {
+      return normalizeSortValue("Other / Not Listed");
+    }
+
+    const agencyObj = agenciesCache.find(a => a.suffix === req.agencySuffix);
+
+    if (agencyObj) {
+      return normalizeSortValue(`${agencyObj.name} (${agencyObj.groupPrefix})`);
+    }
+
+    return normalizeSortValue(req.agencySuffix || "");
   }
 
   function getSortValue(req, key) {
@@ -486,9 +495,13 @@ th.sortable:hover{
     const sorted = stableSortedCopy(requestsCache.slice(), sortState.key, sortState.dir);
 
     tbody.innerHTML = sorted.map(r => {
-    const agencyLabel = r.groupPrefix === '__other__'
-      ? 'Other / Not Listed'
-      : (r.agencyName ? `${r.agencyName} (${r.groupPrefix})` : r.groupPrefix);
+      const agencyObj = agenciesCache.find(a => a.suffix === r.agencySuffix);
+
+      const agencyLabel = r.agencySuffix === '__other__'
+        ? 'Other / Not Listed'
+        : agencyObj
+            ? `${agencyObj.name} (${agencyObj.groupPrefix})`
+            : r.agencySuffix;
       return `
         <tr data-request-row="1" data-request-id="${esc(r.id)}">
           <td>${esc(fmtDate(r.createdAt))}</td>
@@ -499,7 +512,7 @@ th.sortable:hover{
           <td>
             <div class="row" style="gap:8px; flex-wrap:wrap;">
               ${
-                r.groupPrefix === '__other__'
+                r.agencySuffix === '__other__'
                   ? `<button class="btn" type="button" data-action="approve" data-id="${esc(r.id)}">Review Request</button>`
                   : `<button class="btn success" type="button" data-action="approve" data-id="${esc(r.id)}">Approve</button>`
               }
@@ -546,7 +559,7 @@ th.sortable:hover{
     selectEl.innerHTML = agenciesCache
       .slice()
       .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
-      .map(a => `<option value="${esc(a.suffix)}">${esc(a.name)} (${esc(a.suffix)})</option>`)
+      .map(a => `<option value="${esc(a.suffix)}">${esc(a.name)} (${esc(a.groupPrefix)})</option>`)
       .join('');
   }
 
