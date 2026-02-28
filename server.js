@@ -259,7 +259,7 @@ app.get("/mutual-aid", requireGlobalAdmin, (req, res) =>
 ); //require Global Admin
 
 // Admin: audit log (GLOBAL ADMINS ONLY)
-app.get("/audit-log", requireOnlyGlobalAdmin, (req, res) => {
+app.get("/audit-log", requireGlobalAdmin, (req, res) => {
   const raw = req.query || {};
 
   const filters = {
