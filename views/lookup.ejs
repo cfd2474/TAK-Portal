@@ -23,7 +23,16 @@
       <input type="text" name="username" class="form-control" required value="<%= form.username || '' %>">
     </div>
 
-    <button type="submit" class="btn btn-primary">Lookup Account</button>
+    <% if (hcaptchaEnabled) { %>
+      <div class="form-group" style="margin-top: 15px;">
+        <div class="h-captcha" data-sitekey="<%= hcaptchaSiteKey %>"></div>
+      </div>
+      <script src="https://hcaptcha.com/1/api.js" async defer></script>
+    <% } %>
+
+    <button type="submit" class="btn btn-primary" style="margin-top:15px;">
+      Lookup Account
+    </button>
   </form>
 </div>
 

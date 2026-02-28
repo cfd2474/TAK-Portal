@@ -423,6 +423,161 @@ app.post("/lookup", async (req, res) => {
   }
 });
 
+
+// Public: account lookup (must remain reachable by non-authenticated users)
+app.get("/lookup", (req, res) => {
+  const settings = (res.locals && res.locals.settings)
+    ? res.locals.settings
+    : (settingsSvc.getSettings() || {});
+
+  const hcaptchaSiteKey = String(settings.HCAPTCHA_SITE_KEY || "").trim();
+  const hcaptchaSecretKey = String(settings.HCAPTCHA_SECRET_KEY || "").trim();
+  const hcaptchaEnabled = !!(hcaptchaSiteKey && hcaptchaSecretKey);
+
+  return res.render("lookup", {
+    form: {},
+    error: null,
+    success: null,
+    hcaptchaEnabled,
+    hcaptchaSiteKey: hcaptchaEnabled ? hcaptchaSiteKey : ""
+  });
+});
+
+app.post("/lookup", async (req, res) => {
+  try {
+    const body = req.body || {};
+    const email = String(body.email || "").trim().toLowerCase();
+    const username = String(body.username || "").trim();
+
+    const settings = (res.locals && res.locals.settings)
+      ? res.locals.settings
+      : (settingsSvc.getSettings() || {});
+
+    const hcaptchaSiteKey = String(settings.HCAPTCHA_SITE_KEY || "").trim();
+    const hcaptchaSecretKey = String(settings.HCAPTCHA_SECRET_KEY || "").trim();
+    const hcaptchaEnabled = !!(hcaptchaSiteKey && hcaptchaSecretKey);
+
+    // Enforce hCaptcha only if BOTH keys are configured
+    if (hcaptchaEnabled) {
+      const token = body["h-captcha-response"];
+      if (!token) {
+        throw new Error("Captcha verification failed.");
+      }
+
+      const params = new URLSearchParams();
+      params.append("secret", hcaptchaSecretKey);
+      params.append("response", token);
+
+      const verifyResp = await axios.post(
+        "https://hcaptcha.com/siteverify",
+        params.toString(),
+        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+      );
+
+      if (!verifyResp?.data?.success) {
+        throw new Error("Captcha verification failed.");
+      }
+    }
+
+    if (!email || !username) {
+      throw new Error("Email address or Username Not Found");
+    }
+
+    const emailParts = email.split("@");
+    if (emailParts.length !== 2) {
+      throw new Error("Email address or Username Not Found");
+    }
+
+    const domain = emailParts[1].toLowerCase();
+
+    const agencies = agenciesStore.load() || [];
+
+    // Domain-to-agency validation:
+    // - Agency must explicitly allow lookup (lookupEnabled === true)
+    // - Agency must contain a matching domain in its allowed domains list
+    const agency = agencies.find(a => {
+      if (!a || a.lookupEnabled !== true) return false;
+
+      const domains = Array.isArray(a.domains)
+        ? a.domains.map(d => String(d).toLowerCase())
+        : [];
+
+      return domains.includes(domain);
+    });
+
+    if (!agency) {
+      throw new Error("Email address or Username Not Found");
+    }
+
+    const usersSvc = require("./services/users.service");
+    const allUsers = await usersSvc.getAllUsers({ forceRefresh: true });
+
+    const user = allUsers.find(u =>
+      String(u.username || "").trim() === username &&
+      (!u.email || !String(u.email).trim())
+    );
+
+    if (!user) {
+      throw new Error("Email address or Username Not Found");
+    }
+
+    const tokensSvc = require("./services/authentikTokens.service");
+    const qrSvc = require("./services/qr.service");
+
+    const { key } = await tokensSvc.getOrCreateEnrollmentAppPassword({
+      username: user.username,
+      userId: user.pk || user.id
+    });
+
+    const enrollUrl = qrSvc.buildEnrollUrl({
+      username: user.username,
+      token: key
+    });
+
+    const pngBuffer = await qrSvc.generateDownloadPng(
+      enrollUrl,
+      user.username
+    );
+
+    await emailSvc.sendMail({
+      to: email,
+      subject: "Your TAK Enrollment QR Code",
+      text: "Attached is your TAK enrollment QR code.",
+      attachments: [
+        {
+          filename: `tak-${user.username}-enrollment-qr.png`,
+          content: pngBuffer
+        }
+      ]
+    });
+
+    return res.render("lookup", {
+      form: {},
+      error: null,
+      success: "If the account was found, a QR code has been emailed.",
+      hcaptchaEnabled,
+      hcaptchaSiteKey: hcaptchaEnabled ? hcaptchaSiteKey : ""
+    });
+
+  } catch (err) {
+    const settings = (res.locals && res.locals.settings)
+      ? res.locals.settings
+      : (settingsSvc.getSettings() || {});
+
+    const hcaptchaSiteKey = String(settings.HCAPTCHA_SITE_KEY || "").trim();
+    const hcaptchaSecretKey = String(settings.HCAPTCHA_SECRET_KEY || "").trim();
+    const hcaptchaEnabled = !!(hcaptchaSiteKey && hcaptchaSecretKey);
+
+    return res.status(400).render("lookup", {
+      form: req.body || {},
+      error: "Email address or Username Not Found",
+      success: null,
+      hcaptchaEnabled,
+      hcaptchaSiteKey: hcaptchaEnabled ? hcaptchaSiteKey : ""
+    });
+  }
+});
+
 // Public: request access form (must remain reachable by non-authenticated users)
 app.get("/request-access", (req, res) => {
   const agencies = agenciesStore.load();
