@@ -192,14 +192,14 @@
   <div class="modalOverlay" id="lookupModal" style="display:none;">
     <div class="modal" role="dialog" aria-modal="true">
       <div class="modalHeader">
-        <h2 style="margin:0;">Enable Lookup</h2>
+        <h2 style="margin:0;">Enable Account Lookup</h2>
         <button class="btn" type="button" onclick="showLookupModal(false)">Close</button>
       </div>
       <div class="modalBody">
-        <p>Placeholder text describing what lookup is and how it works.</p>
+        <p>Account Lookup is designed for agencies who may have user accounts created for an apparatus or shift.  If enabled, lookup allows users without individual accounts to enter their agency email address and apparatus username to receive a QR code to their email.  Note – this feature is only available if lookup is enabled and the apparatus user does not have an email address associated with it.</p>
 
         <div style="margin-top:14px;">
-          <label>Email Domain</label>
+          <label>Agency Email Domain</label>
           <input type="text" id="lookupDomain" placeholder="agency.gov"
                 style="width:100%; box-sizing:border-box;" />
           <small id="domainError" class="msg bad" style="display:none;">
@@ -211,7 +211,7 @@
           <button class="btn" type="button" onclick="showLookupModal(false)">
             Cancel
           </button>
-          <button class="btn" type="button" id="confirmEnableLookup">
+          <button class="success" type="button" id="confirmEnableLookup">
             Enable
           </button>
         </div>
@@ -379,7 +379,7 @@ function renderAgencies(){
           View Admins
         </button>
 
-        <button class="btn"
+        <button class="btn ${a.lookupEnabled ? "btn-grey" : ""}"
           type="button"
           onclick="toggleLookup('${esc(a._id ?? a.id ?? "")}', ${a.lookupEnabled ? "true" : "false"}, '${esc(a.name)}')">
           ${a.lookupEnabled ? "Disable Lookup" : "Enable Lookup"}
@@ -742,6 +742,18 @@ loadAgenciesWithCounts();
   position: absolute;
   right: 0.5rem;
   opacity: 0.7;
+}
+
+/* Grey button for Disable Lookup */
+.btn-grey {
+  background-color: #6c757d;
+  border-color: #6c757d;
+  color: #fff;
+}
+
+.btn-grey:hover {
+  background-color: #5a6268;
+  border-color: #545b62;
 }
 </style>
 
