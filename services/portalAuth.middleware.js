@@ -147,13 +147,77 @@ function portalAuthMiddleware(req, res, next) {
   const hasAnyRequired =
     !anyAdminGroupConfigured || isGlobalAdmin || isAgencyAdmin;
 
-  // For public paths we only enforce "is logged in" when auth is enabled.
-  // Group membership does not gate access to the Welcome page, etc.
-  if (!hasAnyRequired && !isPublicPath) {
-    const safeUsername = username || "";
-    return res.status(403).render("access-denied", {
-      username: safeUsername,
-    });
+  // ============================================================
+  // ROLE-BASED ROUTE ENFORCEMENT
+  // ============================================================
+
+  if (!isPublicPath) {
+
+    // Must be authenticated
+    if (!username) {
+      return res
+        .status(401)
+        .send(
+          "Authentication required. This portal expects to be behind an Authentik forward_auth proxy."
+        );
+    }
+
+    // If admin groups exist, user must be at least agency admin
+    if (!hasAnyRequired) {
+      return res.status(403).render("access-denied", {
+        username,
+      });
+    }
+
+    // GLOBAL ADMINS can access everything
+    if (isGlobalAdmin) {
+      // allow
+    }
+
+    // AGENCY ADMINS limited routes
+    else if (isAgencyAdmin) {
+
+      const allowedAgencyAdminPrefixes = [
+        "/dashboard",
+        "/users",
+        "/groups",
+        "/templates",
+        "/setup-my-device",
+        "/api/users",
+        "/api/groups",
+        "/api/templates",
+        "/api/setup-my-device",
+      ];
+
+      const allowed = allowedAgencyAdminPrefixes.some(prefix =>
+        normalizedPath === prefix || normalizedPath.startsWith(prefix + "/")
+      );
+
+      if (!allowed) {
+        return res.status(403).render("access-denied", {
+          username,
+        });
+      }
+    }
+
+    // NORMAL USERS: only setup-my-device
+    else {
+
+      const allowedUserPrefixes = [
+        "/setup-my-device",
+        "/api/setup-my-device",
+      ];
+
+      const allowed = allowedUserPrefixes.some(prefix =>
+        normalizedPath === prefix || normalizedPath.startsWith(prefix + "/")
+      );
+
+      if (!allowed) {
+        return res.status(403).render("access-denied", {
+          username,
+        });
+      }
+    }
   }
 
   const displayNameHeader =
