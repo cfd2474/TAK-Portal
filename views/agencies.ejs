@@ -636,4 +636,76 @@ loadAgenciesWithCounts();
 }
 </style>
 
-</div></body></html>
+</div>
+<!-- Lookup Modal -->
+<div class="modal fade" id="lookupModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Enable Lookup</h5>
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Placeholder text describing what lookup is and how it works.</p>
+        <div class="form-group">
+          <label for="lookupDomain">Email Domain</label>
+          <input type="text" id="lookupDomain" class="form-control" placeholder="agency.gov">
+          <small id="domainError" class="text-danger d-none">Please enter a valid email domain (e.g., agency.gov) with no @ symbol.</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" id="confirmEnableLookup">Enable</button>
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    let currentAgency = null;
+
+    document.querySelectorAll(".toggle-lookup-btn").forEach(btn => {
+        btn.addEventListener("click", function () {
+            const agencyName = this.dataset.agency;
+            const enabled = this.dataset.enabled === "true";
+
+            if (!enabled) {
+                currentAgency = agencyName;
+                $("#lookupModal").modal("show");
+            } else {
+                if (confirm("Are you sure you want to disable Lookup for " + agencyName + " Agency?")) {
+                    fetch("/agencies/" + encodeURIComponent(agencyName) + "/lookup/disable", {
+                        method: "POST"
+                    }).then(() => location.reload());
+                }
+            }
+        });
+    });
+
+    document.getElementById("confirmEnableLookup").addEventListener("click", function () {
+        const domainInput = document.getElementById("lookupDomain");
+        const error = document.getElementById("domainError");
+        const domain = domainInput.value.trim();
+
+        const domainRegex = /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+        if (!domainRegex.test(domain) || domain.includes("@")) {
+            error.classList.remove("d-none");
+            return;
+        }
+
+        error.classList.add("d-none");
+
+        fetch("/agencies/" + encodeURIComponent(currentAgency) + "/lookup/enable", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ domain })
+        }).then(() => location.reload());
+    });
+});
+</script>
+
+</body></html>

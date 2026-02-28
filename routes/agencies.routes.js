@@ -250,4 +250,44 @@ router.delete("/:index", async (req, res) => {
   }
 });
 
+
+// Enable Lookup
+router.post("/:name/lookup/enable", (req, res) => {
+  const { name } = req.params;
+  const { domain } = req.body;
+
+  if (!domain || domain.includes("@") || !/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(domain)) {
+    return res.status(400).json({ error: "Invalid domain" });
+  }
+
+  const agencies = agenciesService.load();
+  const index = agencies.findIndex(a => a.name === name);
+
+  if (index === -1) return res.status(404).json({ error: "Agency not found" });
+
+  agencies[index].lookupEnabled = true;
+  agencies[index].lookupDomain = domain;
+
+  agenciesService.save(agencies);
+
+  res.json({ success: true });
+});
+
+// Disable Lookup
+router.post("/:name/lookup/disable", (req, res) => {
+  const { name } = req.params;
+
+  const agencies = agenciesService.load();
+  const index = agencies.findIndex(a => a.name === name);
+
+  if (index === -1) return res.status(404).json({ error: "Agency not found" });
+
+  agencies[index].lookupEnabled = false;
+  agencies[index].lookupDomain = null;
+
+  agenciesService.save(agencies);
+
+  res.json({ success: true });
+});
+
 module.exports = router;
