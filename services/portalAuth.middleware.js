@@ -186,6 +186,17 @@ if (!isPublicPath) {
   // AGENCY ADMINS limited routes
   else if (isAgencyAdmin) {
 
+    // Agency admins must be able to *read* agencies so the UI can load and
+    // prefill agency dropdowns (Users / Groups / Templates).
+    // Any writes to agencies remain GLOBAL ADMIN only.
+    if (normalizedPath === "/api/agencies" || normalizedPath.startsWith("/api/agencies/")) {
+      const method = String(req.method || "GET").toUpperCase();
+      if (method !== "GET") {
+        return deny();
+      }
+      // GET is allowed; continue to normal allowlist checks.
+    }
+
     const allowedAgencyAdminPrefixes = [
       "/dashboard",
       "/users",
@@ -195,6 +206,7 @@ if (!isPublicPath) {
       "/api/users",
       "/api/groups",
       "/api/templates",
+      "/api/agencies",
       "/api/setup-my-device",
     ];
 
