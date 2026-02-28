@@ -507,18 +507,28 @@ function getTemplatesForAgency(agencySuffix) {
 async function getAllGroupsRaw(options = {}) {
   const { includeHidden = false } = options || {};
   let groups = [];
-  let url = "/core/groups/";
+  const pageSize = 200;
+  let page = 1;
+
+  let url = `/core/groups/?page=${page}&page_size=${pageSize}`;
+
   while (url) {
     const res = await api.get(url);
-    groups = groups.concat(res.data.results);
-    url = res.data.next
-      ? res.data.next.replace(`${getString("AUTHENTIK_URL", "")}/api/v3`, "")
-      : null;
+    const data = res?.data || {};
+    const results = Array.isArray(data.results) ? data.results : [];
+    groups = groups.concat(results);
+
+    const pagination = data.pagination || {};
+    if (pagination && pagination.next) {
+      page = pagination.next;
+      url = `/core/groups/?page=${page}&page_size=${pageSize}`;
+    } else if (data.next) {
+      url = data.next.replace(`${getString("AUTHENTIK_URL", "")}/api/v3`, "");
+    } else {
+      url = null;
+    }
   }
 
-  // Hide internal Authentik groups from this portal UI by default.
-  // Callers may opt-in to includeHidden=true when they need to resolve names
-  // or preserve internal group memberships.
   if (!includeHidden) {
     groups = groups.filter(g => {
       const name = String(g?.name || "").trim().toLowerCase();
