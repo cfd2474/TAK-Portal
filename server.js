@@ -407,12 +407,12 @@ app.post("/lookup", async (req, res) => {
     }
 
     if (!email || !username) {
-      throw new Error("Email address or Username Not Found");
+      throw new Error("Agency Domain or Username Not Found");
     }
 
     const emailParts = email.split("@");
     if (emailParts.length !== 2) {
-      throw new Error("Email address or Username Not Found");
+      throw new Error("Agency Domain or Username Not Found");
     }
 
     const domain = emailParts[1].toLowerCase();
