@@ -196,7 +196,10 @@
         <button class="btn" type="button" onclick="showLookupModal(false)">Close</button>
       </div>
       <div class="modalBody">
-        <p>Account Lookup is designed for agencies who may have user accounts created for an apparatus or shift.  If enabled, lookup allows users without individual accounts to enter their agency email address and apparatus username to receive a QR code to their email.  <br><br>Note – this feature is only available if lookup is enabled and the apparatus user does not have an email address associated with it.</p>
+        <p>Account Lookup allows users to request an enrollment QR code by entering their email address and username.
+        <br>This feature is intended for shared or apparatus accounts that do not have an email address assigned. When enabled, eligible users can have a temporary QR code emailed to them without administrator involvement.
+        <br>To use this feature securely, you must configure an approved email domain below. The domain entered must match the requestor’s email address (the portion after the “@”). Only email addresses from the configured domain will be permitted to receive a QR code.
+        <br>Enable this option if your agency uses shared or apparatus accounts and you want users to retrieve their QR codes independently while restricting access to your organization’s approved email domain.
 
         <div style="margin-top:14px;">
           <label>Agency Email Domain</label>
