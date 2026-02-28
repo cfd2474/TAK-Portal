@@ -421,13 +421,13 @@ app.post("/lookup", async (req, res) => {
     // - Agency must explicitly allow lookup (lookupEnabled === true)
     // - Agency must contain a matching domain in its allowed domains list
     const agency = agencies.find(a => {
-      if (!a || a.lookupEnabled !== true) return false;
+      if (!a) return false;
 
-      const domains = Array.isArray(a.domains)
-        ? a.domains.map(d => String(d).toLowerCase())
-        : [];
+      if (a.lookupEnabled !== true) return false;
 
-      return domains.includes(domain);
+      if (!a.lookupDomain) return false;
+
+      return String(a.lookupDomain).toLowerCase() === domain;
     });
 
     if (!agency) {
