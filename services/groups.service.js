@@ -125,16 +125,29 @@ function applyUserVisibilityFilters(users) {
 // ---------------- Authentik API helpers (groups) ----------------
 async function getAllGroupsRaw(options = {}) {
   let groups = [];
-  let url = "/core/groups/";
+  const pageSize = 200;
+  let page = 1;
+
+  // Start page-based so we can support Authentik's pagination object
+  let url = `/core/groups/?page=${page}&page_size=${pageSize}`;
 
   while (url) {
     const res = await api.get(url);
     const data = res?.data || {};
     const results = Array.isArray(data.results) ? data.results : [];
     groups = groups.concat(results);
-    url = data.next
-      ? data.next.replace(`${getString("AUTHENTIK_URL", "")}/api/v3`, "")
-      : null;
+
+    const pagination = data.pagination || {};
+    if (pagination && pagination.next) {
+      // Authentik-style pagination object
+      page = pagination.next;
+      url = `/core/groups/?page=${page}&page_size=${pageSize}`;
+    } else if (data.next) {
+      // DRF-style "next" URL
+      url = data.next.replace(`${getString("AUTHENTIK_URL", "")}/api/v3`, "");
+    } else {
+      url = null;
+    }
   }
 
   // Hide internal Authentik groups from this portal UI unless explicitly requested.
