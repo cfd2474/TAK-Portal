@@ -251,43 +251,54 @@ router.delete("/:index", async (req, res) => {
 });
 
 
-// Enable Lookup
-router.post("/:name/lookup/enable", (req, res) => {
-  const { name } = req.params;
+// Enable Lookup (by index)
+router.post("/:index/lookup/enable", (req, res) => {
+  const idx = Number(req.params.index);
   const { domain } = req.body;
+
+  if (!Number.isInteger(idx)) {
+    return res.status(400).json({ error: "Invalid agency index" });
+  }
 
   if (!domain || domain.includes("@") || !/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(domain)) {
     return res.status(400).json({ error: "Invalid domain" });
   }
 
-  const agencies = agenciesService.load();
-  const index = agencies.findIndex(a => a.name === name);
+  const agencies = store.load();
 
-  if (index === -1) return res.status(404).json({ error: "Agency not found" });
+  if (!agencies[idx]) {
+    return res.status(404).json({ error: "Agency not found" });
+  }
 
-  agencies[index].lookupEnabled = true;
-  agencies[index].lookupDomain = domain;
+  agencies[idx].lookupEnabled = true;
+  agencies[idx].lookupDomain = domain;
 
-  agenciesService.save(agencies);
+  store.save(agencies);
 
-  res.json({ success: true });
+  return res.json({ success: true });
 });
 
-// Disable Lookup
-router.post("/:name/lookup/disable", (req, res) => {
-  const { name } = req.params;
 
-  const agencies = agenciesService.load();
-  const index = agencies.findIndex(a => a.name === name);
+// Disable Lookup (by index)
+router.post("/:index/lookup/disable", (req, res) => {
+  const idx = Number(req.params.index);
 
-  if (index === -1) return res.status(404).json({ error: "Agency not found" });
+  if (!Number.isInteger(idx)) {
+    return res.status(400).json({ error: "Invalid agency index" });
+  }
 
-  agencies[index].lookupEnabled = false;
-  agencies[index].lookupDomain = null;
+  const agencies = store.load();
 
-  agenciesService.save(agencies);
+  if (!agencies[idx]) {
+    return res.status(404).json({ error: "Agency not found" });
+  }
 
-  res.json({ success: true });
+  agencies[idx].lookupEnabled = false;
+  agencies[idx].lookupDomain = null;
+
+  store.save(agencies);
+
+  return res.json({ success: true });
 });
 
 module.exports = router;
