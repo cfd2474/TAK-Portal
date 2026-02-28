@@ -467,7 +467,7 @@ app.post("/lookup", async (req, res) => {
     await emailSvc.sendMail({
       to: email,
       subject: "Your TAK Enrollment QR Code",
-      text: "Attached is your TAK enrollment QR code.",
+      text: "Attached is your TAK enrollment QR code. Please note that this QR code is valid only for 15 minutes.",
       attachments: [
         {
           filename: `tak-${user.username}-enrollment-qr.png`,

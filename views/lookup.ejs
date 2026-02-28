@@ -28,7 +28,13 @@
     <% } %>
 
     <% if (typeof success !== "undefined" && success) { %>
-      <div class="msg good" style="margin-bottom: 12px;"><%= success %></div>
+      <div class="msg good" 
+          style="margin-bottom: 12px; 
+                  background-color: #0f3d1f; 
+                  border: 1px solid #1f7a3a; 
+                  color: #6cff9a;">
+        <%= success %>
+      </div>
     <% } %>
 
     <form method="POST" action="/lookup" class="grid2" autocomplete="off">
