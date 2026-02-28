@@ -1,37 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>TAK Portal</title>
+    <link rel="stylesheet" href="/styles.css" />
 
-<%- include("partials/header") %>
+    <% if (brandLogoUrl) { %>
+      <link rel="icon" href="<%= brandLogoUrl %>" type="image/png" />
+      <link rel="shortcut icon" href="<%= brandLogoUrl %>" type="image/png" />
+    <% } %>
+  </head>
+  <body class="theme-<%= brandTheme || 'dark-blue' %>">
 
-<div class="container">
-  <h2>Account Lookup</h2>
+<div class="app">
 
-  <% if (error) { %>
-    <div class="alert alert-danger"><%= error %></div>
-  <% } %>
+<main class="main" style="max-width: 980px; margin: 0 auto;">
+  <h1>Account Lookup</h1>
 
-  <% if (success) { %>
-    <div class="alert alert-success"><%= success %></div>
-  <% } %>
+  <div class="card">
+    <p>
+      If your account was previously created but you did not receive your enrollment email,
+      you may use this form to retrieve your QR code. The QR code will be emailed to you
+      if your account is eligible.
+    </p>
 
-  <form method="POST" action="/lookup">
-    <div class="form-group">
-      <label>Email Address</label>
-      <input type="email" name="email" class="form-control" required value="<%= form.email || '' %>">
-    </div>
-
-    <div class="form-group">
-      <label>Username</label>
-      <input type="text" name="username" class="form-control" required value="<%= form.username || '' %>">
-    </div>
-
-    <% if (hcaptchaEnabled) { %>
-      <div class="form-group" style="margin-top: 15px;">
-        <div class="h-captcha" data-sitekey="<%= hcaptchaSiteKey %>"></div>
-      </div>
-      <script src="https://hcaptcha.com/1/api.js" async defer></script>
+    <% if (typeof error !== "undefined" && error) { %>
+      <div class="msg bad" style="margin-bottom: 12px;"><%= error %></div>
     <% } %>
 
-    <button type="submit" class="btn btn-primary" style="margin-top:15px;">
-      Lookup Account
-    </button>
-  </form>
+    <% if (typeof success !== "undefined" && success) { %>
+      <div class="msg good" style="margin-bottom: 12px;"><%= success %></div>
+    <% } %>
+
+    <form method="POST" action="/lookup" class="grid2" autocomplete="off">
+
+      <label>Email Address
+        <input 
+          name="email" 
+          type="email" 
+          required 
+          value="<%= (form && form.email) ? form.email : '' %>" />
+      </label>
+
+      <label>Username
+        <input 
+          name="username" 
+          required 
+          value="<%= (form && form.username) ? form.username : '' %>" />
+      </label>
+
+      <% if (hcaptchaEnabled && hcaptchaSiteKey) { %>
+      <div style="grid-column: 1 / -1; margin-top: 10px;">
+        <div id="hcaptchaWidget"></div>
+        <div class="msg bad" id="hcaptchaError"
+             style="margin-top: 8px; display:none;">
+          Please complete the captcha before submitting.
+        </div>
+      </div>
+      <% } %>
+
+      <div style="grid-column: 1 / -1; display:flex; align-items:center; gap:10px; flex-wrap: wrap;">
+        <button class="btn" id="submitLookupBtn" type="submit">
+          Lookup Account
+        </button>
+      </div>
+
+    </form>
+  </div>
+</main>
+
+<% if (hcaptchaEnabled && hcaptchaSiteKey) { %>
+<script>
+(function(){
+  var form = document.querySelector('form[action="/lookup"]');
+  var errorBox = document.getElementById('hcaptchaError');
+  var captchaCompleted = false;
+
+  if (!form) return;
+
+  window.hcaptchaOnLoad = function() {
+    try {
+      hcaptcha.render('hcaptchaWidget', {
+        sitekey: "<%= hcaptchaSiteKey %>",
+        callback: function() {
+          captchaCompleted = true;
+          if (errorBox) errorBox.style.display = 'none';
+        },
+        'expired-callback': function() {
+          captchaCompleted = false;
+        },
+        'error-callback': function() {
+          captchaCompleted = false;
+        }
+      });
+    } catch (e) {
+      captchaCompleted = false;
+    }
+  };
+
+  form.addEventListener('submit', function(e) {
+    if (!captchaCompleted) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (errorBox) {
+        errorBox.style.display = 'block';
+        errorBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+
+      return false;
+    }
+  });
+})();
+</script>
+
+<script src="https://js.hcaptcha.com/1/api.js?onload=hcaptchaOnLoad&render=explicit" async defer></script>
+<% } %>
+
 </div>
+</body>
+</html>
