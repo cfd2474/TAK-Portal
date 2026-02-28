@@ -237,12 +237,14 @@ if (!isPublicPath) {
     groups: userGroups,
     isGlobalAdmin,
     isAgencyAdmin,
+    allowedAgencySuffixes: agencySuffixesForUser || [],
   };
 
   req.authentikUser = authUser;
   res.locals.authUser = authUser;
   res.locals.isGlobalAdmin = isGlobalAdmin;
   res.locals.isAgencyAdmin = isAgencyAdmin;
+  res.locals.allowedAgencySuffixes = agencySuffixesForUser || [];
 
   return next();
 }

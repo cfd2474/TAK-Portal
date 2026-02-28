@@ -820,6 +820,7 @@ const USERS_ACTIONS_HIDDEN_PREFIXES = String(USERS_ACTIONS_HIDDEN_PREFIXES_RAW |
 // Current viewer permissions (passed from server via Authentik middleware)
 const IS_GLOBAL_ADMIN = <%- JSON.stringify(!!isGlobalAdmin) %>;
 const IS_AGENCY_ADMIN = <%- JSON.stringify(!!isAgencyAdmin) %>;
+const ALLOWED_AGENCY_SUFFIXES = <%- JSON.stringify(allowedAgencySuffixes || []) %>;
 
 // Global admin groups (loaded from settings.json via server render)
 const PORTAL_GLOBAL_ADMIN_GROUPS_RAW = <%- JSON.stringify(
@@ -2139,13 +2140,18 @@ if (applyTemplateBtn) applyTemplateBtn.addEventListener("click", async () => {
   setMsgEl(actionMsg, "Template applied. Groups overwritten.", true);
 });
 
-async function loadAllUsers(){
-  setMsgEl(msg, "Loading users...", true);
+  async function loadAllUsers(){
+    setMsgEl(msg, "Loading users...", true);
 
   const params = new URLSearchParams({
     page: String(currentPage),
     pageSize: String(PAGE_SIZE),
   });
+
+  // If agency admin, force their agency suffix
+  if (!IS_GLOBAL_ADMIN && IS_AGENCY_ADMIN && ALLOWED_AGENCY_SUFFIXES.length === 1) {
+    params.set("agencySuffix", ALLOWED_AGENCY_SUFFIXES[0]);
+  }
 
   const qVal = String(currentSearch || "").trim();
   if (qVal) params.set("q", qVal);
