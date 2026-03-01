@@ -88,22 +88,19 @@
 <% /* Modal OUTSIDE sidebar so layout never interferes */ %>
 <% if (_isGlobalAdmin && typeof APP_UPDATE_AVAILABLE !== "undefined" && APP_UPDATE_AVAILABLE) { %>
   <div id="update-modal" class="modalOverlay" style="display:none;">
-    <div class="modal updateModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="updateTitle">
       <div class="modalHeader">
-        <h3>Update Available</h3>
-        <button type="button" class="btn update-modal-close">✕</button>
+        <h2 id="updateTitle" style="margin:0;">Update Available</h2>
+        <button class="btn" id="updateCloseBtn" type="button">Close</button>
       </div>
 
       <div class="modalBody">
-        <% if (_isGlobalAdmin) { %>
-          <p>
-            To update TAK Portal please run updates via your Infra-TAK interface.
-            If you are not using Infra-TAK, log into the server CLI and run:
-          </p>
-          <pre><code>cd ~/TAK-Portal && ./takportal update</code></pre>
-        <% } else { %>
-          <p>Please contact your Global Administrator to update TAK Portal.</p>
-        <% } %>
+        <p>
+          To update TAK Portal please run updates via your Infra-TAK interface.
+          If you are not using Infra-TAK, log into the server CLI and run:
+        </p>
+
+        <pre><code>cd ~/TAK-Portal && ./takportal update</code></pre>
 
         <p>
           To see what changed, view the
@@ -115,12 +112,6 @@
             changelog
           </a>.
         </p>
-
-        <div style="margin-top:16px;">
-          <button type="button" class="btn update-modal-close">
-            Close
-          </button>
-        </div>
       </div>
     </div>
   </div>
@@ -129,25 +120,22 @@
     (function () {
       var pill = document.getElementById('update-pill');
       var modal = document.getElementById('update-modal');
-      if (!pill || !modal) return;
+      var closeBtn = document.getElementById('updateCloseBtn');
 
-      var closers = modal.querySelectorAll('.update-modal-close');
+      if (!pill || !modal || !closeBtn) return;
 
       function closeModal() {
         modal.style.display = 'none';
-        document.body.classList.remove('noScroll');
+        document.body.style.overflow = '';
       }
 
       pill.addEventListener('click', function () {
         modal.style.display = 'flex';
-        document.body.classList.add('noScroll');
+        document.body.style.overflow = 'hidden';
       });
 
-      closers.forEach(function (el) {
-        el.addEventListener('click', closeModal);
-      });
+      closeBtn.addEventListener('click', closeModal);
 
-      // Close when clicking backdrop
       modal.addEventListener('click', function (e) {
         if (e.target === modal) {
           closeModal();
