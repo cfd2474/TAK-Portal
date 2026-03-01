@@ -12,6 +12,9 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
+### v1.2.25 - 3/1/26
+🐛 `Bug Fix` - Fixes issue with update notification remaining in sidebar rather than in a modal popup
+
 ### v1.2.24 - 3/1/26
 🐛 `Bug Fix` - Fixes issue with incorrect user totals on User paging system (removed the count but left "Page 1 of x")
 🐛 `Bug Fix` - Fixes issue with hidden groups appearing as UIDs
