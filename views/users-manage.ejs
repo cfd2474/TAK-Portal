@@ -1186,15 +1186,27 @@ function renderGroupChips(user){
     ? user.groups.map(x => String(x))
     : [];
 
-  // Only show groups that are visible in this portal
-  const visibleNames = ids
-    .filter(id => visibleGroupIds.has(String(id)))   // <-- key change
-    .map(id => groupIndex.get(id))
+  const names = ids
+    .map(id => {
+      // Show if it's a visible portal group
+      if (visibleGroupIds.has(String(id))) {
+        return groupIndex.get(id);
+      }
+
+      // ALSO show if we resolved it into groupIndex
+      // (agency admin / global admin groups are injected there)
+      if (groupIndex.has(String(id))) {
+        return groupIndex.get(String(id));
+      }
+
+      // Otherwise hide it completely
+      return null;
+    })
     .filter(Boolean)
     .sort((a,b)=>String(a).localeCompare(String(b)));
 
-  groupChips.innerHTML = visibleNames.length
-    ? visibleNames.map(n =>
+  groupChips.innerHTML = names.length
+    ? names.map(n =>
         `<span class="chip">${escapeHtml(stripTakPrefix(n))}</span>`
       ).join("")
     : `<span class="muted">None</span>`;
