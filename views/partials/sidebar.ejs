@@ -4,7 +4,6 @@
 
   const isAdmin = _isGlobalAdmin || _isAgencyAdmin;
 
-  // Current user's display name from Authentik (via res.locals.authUser)
   const _displayName =
     typeof authUser !== "undefined" &&
     authUser &&
@@ -12,7 +11,6 @@
       ? authUser.displayName
       : "";
 
-  // Only Global Admins can see these
   const canSeeSettings = _isGlobalAdmin;
 %>
 
@@ -21,7 +19,6 @@
     <% if (brandLogoUrl) { %>
       <img src="<%= brandLogoUrl %>" alt="Portal logo" class="brand-logo" />
     <% } %>
-
     <span class="brand-title">TAK Portal</span>
   </div>
 
@@ -69,7 +66,6 @@
         </a>
       </small>
 
-      <% /* Only admins see the update pill */ %>
       <% if (isAdmin && typeof APP_UPDATE_AVAILABLE !== "undefined" && APP_UPDATE_AVAILABLE) { %>
         <div class="update-available-form">
           <button type="button" class="update-available-pill" id="update-pill">
@@ -82,35 +78,45 @@
       <% } %>
     </div>
   </nav>
+</aside>
 
-  <% /* Only admins get the update modal + script */ %>
-  <% if (isAdmin && typeof APP_UPDATE_AVAILABLE !== "undefined" && APP_UPDATE_AVAILABLE) { %>
-  <div id="update-modal" class="update-modal">
-    <div class="update-modal-backdrop update-modal-close"></div>
-    <div class="update-modal-dialog">
-      <h3 class="update-modal-title">Update Available</h3>
+<% /* Modal OUTSIDE sidebar so layout never interferes */ %>
+<% if (isAdmin && typeof APP_UPDATE_AVAILABLE !== "undefined" && APP_UPDATE_AVAILABLE) { %>
+  <div id="update-modal" class="modalOverlay" style="display:none;">
+    <div class="modal updateModal">
+      <div class="modalHeader">
+        <h3>Update Available</h3>
+        <button type="button" class="btn update-modal-close">✕</button>
+      </div>
 
-      <% if (_isGlobalAdmin) { %>
-        <p>To update TAK Portal please run updates via your Infra-TAK interface.  If you are not using Infra-TAK, log into the server CLI and run:</p>
-        <pre><code>cd ~/TAK-Portal && ./takportal update</code></pre>
-      <% } else { %>
-        <p>Please contact your Global Administrator to update TAK Portal.</p>
-      <% } %>
+      <div class="modalBody">
+        <% if (_isGlobalAdmin) { %>
+          <p>
+            To update TAK Portal please run updates via your Infra-TAK interface.
+            If you are not using Infra-TAK, log into the server CLI and run:
+          </p>
+          <pre><code>cd ~/TAK-Portal && ./takportal update</code></pre>
+        <% } else { %>
+          <p>Please contact your Global Administrator to update TAK Portal.</p>
+        <% } %>
 
-      <p>
-        To see what changed, view the
-        <a
-          href="https://github.com/AdventureSeeker423/TAK-Portal/blob/main/CHANGELOG.md"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          changelog
-        </a>.
-      </p>
+        <p>
+          To see what changed, view the
+          <a
+            href="https://github.com/AdventureSeeker423/TAK-Portal/blob/main/CHANGELOG.md"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            changelog
+          </a>.
+        </p>
 
-      <button type="button" class="update-modal-close-btn update-modal-close">
-        Close
-      </button>
+        <div style="margin-top:16px;">
+          <button type="button" class="btn update-modal-close">
+            Close
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -121,16 +127,27 @@
       if (!pill || !modal) return;
 
       var closers = modal.querySelectorAll('.update-modal-close');
+
+      function closeModal() {
+        modal.style.display = 'none';
+        document.body.classList.remove('noScroll');
+      }
+
       pill.addEventListener('click', function () {
-        modal.classList.add('is-open');
+        modal.style.display = 'flex';
+        document.body.classList.add('noScroll');
       });
 
       closers.forEach(function (el) {
-        el.addEventListener('click', function () {
-          modal.classList.remove('is-open');
-        });
+        el.addEventListener('click', closeModal);
+      });
+
+      // Close when clicking backdrop
+      modal.addEventListener('click', function (e) {
+        if (e.target === modal) {
+          closeModal();
+        }
       });
     })();
   </script>
-    <% } %>
-</aside>
+<% } %>
