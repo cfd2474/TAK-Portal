@@ -166,7 +166,7 @@
 
         <label class="settings-field">
           <span class="settings-label">
-            TAK Server CA Certificate
+            TAK Server PEM Certificate
             <% if (caExists) { %>
               <span class="cert-status installed">Installed</span>
             <% } else { %>
@@ -176,7 +176,7 @@
 
           <input type="file" name="TAK_CA_UPLOAD" accept=".pem,.crt,.cer,.der" />
           <small class="settings-help">
-            Upload a new file to replace the existing CA certificate.
+            Upload a new file to replace the existing CA certificate. Notepad should show three distinct blocks of text starting with -----BEGIN CERTIFICATE-----
           </small>
         </label>
 
