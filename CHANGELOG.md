@@ -12,6 +12,10 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
+### v1.2.26 - 3/1/26
+✨ `Enhancement` - Make agency dropdown sort alphabetically on the Templates Page<br>
+✨ `Enhancement` - Remove "TWRA" from Agency Type (sorry Tennessee) and replace with "Game Warden" on Agencies Page
+
 ### v1.2.25 - 3/1/26
 🐛 `Bug Fix` - Fixes issue with update notification remaining in sidebar rather than in a modal popup
 
