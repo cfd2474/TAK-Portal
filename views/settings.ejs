@@ -126,7 +126,33 @@
         <div class="settings-body">
           <div class="grid2">
             <% renderField("AUTHENTIK_URL","Authentik Internal URL","Base URL of your Authentik instance (e.g. http://authentik:9000)"); %>
-            <% renderField("AUTHENTIK_TOKEN","Authentik API Token","API token with permission to manage users and groups."); %>
+            <label class="settings-field">
+              <span class="settings-label">Authentik API Token</span>
+
+              <div class="passwordWrap">
+                <input
+                  id="authentikTokenInput"
+                  type="password"
+                  name="settings[AUTHENTIK_TOKEN]"
+                  value="<%= settings.AUTHENTIK_TOKEN || '' %>"
+                  autocomplete="new-password"
+                />
+
+                <button
+                  type="button"
+                  id="authentikTokenToggle"
+                  class="passwordToggle"
+                  aria-label="Show token"
+                  title="Show token"
+                >
+                  👁
+                </button>
+              </div>
+
+              <small class="settings-help">
+                API token with permission to manage users and groups.
+              </small>
+            </label>
             <% renderField("USERS_HIDDEN_PREFIXES","Hidden User Prefixes","Comma-separated prefixes of usernames to hide from the UI."); %>
             <% renderField("GROUPS_HIDDEN_PREFIXES","Hidden Group Prefixes","Comma-separated prefixes of groups to hide from the UI."); %>
             <% renderField("USERS_ACTIONS_HIDDEN_PREFIXES","User Action-Lock Prefixes","Users whose name starts with these prefixes cannot be modified from the portal."); %>
@@ -162,7 +188,33 @@
           </small>
         </label>
 
-        <% renderField("TAK_API_P12_PASSPHRASE","Client P12 Passphrase","Passphrase for the client .p12 file (may be empty)."); %>
+        <label class="settings-field">
+        <span class="settings-label">Client P12 Passphrase</span>
+
+        <div class="passwordWrap">
+          <input
+            id="p12PassphraseInput"
+            type="password"
+            name="settings[TAK_API_P12_PASSPHRASE]"
+            value="<%= settings.TAK_API_P12_PASSPHRASE || '' %>"
+            autocomplete="new-password"
+          />
+
+          <button
+            type="button"
+            id="p12PassphraseToggle"
+            class="passwordToggle"
+            aria-label="Show passphrase"
+            title="Show passphrase"
+          >
+            👁
+          </button>
+        </div>
+
+        <small class="settings-help">
+          Passphrase for the client .p12 file (may be empty).
+        </small>
+      </label>
 
         <label class="settings-field">
           <span class="settings-label">
@@ -709,6 +761,26 @@
     })();
   </script>
 
+  <script>
+  function wirePasswordToggle(inputId, toggleId) {
+    const input = document.getElementById(inputId);
+    const toggle = document.getElementById(toggleId);
+    if (!input || !toggle) return;
+
+    toggle.addEventListener("click", () => {
+      const hidden = input.type === "password";
+      input.type = hidden ? "text" : "password";
+      toggle.setAttribute("aria-label", hidden ? "Hide value" : "Show value");
+      toggle.title = hidden ? "Hide value" : "Show value";
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    wirePasswordToggle("authentikTokenInput", "authentikTokenToggle");
+    wirePasswordToggle("p12PassphraseInput", "p12PassphraseToggle");
+  });
+  </script>
+
 
   <style>
     .settings-label {
@@ -733,6 +805,26 @@
   .cert-status.missing {
     background: #fee2e2;
     color: #991b1b;
+  }
+  .passwordWrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .passwordWrap input {
+    width: 100%;
+    padding-right: 2.5rem;
+  }
+
+  .passwordToggle {
+    position: absolute;
+    right: 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0;
   }
   </style>
 </main>
