@@ -288,15 +288,24 @@ async function loadAgencies(){
 
   allAgencies = Array.isArray(agencies) ? agencies : [];
 
+  // Sort agencies alphabetically by name (case-insensitive)
+  allAgencies.sort((a, b) =>
+    String(a.name || "").localeCompare(
+      String(b.name || ""),
+      undefined,
+      { sensitivity: "base", numeric: true }
+    )
+  );
+
   agencyEl.innerHTML = `<option value="">Select an agency</option>` +
     allAgencies.map(a => {
       const abbr = (a.groupPrefix || "").trim();
       const suffix = (a.suffix || "").trim();
       const name = (a.name || "").trim();
 
-      // value stays suffix (important: keeps existing behavior)
-      // label can show abbreviation instead of suffix (optional)
-      return `<option value="${esc(suffix)}">${esc(name)}${abbr ? ` (${esc(abbr)})` : ""}</option>`;
+      return `<option value="${esc(suffix)}">
+        ${esc(name)}${abbr ? ` (${esc(abbr)})` : ""}
+      </option>`;
     }).join("");
 }
 
