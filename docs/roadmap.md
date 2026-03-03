@@ -6,6 +6,8 @@ Below you will find a comprehensive list of items planned for implementation in 
 
 ## High / In Progress
 - Add an audit log for Global Admins to audit actions
+- Control what channels agency admins get
+- Add a button to resend onboarding email
 
 ## Medium
 - Create a beta mode toggle so code testing does not effect normal users
