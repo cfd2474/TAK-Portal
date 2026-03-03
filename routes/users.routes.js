@@ -461,6 +461,62 @@ router.get("/search", async (req, res) => {
 
     const authUser = req.authentikUser || null;
     const access = accessSvc.getAgencyAccess(authUser);
+        // ----- ROLE + SORT HELPERS -----
+    const globalAdminGroupPks = await getGlobalAdminGroupPks();
+    const globalAdminSet = new Set(globalAdminGroupPks.map(String));
+
+    const allGroups = await groupsSvc.getAllGroups({ includeHidden: true });
+    const groupNameByPk = new Map(
+      (Array.isArray(allGroups) ? allGroups : []).map(g => [
+        String(g.pk),
+        String(g.name || "").toLowerCase()
+      ])
+    );
+
+    function computeRole(user) {
+      const groups = Array.isArray(user?.groups)
+        ? user.groups.map(String)
+        : [];
+
+      if (groups.some(g => globalAdminSet.has(g))) {
+        return "0-global";
+      }
+
+      for (const gid of groups) {
+        const name = groupNameByPk.get(gid);
+        if (name && name.endsWith("-agencyadmin")) {
+          return "1-agency";
+        }
+      }
+
+      return "2-user";
+    }
+
+    function getSortValue(user) {
+      if (!user) return "";
+
+      if (sortKey === "username") return String(user.username || "").toLowerCase();
+      if (sortKey === "email") return String(user.email || "").toLowerCase();
+      if (sortKey === "status") return user.is_active ? "enabled" : "disabled";
+      if (sortKey === "role") return computeRole(user) + "-" + String(user.name || "").toLowerCase();
+
+      return String(user.name || "").toLowerCase();
+    }
+
+    function applySort(arr) {
+      arr.sort((a, b) => {
+        const av = getSortValue(a);
+        const bv = getSortValue(b);
+
+        const cmp = String(av).localeCompare(String(bv), undefined, {
+          numeric: true,
+          sensitivity: "base"
+        });
+
+        return sortDir === "desc" ? -cmp : cmp;
+      });
+    }
+
 
     // ---------------- GLOBAL ADMINS ----------------
     if (access.isGlobalAdmin) {
@@ -765,63 +821,6 @@ router.post("/enroll-qr", async (req, res) => {
 
     // Require an authenticated admin (global or agency admin)
     const access = accessSvc.getAgencyAccess(authUser);
-        // ----- ROLE PRECOMPUTE -----
-    const globalAdminGroupPks = await getGlobalAdminGroupPks();
-    const globalAdminSet = new Set(globalAdminGroupPks.map(String));
-
-    const allGroups = await groupsSvc.getAllGroups({ includeHidden: true });
-    const groupNameByPk = new Map(
-      (Array.isArray(allGroups) ? allGroups : []).map(g => [
-        String(g.pk),
-        String(g.name || "").toLowerCase()
-      ])
-    );
-
-    function computeRole(user) {
-      const groups = Array.isArray(user?.groups)
-        ? user.groups.map(String)
-        : [];
-
-      if (groups.some(g => globalAdminSet.has(g))) {
-        return "0-global";
-      }
-
-      for (const gid of groups) {
-        const name = groupNameByPk.get(gid);
-        if (name && name.endsWith("-agencyadmin")) {
-          return "1-agency";
-        }
-      }
-
-      return "2-user";
-    }
-
-    // ----- SORT VALUE -----
-    function getSortValue(user) {
-      if (!user) return "";
-
-      if (sortKey === "username") return String(user.username || "").toLowerCase();
-      if (sortKey === "email") return String(user.email || "").toLowerCase();
-      if (sortKey === "status") return user.is_active ? "enabled" : "disabled";
-      if (sortKey === "role") return computeRole(user) + "-" + String(user.name || "").toLowerCase();
-
-      return String(user.name || "").toLowerCase();
-    }
-
-    // ----- APPLY SORT -----
-    function applySort(arr) {
-      arr.sort((a, b) => {
-        const av = getSortValue(a);
-        const bv = getSortValue(b);
-
-        const cmp = String(av).localeCompare(String(bv), undefined, {
-          numeric: true,
-          sensitivity: "base"
-        });
-
-        return sortDir === "desc" ? -cmp : cmp;
-      });
-    }
     if (!authUser || (!access.isGlobalAdmin && !access.isAgencyAdmin)) {
       return res.status(403).json({ ok: false, error: "Admin access required" });
     }
