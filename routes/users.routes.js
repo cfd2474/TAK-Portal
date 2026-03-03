@@ -489,18 +489,44 @@ router.get("/search", async (req, res) => {
 
     // ---------------- GLOBAL ADMINS ----------------
     if (access.isGlobalAdmin) {
-      const result = await users.searchUsersPaged({
-        q,
-        page: requestedPage,
-        pageSize,
-      });
 
-      const usersList = Array.isArray(result.users) ? result.users.slice() : [];
-      applySort(usersList);
+      const currentPageRequested = requestedPage < 1 ? 1 : requestedPage;
+
+      // Get ALL matching users (not paged)
+      const allMatching = await users.findUsers({ q, forceRefresh: false });
+
+      const visible = Array.isArray(allMatching) ? allMatching.slice() : [];
+
+      // Sort entire dataset BEFORE pagination
+      applySort(visible);
+
+      const total = visible.length;
+
+      if (total === 0) {
+        return res.json({
+          users: [],
+          total: 0,
+          page: 1,
+          pageSize,
+          hasNext: false,
+          hasPrev: false,
+        });
+      }
+
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+      const page = Math.min(currentPageRequested, totalPages);
+
+      const start = (page - 1) * pageSize;
+      const end = start + pageSize;
+      const pageItems = visible.slice(start, end);
 
       return res.json({
-        ...result,
-        users: usersList,
+        users: pageItems,
+        total,
+        page,
+        pageSize,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
       });
     }
 
