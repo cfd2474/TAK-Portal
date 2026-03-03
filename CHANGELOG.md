@@ -12,6 +12,11 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
+### v1.2.29 - 3/3/26
+🐛 `Bug Fix` - Fixes issue with incorrect sort order of users names <br>
+🐛 `Bug Fix` - Fixes issue with incorrect total user counts on the users page<br>
+✨ `Enhancement` - Makes Role column sortable on the users page
+
 ### v1.2.28 - 3/2/26
 ✨ `Enhancement` - Added eyeball toggle in Server Settings to hide Authentik API Token and Client P12 Password by default
 
