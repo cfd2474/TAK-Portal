@@ -143,7 +143,7 @@ router.get("/meta", async (req, res) => {
       return an.localeCompare(bn, undefined, { numeric: true, sensitivity: "base" });
     });
 
-    // Apply hidden prefix filtering (same logic as old /api/users/groups)
+    // Apply hidden prefix filtering (final pass)
     const hiddenRaw = String(getString("GROUPS_HIDDEN_PREFIXES", "") || "");
     const hiddenPrefixes = hiddenRaw
       .split(",")
@@ -152,8 +152,12 @@ router.get("/meta", async (req, res) => {
 
     if (hiddenPrefixes.length) {
       groups = groups.filter(g => {
-        const name = String(g?.name || "").toLowerCase();
-        return !hiddenPrefixes.some(prefix => name.startsWith(prefix));
+        const raw = String(g?.name || "").trim().toLowerCase();
+        const withoutTak = raw.startsWith("tak_") ? raw.slice(4) : raw;
+
+        return !hiddenPrefixes.some(prefix =>
+          raw.startsWith(prefix) || withoutTak.startsWith(prefix)
+        );
       });
     }
 
