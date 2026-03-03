@@ -15,6 +15,7 @@ Planned features can be accessed [here](docs/roadmap.md)
 ### v1.2.30 - 3/3/26
 🐛 `Bug Fix` - Fixes issue with Agency Admins not being able to see global groups<br>
 🐛 `Bug Fix` - Fixes issue with Agency Admins not being able to assign global groups<br>
+🐛 `Bug Fix` - Fixes issue with incorrect order of groups when editing a user<br>
 🐛 `Bug Fix` - Fixes issue with hidden prefix groups showing on the groups page
 
 ### v1.2.29 - 3/3/26

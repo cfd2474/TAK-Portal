@@ -514,11 +514,14 @@ function getPickedManualGroupIds() {
 }
 
 async function loadGroups() {
-  const res = await fetch("/api/users/groups");
-  const out = await res.json();
-  if (!res.ok) throw new Error(out.error || "Failed to load groups");
+  const sfx = agencySelect.value || "";
+  const res = await fetch(
+    "/api/users/meta?agencySuffix=" + encodeURIComponent(sfx)
+  );
+  const meta = await res.json();
+  if (!res.ok) throw new Error(meta.error || "Failed to load groups");
 
-  groupsCache = Array.isArray(out) ? out : [];
+  groupsCache = Array.isArray(meta.groups) ? meta.groups : [];
   renderGroupsBox();
 }
 
