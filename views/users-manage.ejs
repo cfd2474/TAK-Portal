@@ -316,7 +316,7 @@ const selectAllBtn = document.getElementById("createSelectAllBtn");
 const clearAllBtn = document.getElementById("createClearAllBtn");
 const groupsInner = document.getElementById("createGroupsInner"); // NEW inner wrapper
 
-const msg = document.getElementById("createMsg");
+const createMsg = document.getElementById("createMsg");
 const form = document.getElementById("createForm");
 const csvBtn = document.getElementById("createCsvBtn");
 const csvFileInput = document.getElementById("createCsvFileInput");
@@ -346,8 +346,8 @@ if (passwordInput && passwordToggle) {
 }
 
 function setMsg(text, ok = true) {
-  msg.textContent = text || "";
-  msg.className = "msg " + (ok ? "ok" : "bad");
+  createMsg.textContent = text || "";
+  createMsg.className = "msg " + (ok ? "ok" : "bad");
 }
 
 function esc(s) {
