@@ -111,39 +111,57 @@ router.get("/with-counts", async (req, res) => {
   }
 });
 
-router.get("/:index/available-groups", async (req,res)=>{
+router.get("/:index/available-groups", async (req, res) => {
+  try {
 
-  const idx = Number(req.params.index);
-  const agencies = store.load();
+    const idx = Number(req.params.index);
+    const agencies = store.load();
 
-  if(!agencies[idx])
-    return res.status(404).json({error:"Agency not found"});
+    if (!Number.isInteger(idx) || !agencies[idx]) {
+      return res.status(404).json({ error: "Agency not found" });
+    }
 
-  const agency = agencies[idx];
+    const agency = agencies[idx];
 
-  const groups = await groupsService.listGroups();
+    // pull groups directly from Authentik (same as other services)
+    const r = await api.get("/core/groups/?page_size=1000");
+    const groups = Array.isArray(r?.data?.results) ? r.data.results : [];
 
-  const filtered = groups.filter(g => {
+    const filtered = groups.filter(g => {
 
-    const attr = g.attributes || {};
+      const attr = g.attributes || {};
 
-    if(String(attr.private).toLowerCase() === "yes")
-      return false;
+      // hide private groups
+      if (String(attr.private || "").toLowerCase() === "yes") {
+        return false;
+      }
 
-    if(
-      String(attr.created_type).toLowerCase() === "agency" &&
-      String(attr.created_type_detail).toLowerCase() === String(agency.name).toLowerCase()
-    )
-      return false;
+      // hide this agency's groups
+      if (
+        String(attr.created_type || "").toLowerCase() === "agency" &&
+        String(attr.created_type_detail || "").toLowerCase() ===
+        String(agency.name || "").toLowerCase()
+      ) {
+        return false;
+      }
 
-    return true;
-  });
+      return true;
+    });
 
-  res.json({
-    groups: filtered,
-    selected: agency.allowedGroups || []
-  });
+    res.json({
+      groups: filtered,
+      selected: agency.allowedGroups || []
+    });
 
+  } catch (err) {
+
+    console.error("available-groups error:", err);
+
+    res.status(500).json({
+      error: err?.response?.data || err?.message || "Failed to load groups"
+    });
+
+  }
 });
 
 router.post("/:index/allowed-groups", (req,res)=>{
