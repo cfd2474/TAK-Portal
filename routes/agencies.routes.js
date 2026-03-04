@@ -111,6 +111,61 @@ router.get("/with-counts", async (req, res) => {
   }
 });
 
+router.get("/:index/available-groups", async (req,res)=>{
+
+  const idx = Number(req.params.index);
+  const agencies = store.load();
+
+  if(!agencies[idx])
+    return res.status(404).json({error:"Agency not found"});
+
+  const agency = agencies[idx];
+
+  const groups = await groupsService.getGroups();
+
+  const filtered = groups.filter(g => {
+
+    const attr = g.attributes || {};
+
+    if(String(attr.private).toLowerCase() === "yes")
+      return false;
+
+    if(
+      String(attr.created_type).toLowerCase() === "agency" &&
+      String(attr.created_type_detail).toLowerCase() === String(agency.name).toLowerCase()
+    )
+      return false;
+
+    return true;
+  });
+
+  res.json({
+    groups: filtered,
+    selected: agency.allowedGroups || []
+  });
+
+});
+
+router.post("/:index/allowed-groups", (req,res)=>{
+
+  const idx = Number(req.params.index);
+  const agencies = store.load();
+
+  if(!agencies[idx])
+    return res.status(404).json({error:"Agency not found"});
+
+  const ids = Array.isArray(req.body.groups)
+    ? req.body.groups.map(x=>String(x))
+    : [];
+
+  agencies[idx].allowedGroups = ids;
+
+  store.save(agencies);
+
+  res.json({success:true});
+
+});
+
 // Resolve the computed admin group for an agency, even if the group is hidden from /api/groups.
 // Returns: { group: { pk, name, ... } }
 router.get("/:index/admin-group", async (req, res) => {

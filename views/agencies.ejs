@@ -188,6 +188,27 @@
   </div>
 </div>
 
+<div class="modalOverlay" id="groupsOverlay" style="display:none;">
+  <div class="modal">
+    <div class="modalHeader">
+      <h2>Allowed Groups</h2>
+      <button class="btn" onclick="closeAllowedGroups()">Close</button>
+    </div>
+
+    <div class="modalBody">
+
+      <div class="groupsBox">
+        <div class="groupsInner" id="groupsInner"></div>
+      </div>
+
+      <div style="margin-top:14px;text-align:right;">
+        <button class="btn success" onclick="saveAllowedGroups()">Save</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 <!-- Lookup Modal -->
   <div class="modalOverlay" id="lookupModal" style="display:none;">
     <div class="modal" role="dialog" aria-modal="true">
@@ -239,6 +260,9 @@ const adminsHint = document.getElementById("adminsHint");
 
 let agencies = [];
 let sortState = { key: "name", dir: 1 }; // default: Agency asc
+let groupsCache = [];
+let pickedAllowedGroups = new Set();
+let currentAgencyForGroups = null;
 
 function setMsg(text, ok=true){
   msg.textContent = text || "";
@@ -377,6 +401,10 @@ function renderAgencies(){
       <td>${esc(a.type)}</td>
       <td>${esc(a.color || "")}</td>
       <td>
+        <button class="btn"
+          onclick="openAllowedGroups('${esc(a._id ?? a.id ?? "")}')">
+          Allowed Groups
+          </button>
         <button class="btn" type="button"
           onclick="openAgencyAdmins('${esc(a._id ?? a.id ?? "")}')">
           View Admins
@@ -395,6 +423,71 @@ function renderAgencies(){
       </td>
     </tr>
   `).join("");
+}
+
+window.openAllowedGroups = async (agencyId)=>{
+
+  currentAgencyForGroups = agencyId;
+
+  const res = await fetch(`/api/agencies/${agencyId}/available-groups`);
+  const data = await res.json();
+
+  groupsCache = data.groups || [];
+  pickedAllowedGroups = new Set(data.selected || []);
+
+  renderAllowedGroups();
+
+  document.getElementById("groupsOverlay").style.display="flex";
+};
+
+function renderAllowedGroups(){
+
+  const container = document.getElementById("groupsInner");
+
+  const sorted = groupsCache
+    .slice()
+    .sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+
+  container.innerHTML = sorted.map(g=>{
+
+    const id = String(g.pk);
+    const checked = pickedAllowedGroups.has(id) ? "checked" : "";
+
+    return `
+      <label class="groupItem">
+        <input type="checkbox" value="${esc(id)}" ${checked}/>
+        <span>${esc(g.name)}</span>
+      </label>
+    `;
+  }).join("");
+
+}
+
+document.getElementById("groupsInner").addEventListener("change",(e)=>{
+
+  if(e.target.type!=="checkbox") return;
+
+  const id = String(e.target.value);
+
+  if(e.target.checked)
+    pickedAllowedGroups.add(id);
+  else
+    pickedAllowedGroups.delete(id);
+
+});
+
+async function saveAllowedGroups(){
+
+  await fetch(`/api/agencies/${currentAgencyForGroups}/allowed-groups`,{
+    method:"POST",
+    headers:{ "Content-Type":"application/json"},
+    body: JSON.stringify({
+      groups: Array.from(pickedAllowedGroups)
+    })
+  });
+
+  document.getElementById("groupsOverlay").style.display="none";
+
 }
 
 // Open admins modal for the agency's computed admin group.
