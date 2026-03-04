@@ -1976,15 +1976,14 @@ saveNameBtn.onclick = async () => {
 saveEmailBtn.onclick = async () => {
   if (!selectedUser) return;
 
-  setMsgEl(actionMsg, "");
+  setMsgEl(nameMsg, "");
 
   const email = String(emailInput.value || "").trim();
 
-// If provided, must be valid format
-if (email && !emailInput.checkValidity()) {
-  return setMsgEl(actionMsg, "Invalid email format.", false);
-}
-
+  // If provided, must be valid format
+  if (email && !emailInput.checkValidity()) {
+    return setMsgEl(nameMsg, "Invalid email format.", false);
+  }
 
   let res;
   try {
@@ -1993,15 +1992,15 @@ if (email && !emailInput.checkValidity()) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email })
     });
-  } catch {
-    return setMsgEl(actionMsg, "Network error.", false);
-  }
+    } catch {
+      return setMsgEl(nameMsg, "Network error.", false);
+    }
 
   const { json } = await readJsonSafe(res);
 
   if (!res.ok) {
     return setMsgEl(
-      actionMsg,
+      nameMsg,
       (json && json.error) || `Update failed (HTTP ${res.status})`,
       false
     );
@@ -2016,7 +2015,7 @@ if (email && !emailInput.checkValidity()) {
   const updatedVisible = (window.__lastUsers || []).map(patch);
   applySortAndRender(updatedVisible);
 
-  setMsgEl(actionMsg, "Email updated.", true);
+  setMsgEl(nameMsg, "Email updated.", true);
 };
 
 
