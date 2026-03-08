@@ -2,6 +2,7 @@ const router = require("express").Router();
 const users = require("../services/users.service");
 const groupsSvc = require("../services/groups.service");
 const auditSvc = require("../services/auditLog.service");
+const takSsh = require("../services/takSsh.service");
 
 function toErrorPayload(err) {
   const data = err?.response?.data;
@@ -95,7 +96,21 @@ router.post("/", async (req, res) => {
       },
     });
 
-    res.json({ success: true, ...result });
+    // Optionally create TAK client cert on the TAK server via SSH (makeCert.sh client <username>)
+    let takCert = { ok: false, skipped: true };
+    try {
+      takCert = await takSsh.createTakClientCertForIntegration(result.user.username);
+    } catch (err) {
+      takCert = { ok: false, message: err?.message || String(err) };
+    }
+
+    res.json({
+      success: true,
+      ...result,
+      takCertCreated: takCert.ok === true,
+      takCertSkipped: !!takCert.skipped,
+      takCertError: takCert.ok === false && !takCert.skipped ? (takCert.message || "TAK cert creation failed") : undefined,
+    });
   } catch (err) {
     res.status(400).json({ error: toErrorPayload(err) });
   }

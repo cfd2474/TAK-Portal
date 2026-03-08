@@ -406,7 +406,10 @@
         return;
       }
       const username = (out.user && out.user.username) || "";
-      setCreateMsg("Integration \"" + username + "\" created successfully.", true);
+      var msg = "Integration \"" + username + "\" created successfully.";
+      if (out.takCertCreated) msg += " TAK client cert created.";
+      else if (out.takCertError) msg += " TAK cert failed: " + out.takCertError;
+      setCreateMsg(msg, !out.takCertError);
       createForm.reset();
       groupSelect.value = "";
       integrationType.value = "global";

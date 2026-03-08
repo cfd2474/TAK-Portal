@@ -88,7 +88,8 @@ const uploadStorage = multer.diskStorage({
 
       if (
         file.fieldname === "TAK_API_P12_UPLOAD" ||
-        file.fieldname === "TAK_CA_UPLOAD"
+        file.fieldname === "TAK_CA_UPLOAD" ||
+        file.fieldname === "TAK_SSH_KEY_UPLOAD"
       ) {
         targetDir = path.join(__dirname, "data", "certs");
       } else if (file.fieldname === "BRAND_LOGO_UPLOAD") {
@@ -118,6 +119,10 @@ const uploadStorage = multer.diskStorage({
 
     if (file.fieldname === "TAK_CA_UPLOAD") {
       return cb(null, "tak-ca.pem");
+    }
+
+    if (file.fieldname === "TAK_SSH_KEY_UPLOAD") {
+      return cb(null, "tak-ssh.key");
     }
 
     if (file.fieldname === "BRAND_LOGO_UPLOAD") {
@@ -590,6 +595,7 @@ app.get("/settings", requireGlobalAdmin, (req, res) => {
 
   const p12Exists = fileExistsSafe(settings.TAK_API_P12_PATH);
   const caExists = fileExistsSafe(settings.TAK_CA_PATH);
+  const sshKeyExists = fileExistsSafe(settings.TAK_SSH_PRIVATE_KEY_PATH);
 
   // Discover available email HTML templates (for admin editing).
   let emailTemplates = [];
@@ -642,7 +648,8 @@ app.get("/settings", requireGlobalAdmin, (req, res) => {
   importStatus: req.query.import,
   importError: req.query.error,
   p12Exists,
-  caExists
+  caExists,
+  sshKeyExists
   });
 });
 
@@ -653,6 +660,7 @@ app.post(
   upload.fields([
     { name: "TAK_API_P12_UPLOAD", maxCount: 1 },
     { name: "TAK_CA_UPLOAD", maxCount: 1 },
+    { name: "TAK_SSH_KEY_UPLOAD", maxCount: 1 },
     { name: "BRAND_LOGO_UPLOAD", maxCount: 1 },
   ]),
   (req, res) => {
@@ -819,6 +827,13 @@ app.post(
       merged.TAK_CA_PATH = relPath.replace(/\\/g, "/");
     }
 
+    const sshKeyFiles = files.TAK_SSH_KEY_UPLOAD || [];
+    if (sshKeyFiles.length > 0) {
+      const f = sshKeyFiles[0];
+      const relPath = path.relative(process.cwd(), f.path);
+      merged.TAK_SSH_PRIVATE_KEY_PATH = relPath.replace(/\\/g, "/");
+    }
+
     const logoFiles = files.BRAND_LOGO_UPLOAD || [];
     if (logoFiles.length > 0) {
       const f = logoFiles[0];
@@ -868,6 +883,7 @@ app.post(
           uploaded: {
             p12: (files.TAK_API_P12_UPLOAD || []).length > 0,
             ca: (files.TAK_CA_UPLOAD || []).length > 0,
+            sshKey: (files.TAK_SSH_KEY_UPLOAD || []).length > 0,
             logo: (files.BRAND_LOGO_UPLOAD || []).length > 0,
           },
         },
