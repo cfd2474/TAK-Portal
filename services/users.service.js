@@ -541,9 +541,10 @@ async function getAllGroupsRaw(options = {}) {
 
 // Fetch all users, then:
 // - page using Authentik's `pagination` object (no hard cap on total)
-// - hide service/system users by username prefix (USERS_HIDDEN_PREFIXES)
+// - hide service/system users by username prefix (USERS_HIDDEN_PREFIXES), unless includeHiddenPrefixes
 // - optionally filter by AUTHENTIK_USER_PATH if set
-async function getAllUsersRaw() {
+async function getAllUsersRaw(options = {}) {
+  const { includeHiddenPrefixes = false } = options;
   let users = [];
   const pageSize = getInt("AUTHENTIK_USER_PAGE_SIZE", 500) || 500; // per-page size; total is unlimited
   let page = 1;
@@ -566,14 +567,15 @@ async function getAllUsersRaw() {
     }
   }
 
-  // --- prefix filter ---
-  const hiddenPrefixes = getHiddenUserPrefixes();
-
-  if (hiddenPrefixes.length) {
-    users = users.filter(u => {
-      const username = String(u?.username || "").trim().toLowerCase();
-      return !hiddenPrefixes.some(p => username.startsWith(p));
-    });
+  // --- prefix filter (skip when e.g. Integrations page needs nodered- users) ---
+  if (!includeHiddenPrefixes) {
+    const hiddenPrefixes = getHiddenUserPrefixes();
+    if (hiddenPrefixes.length) {
+      users = users.filter(u => {
+        const username = String(u?.username || "").trim().toLowerCase();
+        return !hiddenPrefixes.some(p => username.startsWith(p));
+      });
+    }
   }
 
   // --- path filter ---
@@ -871,11 +873,13 @@ async function createIntegrationUser({ title, groupId }, opts = {}) {
 
 /**
  * Return users whose username starts with the integration prefix (e.g. "nodered-").
+ * Bypasses USERS_HIDDEN_PREFIXES so integration users are visible on the Integrations page.
  */
 async function findIntegrationUsers() {
-  const users = await findUsers({ q: INTEGRATION_PREFIX, forceRefresh: false });
-  return users.filter(u =>
-    String(u?.username || "").toLowerCase().startsWith(INTEGRATION_PREFIX)
+  const raw = await getAllUsersRaw({ includeHiddenPrefixes: true });
+  const prefix = INTEGRATION_PREFIX.toLowerCase();
+  return raw.filter(u =>
+    String(u?.username || "").toLowerCase().startsWith(prefix)
   );
 }
 
@@ -1609,7 +1613,7 @@ async function getAllUsers(options = {}) {
 
   // If caching is disabled via env, always hit Authentik directly.
   if (USERS_CACHE_TTL_MS <= 0) {
-    return await getAllUsersRaw();
+    return await getAllUsersRaw({});
   }
 
   const now = Date.now();
@@ -1622,7 +1626,7 @@ async function getAllUsers(options = {}) {
     return USERS_CACHE;
   }
 
-  const users = await getAllUsersRaw();
+  const users = await getAllUsersRaw({});
   USERS_CACHE = users;
   USERS_CACHE_TS = now;
   return users;
