@@ -800,6 +800,85 @@ async function createUser(
   return { user, groups: finalGroups };
 }
 
+const INTEGRATION_PREFIX = "nodered-";
+
+/**
+ * Create an integration user (username prefix "nodered-") with a single group.
+ * Used by the Integrations page. Does not use agency/template; creates user directly.
+ */
+async function createIntegrationUser({ title, groupId }, opts = {}) {
+  const createdBy = opts.createdBy || null;
+
+  const slug = String(title || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "");
+  const username = slug
+    ? `${INTEGRATION_PREFIX}${slug}`
+    : `${INTEGRATION_PREFIX}integration`;
+
+  if (await userExists(username)) {
+    throw new Error(`Integration user "${username}" already exists.`);
+  }
+
+  const allGroups = await getAllGroups({ includeHidden: true });
+  const group = allGroups.find(g => String(g.pk) === String(groupId));
+  if (!group) {
+    throw new Error("Selected group not found.");
+  }
+
+  const name = `Node-RED Integration, ${String(title || "").trim() || username}`;
+  const attributes = {
+    integration_type: "nodered",
+    integration_title: String(title || "").trim() || username,
+  };
+  if (createdBy && createdBy.username) {
+    attributes.created_by_username = String(createdBy.username);
+  }
+  if (createdBy && createdBy.displayName) {
+    attributes.created_by_display_name = String(createdBy.displayName);
+  }
+
+  const payload = {
+    username,
+    email: "",
+    name,
+    is_active: true,
+    attributes,
+  };
+
+  const folderRaw = String(getString("AUTHENTIK_USER_PATH", "")).trim();
+  if (folderRaw) payload.path = normalizePath(folderRaw);
+
+  const res = await api.post("/core/users/", payload);
+  const user = res.data;
+
+  // Set a random secure password so the integration account is not easily loginable
+  const crypto = require("crypto");
+  const randomPassword = `Int3gr4t10n!${crypto.randomBytes(8).toString("hex")}`;
+  await api.post(`/core/users/${user.pk}/set_password/`, {
+    password: randomPassword,
+  });
+
+  await api.patch(`/core/users/${user.pk}/`, {
+    groups: [group.pk],
+  });
+
+  invalidateUsersCache();
+  return { user, groups: [group] };
+}
+
+/**
+ * Return users whose username starts with the integration prefix (e.g. "nodered-").
+ */
+async function findIntegrationUsers() {
+  const users = await findUsers({ q: INTEGRATION_PREFIX, forceRefresh: false });
+  return users.filter(u =>
+    String(u?.username || "").toLowerCase().startsWith(INTEGRATION_PREFIX)
+  );
+}
+
 // Bulk CSV import
 // This CSV format is intentionally minimal and strict:
 // REQUIRED columns (case-insensitive):
@@ -1567,6 +1646,8 @@ module.exports = {
   // user ops
   userExists,
   createUser,
+  createIntegrationUser,
+  findIntegrationUsers,
   importUsersFromCsvBuffer,
   getUserById,
   findUsers,

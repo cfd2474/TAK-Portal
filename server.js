@@ -229,6 +229,7 @@ app.use("/api/mutual-aid", require("./routes/mutualAid.routes"));
 app.use("/api/tak", require("./routes/takMetrics.routes"));
 app.use("/api/user-requests", require("./routes/userRequests.routes"));
 app.use("/api/audit-log", requireGlobalAdmin, require("./routes/auditLog.routes"));
+app.use("/api/integrations", requireGlobalAdmin, require("./routes/integrations.routes"));
 app.use("/dashboard", require("./routes/dashboard.routes"));
 
 // UI Routes
@@ -257,6 +258,9 @@ app.get("/templates", (req, res) => res.render("templates"));
 app.get("/mutual-aid", requireGlobalAdmin, (req, res) =>
   res.render("mutual-aid")
 ); //require Global Admin
+app.get("/integrations", requireGlobalAdmin, (req, res) =>
+  res.render("integrations")
+);
 
 // Admin: audit log (GLOBAL ADMINS ONLY)
 app.get("/audit-log", requireGlobalAdmin, (req, res) => {

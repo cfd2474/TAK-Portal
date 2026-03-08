@@ -1,0 +1,155 @@
+<%- include("partials/header") %>
+<%- include("partials/sidebar") %>
+
+<main class="main">
+  <h1>Integrations</h1>
+
+  <div class="card">
+    <h2>Create Integration</h2>
+    <p class="muted">Creates a user with username <code>nodered-</code> + a slug from the title, assigned to a single group.</p>
+
+    <form id="createForm" class="grid2" autocomplete="off" style="max-width: 640px;">
+      <label>Title
+        <input type="text" name="title" placeholder="e.g. Weather API" required />
+      </label>
+
+      <label>Group
+        <select name="groupId" id="groupSelect" required>
+          <option value="">Select a group</option>
+        </select>
+      </label>
+
+      <div style="grid-column: 1 / -1; display: flex; align-items: center; gap: 10px;">
+        <button class="btn" type="submit">Create Integration</button>
+        <span id="createMsg" class="msg"></span>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top: 0;">Existing Integrations</h2>
+    <p class="muted">Users whose username starts with <code>nodered-</code>.</p>
+
+    <div id="tableMsg" class="msg"></div>
+
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>Name</th>
+          <th>Group</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</main>
+
+<script>
+(function () {
+  const createForm = document.getElementById("createForm");
+  const groupSelect = document.getElementById("groupSelect");
+  const createMsg = document.getElementById("createMsg");
+  const tableMsg = document.getElementById("tableMsg");
+  const tbody = document.getElementById("tbody");
+
+  function setCreateMsg(text, ok) {
+    createMsg.textContent = text || "";
+    createMsg.style.color = ok ? "" : "var(--error, #c00)";
+  }
+
+  function setTableMsg(text, ok) {
+    tableMsg.textContent = text || "";
+    tableMsg.style.color = ok ? "" : "var(--error, #c00)";
+  }
+
+  function esc(s) {
+    if (s == null || s === undefined) return "";
+    const div = document.createElement("div");
+    div.textContent = s;
+    return div.innerHTML;
+  }
+
+  async function loadGroups() {
+    const res = await fetch("/api/groups");
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to load groups");
+    const groups = Array.isArray(data) ? data : (data.groups || []);
+    groupSelect.innerHTML =
+      '<option value="">Select a group</option>' +
+      groups
+        .map((g) => `<option value="${esc(g.pk)}">${esc(g.name || g.pk)}</option>`)
+        .join("");
+  }
+
+  async function loadIntegrations() {
+    setTableMsg("Loading…");
+    try {
+      const res = await fetch("/api/integrations");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load integrations");
+      const users = data.users || [];
+      if (users.length === 0) {
+        tbody.innerHTML = "<tr><td colspan=\"4\">No integration users found.</td></tr>";
+      } else {
+        tbody.innerHTML = users
+          .map(
+            (u) =>
+              "<tr>" +
+              "<td>" + esc(u.username) + "</td>" +
+              "<td>" + esc(u.name) + "</td>" +
+              "<td>" + esc((u.groupNames || []).join(", ") || "—") + "</td>" +
+              "<td>" + (u.is_active ? "Active" : "Inactive") + "</td>" +
+              "</tr>"
+          )
+          .join("");
+      }
+      setTableMsg("");
+    } catch (err) {
+      setTableMsg(err.message || "Failed to load integrations", false);
+      tbody.innerHTML = "";
+    }
+  }
+
+  createForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    setCreateMsg("");
+    const title = createForm.title.value.trim();
+    const groupId = groupSelect.value;
+    if (!groupId) {
+      setCreateMsg("Please select a group.", false);
+      return;
+    }
+    try {
+      const res = await fetch("/api/integrations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, groupId }),
+      });
+      const out = await res.json();
+      if (!res.ok) {
+        setCreateMsg(out.error || "Create failed", false);
+        return;
+      }
+      const username = (out.user && out.user.username) || "";
+      setCreateMsg("Integration \"" + username + "\" created successfully.", true);
+      createForm.reset();
+      groupSelect.value = "";
+      await loadGroups();
+      await loadIntegrations();
+    } catch (err) {
+      setCreateMsg(err.message || "Create failed", false);
+    }
+  });
+
+  (async function init() {
+    try {
+      await loadGroups();
+      await loadIntegrations();
+    } catch (err) {
+      setTableMsg(err.message || "Failed to load page", false);
+    }
+  })();
+})();
+</script>
