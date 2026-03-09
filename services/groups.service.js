@@ -536,19 +536,26 @@ async function bulkRemoveUsersFromGroup(groupId, userPks) {
 }
 
 // ---------- Mass assign / unassign ----------
-async function massAssignUsersToGroup({ groupId, suffixes, sourceGroupIds, userIds }) {
+async function massAssignUsersToGroup({ groupId, suffixes, sourceGroupIds, userIds, authUser } = {}) {
   const gid = normalizeId(groupId);
   if (!gid) throw new Error("Target group is required");
 
   // Block protected groups
   await assertGroupNotActionLocked(gid);
 
+  const access = accessSvc.getAgencyAccess(authUser || null);
   const users = await getAllUsers();
+
+  function restrictToAllowedAgencies(userList) {
+    if (access.isGlobalAdmin) return userList;
+    return userList.filter((u) => accessSvc.isUsernameInAllowedAgencies(authUser, u?.username));
+  }
 
   // Strategy 1: explicit users
   const explicitUsers = normalizeIdList(userIds);
   if (explicitUsers.length) {
-    const matchedUsers = users.filter(u => explicitUsers.includes(String(u.pk)));
+    let matchedUsers = users.filter(u => explicitUsers.includes(String(u.pk)));
+    matchedUsers = restrictToAllowedAgencies(matchedUsers);
     const targetUserPks = matchedUsers.map(u => u.pk);
 
     const { changed } = await bulkAddUsersToGroup(gid, targetUserPks);
@@ -559,11 +566,11 @@ async function massAssignUsersToGroup({ groupId, suffixes, sourceGroupIds, userI
   // Strategy 2: users with an existing group (allow multiple)
   const srcGids = normalizeIdList(sourceGroupIds);
   if (srcGids.length) {
-    const matchedUsers = users.filter(u => {
+    let matchedUsers = users.filter(u => {
       const gs = Array.isArray(u.groups) ? u.groups.map(x => String(x)) : [];
       return srcGids.some(id => gs.includes(id));
     });
-
+    matchedUsers = restrictToAllowedAgencies(matchedUsers);
     const targetUserPks = matchedUsers.map(u => u.pk);
     const { changed } = await bulkAddUsersToGroup(gid, targetUserPks);
 
@@ -578,11 +585,11 @@ async function massAssignUsersToGroup({ groupId, suffixes, sourceGroupIds, userI
     throw new Error("Provide suffixes, sourceGroupIds, or userIds to mass-assign.");
   }
 
-  const matchedUsers = users.filter(u => {
+  let matchedUsers = users.filter(u => {
     const un = String(u.username || "").toLowerCase();
     return suffixList.some(sfx => un.endsWith(sfx));
   });
-
+  matchedUsers = restrictToAllowedAgencies(matchedUsers);
   const targetUserPks = matchedUsers.map(u => u.pk);
   const { changed } = await bulkAddUsersToGroup(gid, targetUserPks);
 
@@ -623,19 +630,26 @@ async function getGroupMembers(groupId, { authUser, agencyAbbreviation } = {}) {
   }));
 }
 
-async function massUnassignUsersFromGroup({ groupId, suffixes, sourceGroupIds, userIds }) {
+async function massUnassignUsersFromGroup({ groupId, suffixes, sourceGroupIds, userIds, authUser } = {}) {
   const gid = normalizeId(groupId);
   if (!gid) throw new Error("Target group is required");
 
   // Block protected groups
   await assertGroupNotActionLocked(gid);
 
+  const access = accessSvc.getAgencyAccess(authUser || null);
   const users = await getAllUsers();
+
+  function restrictToAllowedAgencies(userList) {
+    if (access.isGlobalAdmin) return userList;
+    return userList.filter((u) => accessSvc.isUsernameInAllowedAgencies(authUser, u?.username));
+  }
 
   // Strategy 1: explicit users
   const explicitUsers = normalizeIdList(userIds);
   if (explicitUsers.length) {
-    const matchedUsers = users.filter((u) => explicitUsers.includes(String(u.pk)));
+    let matchedUsers = users.filter((u) => explicitUsers.includes(String(u.pk)));
+    matchedUsers = restrictToAllowedAgencies(matchedUsers);
     const targetUserPks = matchedUsers.map(u => u.pk);
 
     const { changed } = await bulkRemoveUsersFromGroup(gid, targetUserPks);
@@ -648,11 +662,11 @@ async function massUnassignUsersFromGroup({ groupId, suffixes, sourceGroupIds, u
   // Strategy 2: users with an existing group (allow multiple)
   const srcGids = normalizeIdList(sourceGroupIds);
   if (srcGids.length) {
-    const matchedUsers = users.filter((u) => {
+    let matchedUsers = users.filter((u) => {
       const gs = Array.isArray(u.groups) ? u.groups.map((x) => String(x)) : [];
       return srcGids.some((id) => gs.includes(id));
     });
-
+    matchedUsers = restrictToAllowedAgencies(matchedUsers);
     const targetUserPks = matchedUsers.map(u => u.pk);
     const { changed } = await bulkRemoveUsersFromGroup(gid, targetUserPks);
 
@@ -669,11 +683,11 @@ async function massUnassignUsersFromGroup({ groupId, suffixes, sourceGroupIds, u
     throw new Error("Provide suffixes, sourceGroupIds, or userIds to mass-unassign.");
   }
 
-  const matchedUsers = users.filter((u) => {
+  let matchedUsers = users.filter((u) => {
     const un = String(u.username || "").toLowerCase();
     return suffixList.some((sfx) => un.endsWith(sfx));
   });
-
+  matchedUsers = restrictToAllowedAgencies(matchedUsers);
   const targetUserPks = matchedUsers.map(u => u.pk);
   const { changed } = await bulkRemoveUsersFromGroup(gid, targetUserPks);
 

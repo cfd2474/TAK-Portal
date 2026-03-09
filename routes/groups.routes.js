@@ -302,9 +302,9 @@ router.post("/mass-assign", async (req, res) => {
     const out = await groups.massAssignUsersToGroup({
       groupId: req.body?.groupId,
       suffixes: req.body?.suffixes,
-      // allow multiple source groups (backwards compatible)
       sourceGroupIds: req.body?.sourceGroupIds ?? req.body?.sourceGroupId,
       userIds: req.body?.userIds,
+      authUser,
     });
 
     auditSvc.logEvent({
@@ -333,9 +333,9 @@ router.post("/mass-unassign", async (req, res) => {
     const out = await groups.massUnassignUsersFromGroup({
       groupId: req.body?.groupId,
       suffixes: req.body?.suffixes,
-      // allow multiple source groups (same semantics as mass-assign)
       sourceGroupIds: req.body?.sourceGroupIds ?? req.body?.sourceGroupId,
       userIds: req.body?.userIds,
+      authUser,
     });
 
     auditSvc.logEvent({

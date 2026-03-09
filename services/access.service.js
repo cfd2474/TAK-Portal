@@ -296,6 +296,26 @@ function getAllowedAdminGroupIdsForUser(authUser) {
 }
 
 /**
+ * Whether the user is allowed to modify (e.g. mass assign/unassign) this group.
+ * Global admins: yes. Agency admins: only their agency-prefixed groups or groups in allowedAdminGroupIds.
+ */
+function canUserModifyGroup(authUser, group) {
+  const access = getAgencyAccess(authUser);
+  if (access.isGlobalAdmin) return true;
+  if (!group || group.pk == null) return false;
+  const pk = String(group.pk).trim();
+  const allowedExtraIds = getAllowedAdminGroupIdsForUser(authUser);
+  if (allowedExtraIds && pk && allowedExtraIds.has(pk)) return true;
+  let name = String(group.name || "").trim();
+  if (name.toLowerCase().startsWith("tak_")) name = name.slice(4);
+  const spaceIdx = name.toUpperCase().indexOf(" ");
+  if (spaceIdx <= 0) return false;
+  const prefix = name.slice(0, spaceIdx).trim().toUpperCase();
+  const { agencyPrefixes } = getAgencyAndCountyPrefixesForUser(authUser);
+  return Array.isArray(agencyPrefixes) && agencyPrefixes.length > 0 && agencyPrefixes.includes(prefix);
+}
+
+/**
  * Filter a list of Authentik groups for the current user.
  *
  * - Global admins: see all groups (after GROUPS_HIDDEN_PREFIXES is applied).
@@ -364,6 +384,7 @@ module.exports = {
   isSuffixAllowed,
   isUsernameInAllowedAgencies,
   getAllowedAdminGroupIdsForUser,
+  canUserModifyGroup,
   // Export both names; older routes use getAgencyAndCountyPrefixesForUser.
   getAgencyCountyAndStatePrefixesForUser,
   getAgencyAndCountyPrefixesForUser,
