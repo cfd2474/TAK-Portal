@@ -328,6 +328,13 @@
               overwritten by upgrades.
             </p>
 
+            <script>
+              window.EMAIL_TEMPLATE_DEFAULTS = {};
+              <% orderedEmailTemplates.forEach(function (tpl) { %>
+              window.EMAIL_TEMPLATE_DEFAULTS["<%= tpl.idSafe %>"] = <%- JSON.stringify((tpl.defaultHtml != null && tpl.defaultHtml !== undefined) ? tpl.defaultHtml : "") %>;
+              <% }); %>
+            </script>
+
             <% orderedEmailTemplates.forEach(function (tpl) { %>
               <details
                 class="email-template-item"
@@ -341,19 +348,13 @@
                     <%= friendlyNames[tpl.filename] || tpl.filename %>
                   </span>
 
-                  <% if (tpl.overridden) { %>
-                    <span
-                      style="background:#2563eb;color:#fff;padding:0.1rem 0.4rem;border-radius:999px;font-size:0.75rem;"
-                    >
-                      Custom
-                    </span>
-                  <% } else { %>
-                    <span
-                      style="background:#e5e7eb;color:#374151;padding:0.1rem 0.4rem;border-radius:999px;font-size:0.75rem;"
-                    >
-                      Default
-                    </span>
-                  <% } %>
+                  <span
+                    class="email-template-badge"
+                    data-badge="<%= tpl.idSafe %>"
+                    style="<%= tpl.overridden ? 'background:#2563eb;color:#fff;' : 'background:#e5e7eb;color:#374151;' %>padding:0.1rem 0.4rem;border-radius:999px;font-size:0.75rem;"
+                  >
+                    <%= tpl.overridden ? "Custom" : "Default" %>
+                  </span>
                 </summary>
 
                 <div style="margin-top:0.75rem;">
@@ -715,18 +716,31 @@
     (function () {
       var root = document.querySelector(".email-templates-section") || document;
 
-      // Email template reset buttons
+      // Email template reset buttons: load default into textarea, set reset flag, update badge
       var resetButtons = root.querySelectorAll("[data-reset-template]");
+      var defaults = window.EMAIL_TEMPLATE_DEFAULTS || {};
       resetButtons.forEach(function (btn) {
         btn.addEventListener("click", function () {
           var key = btn.getAttribute("data-reset-template");
           if (!key) return;
+
+          var textarea = document.getElementById("email-template-" + key);
+          if (textarea && defaults[key] !== undefined) {
+            textarea.value = defaults[key];
+          }
 
           var flag = root.querySelector('[data-reset-flag="' + key + '"]');
           if (flag) flag.value = "1";
 
           var note = root.querySelector('[data-reset-note="' + key + '"]');
           if (note) note.style.display = "inline";
+
+          var badge = root.querySelector('.email-template-badge[data-badge="' + key + '"]');
+          if (badge) {
+            badge.textContent = "Default";
+            badge.style.background = "#e5e7eb";
+            badge.style.color = "#374151";
+          }
         });
       });
 

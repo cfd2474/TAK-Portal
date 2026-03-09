@@ -639,9 +639,45 @@ app.get("/settings", requireGlobalAdmin, (req, res) => {
         filename,
         idSafe: filename.replace(/[^a-zA-Z0-9_-]+/g, "_"),
         html,
+        defaultHtml,
         overridden: differsFromDefault,
       };
     });
+
+    // Remove overrides that match the repo default so badges and storage stay correct.
+    const toRemove = emailTemplates
+      .filter((t) => {
+        const overrideHtmlRaw = overrides && overrides[t.filename];
+        const overrideHtml =
+          typeof overrideHtmlRaw === "string" ? overrideHtmlRaw : "";
+        if (overrideHtml === "") return false;
+        return (
+          normalizeHtmlForCompare(overrideHtml) ===
+          normalizeHtmlForCompare(t.defaultHtml || "")
+        );
+      })
+      .map((t) => t.filename);
+    if (toRemove.length > 0) {
+      const current = settingsSvc.getSettings() || {};
+      const overridesObj =
+        current.EMAIL_TEMPLATES_OVERRIDES &&
+        typeof current.EMAIL_TEMPLATES_OVERRIDES === "object"
+          ? { ...current.EMAIL_TEMPLATES_OVERRIDES }
+          : {};
+      toRemove.forEach((filename) => delete overridesObj[filename]);
+      if (Object.keys(overridesObj).length === 0) {
+        const next = { ...current };
+        delete next.EMAIL_TEMPLATES_OVERRIDES;
+        settingsSvc.saveSettings(next);
+      } else {
+        settingsSvc.saveSettings({ ...current, EMAIL_TEMPLATES_OVERRIDES: overridesObj });
+      }
+      // Recompute overridden so the page shows Default for cleaned items.
+      emailTemplates = emailTemplates.map((t) => ({
+        ...t,
+        overridden: toRemove.includes(t.filename) ? false : t.overridden,
+      }));
+    }
   } catch (err) {
     console.error("[settings] Failed to load email templates:", err);
     emailTemplates = [];
@@ -784,11 +820,8 @@ app.post(
     const resetMap = bodySettings.EMAIL_TEMPLATES_OVERRIDES_RESET;
     if (resetMap && typeof resetMap === "object") {
       Object.keys(resetMap).forEach((filename) => {
-        // If a per-template Save was used, ignore reset flags for other templates.
-        if (onlyTemplate && filename !== onlyTemplate) {
-          return;
-        }
-
+        // Always apply reset flags so "Reset to Default" takes effect even when
+        // the user later saves a different template or the main form.
         const rawFlag = resetMap[filename];
         const flag =
           typeof rawFlag === "string"
