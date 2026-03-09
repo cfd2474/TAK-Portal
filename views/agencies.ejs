@@ -405,26 +405,27 @@ function renderAgencies(){
       <td>${esc(a.type)}</td>
       <td>${esc(a.color || "")}</td>
       <td>
-        <button class="btn" type="button"
-          onclick="openAgencyAdmins('${esc(a._id ?? a.id ?? "")}')">
-          View Admins
-        </button>
-        <% if (typeof isGlobalAdmin !== "undefined" && isGlobalAdmin) { %>
-        <button class="btn" type="button"
-          onclick="openAccessGroupsModal('${esc(a._id ?? a.id ?? "")}')">
-          Access Groups
-        </button>
-        <% } %>
-        <button class="btn ${a.lookupEnabled ? "btn-grey" : ""}"
-          type="button"
-          onclick="toggleLookup('${esc(a._id ?? a.id ?? "")}', ${a.lookupEnabled ? "true" : "false"}, '${esc(a.name)}')">
-          ${a.lookupEnabled ? "Disable Lookup" : "Enable Lookup"}
-        </button>
-
-        <button class="btn danger" type="button"
-          onclick="delAgency('${esc(a._id ?? a.id ?? "")}')">
-          Delete
-        </button>
+        <div class="row agencyActionsCell" style="gap: 10px; flex-wrap: wrap;">
+          <button class="btn" type="button"
+            onclick="openAgencyAdmins('${esc(a._id ?? a.id ?? "")}')">
+            View Admins
+          </button>
+          <% if (typeof isGlobalAdmin !== "undefined" && isGlobalAdmin) { %>
+          <button class="btn btn-access" type="button"
+            onclick="openAccessGroupsModal('${esc(a._id ?? a.id ?? "")}')">
+            Manage Access
+          </button>
+          <% } %>
+          <button class="btn ${a.lookupEnabled ? "btn-grey" : ""}"
+            type="button"
+            onclick="toggleLookup('${esc(a._id ?? a.id ?? "")}', ${a.lookupEnabled ? "true" : "false"}, '${esc(a.name)}')">
+            ${a.lookupEnabled ? "Disable Lookup" : "Enable Lookup"}
+          </button>
+          <button class="btn danger" type="button"
+            onclick="delAgency('${esc(a._id ?? a.id ?? "")}')">
+            Delete
+          </button>
+        </div>
       </td>
     </tr>
   `).join("");
@@ -933,6 +934,22 @@ loadAgenciesWithCounts();
 .btn-grey:hover {
   background-color: #5a6268;
   border-color: #545b62;
+}
+
+/* Manage Access button – purple (match mutual aid accent) */
+.btn-access {
+  background: #7c3aed;
+  border-color: #7c3aed;
+  color: #fff;
+}
+.btn-access:hover {
+  filter: brightness(0.95);
+}
+
+/* Action buttons: vertical spacing when stacked on small screens */
+.agencyActionsCell {
+  display: flex;
+  align-items: center;
 }
 
 /* Access Groups modal checkbox grid (match templates page) */
