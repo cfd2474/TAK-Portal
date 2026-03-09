@@ -270,15 +270,38 @@ function getAgencyAndCountyPrefixesForUser(authUser) {
 }
 
 /**
+ * Set of group PKs that agency admins are allowed to see in addition to their
+ * own agency/county/state groups (configured per agency by global admins).
+ */
+function getAllowedAdminGroupIdsForUser(authUser) {
+  const access = getAgencyAccess(authUser);
+  if (access.isGlobalAdmin) return null; // no restriction
+  const allowedSuffixes = access.allowedAgencySuffixes || [];
+  if (!allowedSuffixes.length) return new Set();
+  const agencies = agenciesStore.load();
+  const allowedSet = new Set(allowedSuffixes.map(normalizeSuffix));
+  const out = new Set();
+  for (const agency of agencies) {
+    const sfx = normalizeSuffix(agency?.suffix);
+    if (!sfx || !allowedSet.has(sfx)) continue;
+    const ids = agency.allowedAdminGroupIds;
+    if (Array.isArray(ids)) {
+      for (const id of ids) {
+        const s = String(id).trim();
+        if (s) out.add(s);
+      }
+    }
+  }
+  return out;
+}
+
+/**
  * Filter a list of Authentik groups for the current user.
  *
  * - Global admins: see all groups (after GROUPS_HIDDEN_PREFIXES is applied).
- * - Agency admins: see
- *   - their agency-specific groups
- *       (name starts with agency groupPrefix + "-" or groupPrefix + " -"),
- *   - their county groups
- *       (name starts with COUNTYNAME + "-" or COUNTYNAME + " -"),
- *   - "global" groups with no prefix (no "-").
+ * - Agency admins: see only
+ *   - their own agency/county/state groups (unless marked private by global admin),
+ *   - plus groups explicitly granted via the agency's allowedAdminGroupIds (set on Agencies page).
  */
 function filterGroupsForUser(authUser, groups) {
   const access = getAgencyAccess(authUser);
@@ -290,6 +313,7 @@ function filterGroupsForUser(authUser, groups) {
 
   const { agencyPrefixes, countyPrefixes, statePrefixes } =
     getAgencyAndCountyPrefixesForUser(authUser);
+  const allowedExtraIds = getAllowedAdminGroupIdsForUser(authUser);
 
   const hasAgencyPrefixes =
     Array.isArray(agencyPrefixes) && agencyPrefixes.length > 0;
@@ -307,6 +331,9 @@ function filterGroupsForUser(authUser, groups) {
       return false;
     }
 
+    const pk = String(g?.pk ?? g?.id ?? "").trim();
+    if (allowedExtraIds && pk && allowedExtraIds.has(pk)) return true;
+
     let name = String(g?.name || "").trim();
     if (!name) return false;
 
@@ -318,8 +345,8 @@ function filterGroupsForUser(authUser, groups) {
     const upper = name.toUpperCase();
     const spaceIdx = upper.indexOf(" ");
 
-    // If no space → treat as global group
-    if (spaceIdx <= 0) return true;
+    // No space → global group; agency admins only see it if in allowedAdminGroupIds (handled above)
+    if (spaceIdx <= 0) return false;
 
     const prefix = upper.slice(0, spaceIdx).trim();
 
@@ -341,6 +368,7 @@ module.exports = {
   filterAgenciesForUser,
   isSuffixAllowed,
   isUsernameInAllowedAgencies,
+  getAllowedAdminGroupIdsForUser,
   // Export both names; older routes use getAgencyAndCountyPrefixesForUser.
   getAgencyCountyAndStatePrefixesForUser,
   getAgencyAndCountyPrefixesForUser,

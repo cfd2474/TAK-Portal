@@ -97,29 +97,7 @@ router.get("/meta", async (req, res) => {
 
     const dynamic = users.getTemplatesForAgency(agencySuffix);
     const allGroups = await groupsSvc.getAllGroups({});
-    const access = accessSvc.getAgencyAccess(authUser);
-
-    // Start with normal filtering
     let groups = accessSvc.filterGroupsForUser(authUser, allGroups);
-
-    // Allow agency admins to assign non-private global groups
-    if (!access.isGlobalAdmin) {
-      const globalVisible = (allGroups || []).filter(g => {
-        const attrs = g?.attributes || {};
-        const createdType = String(attrs.created_type || "").toLowerCase();
-        const isPrivate = String(attrs.private || "no").toLowerCase() === "yes";
-
-        return createdType === "global" && !isPrivate;
-      });
-
-      const existing = new Set(groups.map(g => String(g.pk)));
-
-      for (const g of globalVisible) {
-        if (!existing.has(String(g.pk))) {
-          groups.push(g);
-        }
-      }
-    }
 
     const templates = [
       // index 0 = Manual, as the EJS expects

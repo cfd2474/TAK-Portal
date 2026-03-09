@@ -67,15 +67,23 @@ async function getGroupByNameUnfiltered(groupName) {
 }
 
 function normalizeAgency(a) {
-  return {
+  const normalized = {
     name: String(a.name || "").trim(),
     type: String(a.type || "").trim(),
     county: String(a.county || "").trim(),
-    state: String(a.state || "").trim().toUpperCase(), 
+    state: String(a.state || "").trim().toUpperCase(),
     suffix: String(a.suffix || "").trim().toLowerCase(),
     groupPrefix: String(a.groupPrefix || "").trim().toUpperCase(),
     color: String(a.color || "").trim(),
   };
+  // Preserve allowedAdminGroupIds (extra groups agency admins can access)
+  const raw = a?.allowedAdminGroupIds;
+  if (Array.isArray(raw)) {
+    normalized.allowedAdminGroupIds = raw.map((id) => String(id).trim()).filter(Boolean);
+  } else {
+    normalized.allowedAdminGroupIds = [];
+  }
+  return normalized;
 }
 
 function validateAgency(a) {
@@ -94,14 +102,17 @@ router.get("/", (req, res) => {
   res.json(filtered);
 });
 
-// Agencies (no user counts anymore)
+// Agencies (no user counts anymore). id/_id = backend index for API calls.
 router.get("/with-counts", async (req, res) => {
   try {
     const agencies = store.load();
     const visible = accessSvc.filterAgenciesForUser(req.authentikUser, agencies);
 
-    const result = visible.map((a, index) => {
-      const id = index;
+    const result = visible.map((a) => {
+      const idx = agencies.findIndex(
+        (ag) => ag === a || (String(ag.suffix || "").toLowerCase() === String(a.suffix || "").toLowerCase() && String(ag.name || "") === String(a.name || ""))
+      );
+      const id = idx >= 0 ? idx : 0;
       return { ...a, id, _id: id };
     });
 
@@ -109,6 +120,33 @@ router.get("/with-counts", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.response?.data || err.message });
   }
+});
+
+// Get/set extra groups that this agency's admins can access (besides their own agency groups).
+router.get("/:index/access-groups", (req, res) => {
+  const idx = Number(req.params.index);
+  const agencies = store.load();
+  if (!Number.isInteger(idx) || !agencies[idx]) return res.status(404).json({ error: "Not found" });
+  const a = agencies[idx];
+  const list = Array.isArray(a.allowedAdminGroupIds) ? a.allowedAdminGroupIds : [];
+  return res.json({ allowedAdminGroupIds: list });
+});
+
+router.put("/:index/access-groups", (req, res) => {
+  const access = accessSvc.getAgencyAccess(req.authentikUser || null);
+  if (!access.isGlobalAdmin) {
+    return res.status(403).json({ error: "Only global admins can set agency access groups." });
+  }
+  const idx = Number(req.params.index);
+  const agencies = store.load();
+  if (!Number.isInteger(idx) || !agencies[idx]) return res.status(404).json({ error: "Not found" });
+  const raw = req.body?.allowedAdminGroupIds;
+  const list = Array.isArray(raw)
+    ? raw.map((id) => String(id).trim()).filter(Boolean)
+    : [];
+  agencies[idx].allowedAdminGroupIds = list;
+  store.save(agencies);
+  return res.json({ allowedAdminGroupIds: list });
 });
 
 // Resolve the computed admin group for an agency, even if the group is hidden from /api/groups.
@@ -172,7 +210,12 @@ router.put("/:index", async (req, res) => {
   const agencies = store.load();
   if (!Number.isInteger(idx) || !agencies[idx]) return res.status(404).json({ error: "Not found" });
 
+  const existing = agencies[idx];
   const a = normalizeAgency(req.body || {});
+  // Preserve allowedAdminGroupIds if not sent in body (main edit form does not send them)
+  if (!Array.isArray(req.body?.allowedAdminGroupIds)) {
+    a.allowedAdminGroupIds = Array.isArray(existing.allowedAdminGroupIds) ? existing.allowedAdminGroupIds : [];
+  }
   const err = validateAgency(a);
   if (err) return res.status(400).json({ error: err });
 

@@ -188,6 +188,34 @@
   </div>
 </div>
 
+<!-- Access Groups Modal (which extra groups this agency's admins can see) -->
+<div class="modalOverlay" id="accessGroupsOverlay" style="display:none;">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="accessGroupsTitle">
+    <div class="modalHeader">
+      <h2 id="accessGroupsTitle" style="margin:0;">Agency Access Groups</h2>
+      <button class="btn" id="accessGroupsCloseBtn" type="button">Close</button>
+    </div>
+    <div class="modalBody">
+      <p id="accessGroupsSummary" class="msg"></p>
+      <label style="display:block;">
+        Groups (agency admins always see their own agency groups; select extra groups to grant access)
+        <input id="accessGroupSearch" placeholder="Search groups..." style="width:100%; box-sizing:border-box; margin-top:6px;" />
+      </label>
+      <div class="row" style="gap:10px; margin-top:8px;">
+        <button class="btn" type="button" id="accessGroupsSelectAllBtn">Select All</button>
+        <button class="btn" type="button" id="accessGroupsClearBtn">Clear</button>
+      </div>
+      <div id="accessGroupsBox" class="groupsBox" style="margin-top:10px; max-height:320px; overflow:auto;">
+        <div id="accessGroupsInner" class="groupsInner"></div>
+      </div>
+      <div style="margin-top:14px; text-align:right;">
+        <button class="btn" type="button" id="accessGroupsCancelBtn">Cancel</button>
+        <button class="btn success" type="button" id="accessGroupsSaveBtn">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Lookup Modal -->
   <div class="modalOverlay" id="lookupModal" style="display:none;">
     <div class="modal" role="dialog" aria-modal="true">
@@ -381,7 +409,12 @@ function renderAgencies(){
           onclick="openAgencyAdmins('${esc(a._id ?? a.id ?? "")}')">
           View Admins
         </button>
-
+        <% if (typeof isGlobalAdmin !== "undefined" && isGlobalAdmin) { %>
+        <button class="btn" type="button"
+          onclick="openAccessGroupsModal('${esc(a._id ?? a.id ?? "")}')">
+          Access Groups
+        </button>
+        <% } %>
         <button class="btn ${a.lookupEnabled ? "btn-grey" : ""}"
           type="button"
           onclick="toggleLookup('${esc(a._id ?? a.id ?? "")}', ${a.lookupEnabled ? "true" : "false"}, '${esc(a.name)}')">
@@ -680,6 +713,150 @@ addForm.onsubmit = async (e) => {
 
 if (refreshBtn) refreshBtn.onclick = () => loadAgenciesWithCounts();
 
+// ---- Access Groups modal ----
+const accessGroupsOverlay = document.getElementById("accessGroupsOverlay");
+const accessGroupsCloseBtn = document.getElementById("accessGroupsCloseBtn");
+const accessGroupsCancelBtn = document.getElementById("accessGroupsCancelBtn");
+const accessGroupsSaveBtn = document.getElementById("accessGroupsSaveBtn");
+const accessGroupsSummary = document.getElementById("accessGroupsSummary");
+const accessGroupSearch = document.getElementById("accessGroupSearch");
+const accessGroupsBox = document.getElementById("accessGroupsBox");
+const accessGroupsInner = document.getElementById("accessGroupsInner");
+const accessGroupsSelectAllBtn = document.getElementById("accessGroupsSelectAllBtn");
+const accessGroupsClearBtn = document.getElementById("accessGroupsClearBtn");
+
+let accessGroupsAgencyId = null;
+let accessGroupsAllGroups = [];
+let accessGroupsSelectable = [];
+let accessGroupsPickedIds = new Set();
+
+function displayGroupName(name) {
+  return String(name || "").replace(/^tak_/i, "");
+}
+
+function getGroupPrefix(groupName) {
+  const n = String(groupName || "").trim();
+  const withoutTak = n.toLowerCase().startsWith("tak_") ? n.slice(4) : n;
+  const spaceIdx = withoutTak.toUpperCase().indexOf(" ");
+  if (spaceIdx <= 0) return "";
+  return withoutTak.slice(0, spaceIdx).trim().toUpperCase();
+}
+
+function isGroupRelatedToAgency(groupName, agency) {
+  const prefix = getGroupPrefix(groupName);
+  if (!prefix) return false;
+  const gp = String(agency?.groupPrefix || "").trim().toUpperCase();
+  const county = String(agency?.county || "").trim().toUpperCase();
+  const state = String(agency?.state || "").trim().toUpperCase();
+  return prefix === gp || prefix === county || prefix === state;
+}
+
+function renderAccessGroupsGrid(filterText) {
+  const q = String(filterText || "").trim().toLowerCase();
+  const list = q
+    ? accessGroupsSelectable.filter(g => {
+        const name = String(g.name || "").toLowerCase();
+        const disp = displayGroupName(g.name).toLowerCase();
+        return name.includes(q) || disp.includes(q);
+      })
+    : accessGroupsSelectable;
+  const sorted = [...list].sort((a, b) =>
+    String(a.name || "").localeCompare(String(b.name || ""), undefined, { sensitivity: "base" })
+  );
+  accessGroupsInner.innerHTML = sorted.map(g => {
+    const id = String(g.pk ?? g.id ?? "");
+    const checked = accessGroupsPickedIds.has(id) ? "checked" : "";
+    return `
+      <label class="groupItem">
+        <input type="checkbox" value="${escAttr(id)}" ${checked} />
+        <span>${esc(displayGroupName(g.name))}</span>
+      </label>
+    `;
+  }).join("");
+
+  accessGroupsBox.querySelectorAll("input[type=checkbox]").forEach(cb => {
+    cb.addEventListener("change", () => {
+      const id = String(cb.value);
+      if (cb.checked) accessGroupsPickedIds.add(id);
+      else accessGroupsPickedIds.delete(id);
+    });
+  });
+}
+
+function showAccessGroupsModal(on) {
+  if (!accessGroupsOverlay) return;
+  accessGroupsOverlay.style.display = on ? "flex" : "none";
+  document.body.style.overflow = on ? "hidden" : "";
+}
+
+window.openAccessGroupsModal = async (agencyId) => {
+  const a = (agencies || []).find(x => String(x._id ?? x.id) === String(agencyId));
+  if (!a) {
+    setMsg("Agency not found.", false);
+    return;
+  }
+  accessGroupsAgencyId = agencyId;
+  accessGroupsSummary.textContent = `Loading groups for "${esc(a.name || "")}"...`;
+  accessGroupsSummary.className = "msg";
+  accessGroupsInner.innerHTML = "";
+  if (accessGroupSearch) accessGroupSearch.value = "";
+  accessGroupsPickedIds = new Set();
+  showAccessGroupsModal(true);
+
+  try {
+    const [groupsRes, allowedRes] = await Promise.all([
+      fetch("/api/groups"),
+      fetch(`/api/agencies/${encodeURIComponent(agencyId)}/access-groups`)
+    ]);
+    const groupsData = await groupsRes.json();
+    const allowedData = await allowedRes.json();
+    if (!groupsRes.ok) throw new Error(groupsData.error || "Failed to load groups");
+    if (!allowedRes.ok) throw new Error(allowedData.error || "Failed to load access groups");
+
+    const allGroups = Array.isArray(groupsData) ? groupsData : [];
+    accessGroupsSelectable = allGroups.filter(g => !isGroupRelatedToAgency(g.name, a));
+    accessGroupsPickedIds = new Set(Array.isArray(allowedData.allowedAdminGroupIds) ? allowedData.allowedAdminGroupIds : []);
+
+    accessGroupsSummary.textContent = `Select extra groups that administrators for "${esc(a.name || "")}" can see. They always see their own agency groups.`;
+    accessGroupsSummary.className = "msg ok";
+    renderAccessGroupsGrid("");
+  } catch (e) {
+    accessGroupsSummary.textContent = e.message || "Failed to load.";
+    accessGroupsSummary.className = "msg bad";
+  }
+};
+
+if (accessGroupSearch) accessGroupSearch.addEventListener("input", () => renderAccessGroupsGrid(accessGroupSearch.value));
+if (accessGroupsSelectAllBtn) accessGroupsSelectAllBtn.onclick = () => {
+  accessGroupsSelectable.forEach(g => accessGroupsPickedIds.add(String(g.pk ?? g.id ?? "")));
+  renderAccessGroupsGrid(accessGroupSearch?.value || "");
+};
+if (accessGroupsClearBtn) accessGroupsClearBtn.onclick = () => {
+  accessGroupsPickedIds.clear();
+  renderAccessGroupsGrid(accessGroupSearch?.value || "");
+};
+if (accessGroupsCloseBtn) accessGroupsCloseBtn.onclick = () => showAccessGroupsModal(false);
+if (accessGroupsCancelBtn) accessGroupsCancelBtn.onclick = () => showAccessGroupsModal(false);
+if (accessGroupsOverlay) accessGroupsOverlay.addEventListener("click", e => { if (e.target === accessGroupsOverlay) showAccessGroupsModal(false); });
+
+if (accessGroupsSaveBtn) accessGroupsSaveBtn.onclick = async () => {
+  if (!accessGroupsAgencyId) return;
+  try {
+    const res = await fetch(`/api/agencies/${encodeURIComponent(accessGroupsAgencyId)}/access-groups`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ allowedAdminGroupIds: Array.from(accessGroupsPickedIds) })
+    });
+    const out = await res.json();
+    if (!res.ok) throw new Error(out.error || "Save failed");
+    setMsg("Access groups updated.", true);
+    showAccessGroupsModal(false);
+    loadAgenciesWithCounts();
+  } catch (e) {
+    setMsg(e.message || "Save failed", false);
+  }
+};
+
 // click-to-sort + keyboard support (Enter/Space)
 agencyTable.querySelectorAll("thead th[data-sort]").forEach(th => {
   th.addEventListener("click", () => {
@@ -757,6 +934,50 @@ loadAgenciesWithCounts();
 .btn-grey:hover {
   background-color: #5a6268;
   border-color: #545b62;
+}
+
+/* Access Groups modal checkbox grid (match templates page) */
+#accessGroupsBox.groupsBox {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 10px;
+}
+#accessGroupsInner.groupsInner {
+  column-width: 280px;
+  column-gap: 14px;
+  column-count: 4;
+}
+#accessGroupsBox .groupItem {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+#accessGroupsBox .groupItem:hover {
+  background: rgba(255,255,255,.06);
+}
+#accessGroupsBox .groupItem input {
+  margin: 0;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+#accessGroupsBox .groupItem span {
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 768px) {
+  #accessGroupsInner.groupsInner { column-count: 2; }
+}
+@media (max-width: 480px) {
+  #accessGroupsInner.groupsInner { column-count: 1; }
 }
 </style>
 
