@@ -12,6 +12,9 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
+### v1.2.36 - 3/8/26
+✨ `Enhancement` - Added an indicator in the sidebar to highlight/bold the current page to assist with easier navigation
+
 ### v1.2.35 - 3/8/26
 ✨ `Enhancement` - Makes Stats cards on the dashboard clickable to their respective pages.
 
