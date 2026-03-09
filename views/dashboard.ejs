@@ -68,8 +68,8 @@
     </div>
   <% } %>
 
-  <!-- Top stats (unchanged) -->
-  <div class="grid3">
+  <!-- Top stats: 4-wide when integrations exist, else 3 -->
+  <div class="<%= (stats.totalIntegrations || 0) > 0 ? 'grid4' : 'grid3' %>">
     <div class="card stat">
       <div class="statLabel">Total Users</div>
       <div class="statValue"><%= stats.totalUsers %></div>
@@ -87,6 +87,14 @@
       <div class="statValue"><%= stats.totalGroups %></div>
       <div class="statHint"></div>
     </div>
+
+    <% if ((stats.totalIntegrations || 0) > 0) { %>
+    <div class="card stat">
+      <div class="statLabel">Total Integrations</div>
+      <div class="statValue"><%= stats.totalIntegrations %></div>
+      <div class="statHint"></div>
+    </div>
+    <% } %>
   </div>
 
   <!-- TAK stats row (same style as top row) -->
@@ -258,8 +266,14 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 5px; /* tightened */
   }
+  .grid4{
+    display:grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
+  }
   @media (max-width: 1100px){
     .grid3{ grid-template-columns: 1fr; }
+    .grid4{ grid-template-columns: 1fr; }
   }
 
   .grid2{

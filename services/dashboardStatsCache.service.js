@@ -16,6 +16,7 @@ const _state = {
       totalUsers: 0,
       totalGroups: 0,
       totalAgencies: 0,
+      totalIntegrations: 0,
     },
     charts: {
       usersByAgency: {},
@@ -123,11 +124,20 @@ async function refreshNow() {
 
     const charts = buildCharts(users || [], agencies || []);
 
+    let totalIntegrations = 0;
+    try {
+      const integrationUsers = await usersService.findIntegrationUsers();
+      totalIntegrations = Array.isArray(integrationUsers) ? integrationUsers.length : 0;
+    } catch (e) {
+      console.warn("[DASHBOARD] Integration count failed:", e?.message || e);
+    }
+
     _state.snapshot = {
       stats: {
         totalUsers: Array.isArray(users) ? users.length : 0,
         totalGroups: Array.isArray(groups) ? groups.length : 0,
         totalAgencies: Array.isArray(agencies) ? agencies.length : 0,
+        totalIntegrations,
       },
       charts,
     };

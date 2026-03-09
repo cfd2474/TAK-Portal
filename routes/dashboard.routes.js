@@ -39,6 +39,7 @@ router.get("/", async (req, res) => {
         totalUsers: stats?.totalUsers ?? 0,
         totalGroups: stats?.totalGroups ?? 0,
         totalAgencies: stats?.totalAgencies ?? 0,
+        totalIntegrations: stats?.totalIntegrations ?? 0,
       },
       mutualAid: {
         activeIncidents: activeIncidentCount,
@@ -65,6 +66,7 @@ router.get("/", async (req, res) => {
         totalUsers: 0,
         totalGroups: 0,
         totalAgencies: 0,
+        totalIntegrations: 0,
       },
       mutualAid: {
         activeIncidents: 0,
