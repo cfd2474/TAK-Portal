@@ -12,6 +12,10 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
+### v1.2.34 - 3/8/26
+✨ `Enhancement` - Added an integration total count to the dashboard if integrations exist<br>
+✨ `Enhancement` - Cleans up spacing on the dashboard page.
+
 ### v1.2.33 - 3/8/26
 🎉 `New Feature` - Adds a Manage Access button to the Agencies page, allowing Global Admins to customize what groups, Agency Administrators have access to assign/unassign.<br>
 🐛 `Bug Fix` - Adds better rules for Agency Admins to Assign/Unassign groups when using the "Users With Existing Groups" modal.  Agency Admins can't edit users outside of their own agency.

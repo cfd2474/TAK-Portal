@@ -606,6 +606,12 @@ app.get("/settings", requireGlobalAdmin, (req, res) => {
         ? settings.EMAIL_TEMPLATES_OVERRIDES
         : {};
 
+    function normalizeHtmlForCompare(str) {
+      return String(str || "")
+        .replace(/\r\n/g, "\n")
+        .trim();
+    }
+
     emailTemplates = fileNames.map((filename) => {
       let defaultHtml = "";
       try {
@@ -623,11 +629,17 @@ app.get("/settings", requireGlobalAdmin, (req, res) => {
         typeof overrideHtmlRaw === "string" ? overrideHtmlRaw : "";
       const html = overrideHtml || defaultHtml;
 
+      // Only show "Custom" when the saved override actually differs from the repo default.
+      const hasOverride = overrideHtml !== "";
+      const differsFromDefault =
+        hasOverride &&
+        normalizeHtmlForCompare(overrideHtml) !== normalizeHtmlForCompare(defaultHtml);
+
       return {
         filename,
         idSafe: filename.replace(/[^a-zA-Z0-9_-]+/g, "_"),
         html,
-        overridden: !!overrideHtml,
+        overridden: differsFromDefault,
       };
     });
   } catch (err) {
