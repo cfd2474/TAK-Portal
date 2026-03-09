@@ -271,7 +271,7 @@ function getAgencyAndCountyPrefixesForUser(authUser) {
 
 /**
  * Set of group PKs that agency admins are allowed to see in addition to their
- * own agency/county/state groups (configured per agency by global admins).
+ * own agency-prefixed groups (configured per agency by global admins on Agencies page).
  */
 function getAllowedAdminGroupIdsForUser(authUser) {
   const access = getAgencyAccess(authUser);
@@ -300,8 +300,9 @@ function getAllowedAdminGroupIdsForUser(authUser) {
  *
  * - Global admins: see all groups (after GROUPS_HIDDEN_PREFIXES is applied).
  * - Agency admins: see only
- *   - their own agency/county/state groups (unless marked private by global admin),
+ *   - their own agency's groups (name prefix = agency groupPrefix; unless marked private),
  *   - plus groups explicitly granted via the agency's allowedAdminGroupIds (set on Agencies page).
+ * County and state groups are NOT shown by default; only if added to allowedAdminGroupIds.
  */
 function filterGroupsForUser(authUser, groups) {
   const access = getAgencyAccess(authUser);
@@ -311,16 +312,11 @@ function filterGroupsForUser(authUser, groups) {
     return list;
   }
 
-  const { agencyPrefixes, countyPrefixes, statePrefixes } =
-    getAgencyAndCountyPrefixesForUser(authUser);
+  const { agencyPrefixes } = getAgencyAndCountyPrefixesForUser(authUser);
   const allowedExtraIds = getAllowedAdminGroupIdsForUser(authUser);
 
   const hasAgencyPrefixes =
     Array.isArray(agencyPrefixes) && agencyPrefixes.length > 0;
-  const hasCountyPrefixes =
-    Array.isArray(countyPrefixes) && countyPrefixes.length > 0;
-  const hasStatePrefixes =
-    Array.isArray(statePrefixes) && statePrefixes.length > 0;
 
   return list.filter((g) => {
     const privateFlag = String(g?.attributes?.private || "")
@@ -350,9 +346,8 @@ function filterGroupsForUser(authUser, groups) {
 
     const prefix = upper.slice(0, spaceIdx).trim();
 
+    // Agency admins: only their agency-prefixed groups by default (not county/state)
     if (hasAgencyPrefixes && agencyPrefixes.includes(prefix)) return true;
-    if (hasCountyPrefixes && countyPrefixes.includes(prefix)) return true;
-    if (hasStatePrefixes && statePrefixes.includes(prefix)) return true;
 
     return false;
   });
