@@ -865,7 +865,7 @@ async function createIntegrationUser(
     throw new Error("Selected group not found.");
   }
 
-  const name = `Node-RED Integration, ${String(title || "").trim() || username}`;
+  const name = username;
   const attributes = {
     integration_type: "nodered",
     integration_scope: integrationType,
