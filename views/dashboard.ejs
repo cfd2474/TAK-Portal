@@ -70,30 +70,46 @@
 
   <!-- Top stats: 4-wide when integrations exist, else 3 -->
   <div class="<%= (stats.totalIntegrations || 0) > 0 ? 'grid4' : 'grid3' %>">
-    <div class="card stat">
-      <div class="statLabel">Total Users</div>
-      <div class="statValue"><%= stats.totalUsers %></div>
-      <div class="statHint"></div>
-    </div>
+    <a href="/users/manage" class="statCardLink">
+      <div class="card stat">
+        <div class="statLabel">Total Users</div>
+        <div class="statValue"><%= stats.totalUsers %></div>
+        <div class="statHint"></div>
+      </div>
+    </a>
 
+    <% if (isGlobalAdmin) { %>
+    <a href="/agencies" class="statCardLink">
+    <% } %>
     <div class="card stat">
       <div class="statLabel">Total Agencies</div>
       <div class="statValue"><%= stats.totalAgencies %></div>
       <div class="statHint"></div>
     </div>
+    <% if (isGlobalAdmin) { %>
+    </a>
+    <% } %>
 
-    <div class="card stat">
-      <div class="statLabel">Total Groups</div>
-      <div class="statValue"><%= stats.totalGroups %></div>
-      <div class="statHint"></div>
-    </div>
+    <a href="/groups" class="statCardLink">
+      <div class="card stat">
+        <div class="statLabel">Total Groups</div>
+        <div class="statValue"><%= stats.totalGroups %></div>
+        <div class="statHint"></div>
+      </div>
+    </a>
 
     <% if ((stats.totalIntegrations || 0) > 0) { %>
+      <% if (isGlobalAdmin) { %>
+    <a href="/integrations" class="statCardLink">
+      <% } %>
     <div class="card stat">
       <div class="statLabel">Total Integrations</div>
       <div class="statValue"><%= stats.totalIntegrations %></div>
       <div class="statHint"></div>
     </div>
+      <% if (isGlobalAdmin) { %>
+    </a>
+      <% } %>
     <% } %>
   </div>
 
@@ -284,6 +300,15 @@
   @media (max-width: 1100px){
     .grid2{ grid-template-columns: 1fr; }
   }
+
+  /* Clickable stat cards: no underline, inherit color, pointer */
+  .statCardLink{
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+  }
+  .statCardLink:hover .card{ border-color: rgba(255,255,255,0.15); }
 
   /* Remove card margin inside grids so row spacing is controlled below */
   .main .grid3 .card,
