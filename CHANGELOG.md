@@ -12,6 +12,9 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
+### v1.2.38 - 3/10/26
+🐛 `Bug Fix` - Fixes email template issue with incorrect coloring in Microsoft email clients
+
 ### v1.2.37 - 3/10/26
 ✨ `Enhancement` - Adds Agency column to the users page<br>
 ✨ `Enhancement` - Adds more details to show on the audit log<br>
