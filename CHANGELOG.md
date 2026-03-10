@@ -15,7 +15,8 @@ Planned features can be accessed [here](docs/roadmap.md)
 ### v1.2.37 - 3/10/26
 ✨ `Enhancement` - Adds Agency column to the users page<br>
 ✨ `Enhancement` - Adds more details to show on the audit log<br>
-🐛 `Bug Fix` - Improves loading time on users and groups page<br>
+✨ `Enhancement` - Remove "Beta" tag on Audit Log<br>
+🐛 `Bug Fix` - Improves loading time on users and groups page
 
 ### v1.2.36 - 3/8/26
 ✨ `Enhancement` - Added an indicator in the sidebar to highlight/bold the current page to assist with easier navigation
