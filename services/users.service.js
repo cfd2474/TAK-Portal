@@ -47,6 +47,14 @@ function normalizePath(p) {
   return String(p || "").replace(/^\/+|\/+$/g, "");
 }
 
+/** Normalize badge for storage: trim, lowercase, remove all whitespace (including NBSP, zero-width, BOM). */
+function normalizeBadge(badge) {
+  return String(badge || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\p{White_Space}+/gu, "");
+}
+
 function validateBadgeNumber(badge) {
   const b = String(badge || "").trim();
   if (!b) return "Badge / Username is required.";
@@ -622,10 +630,8 @@ async function createUser(
   const createdAt = new Date().toISOString();
   let templateNameUsed = null;
 
-  // Normalize badge: lowercase + remove all whitespace
-  const normalizedBadge = String(badge || "")
-    .toLowerCase()
-    .replace(/\s+/g, "");
+  // Normalize badge: trim, lowercase, remove all whitespace (including NBSP from Excel/CSV)
+  const normalizedBadge = normalizeBadge(badge);
 
   // Validate normalized badge
   const badgeErr = validateBadgeNumber(normalizedBadge);
@@ -959,7 +965,9 @@ async function importUsersFromCsvBuffer(buffer, opts = {}) {
     }
   }
 
-  const rawText = buffer.toString("utf8");
+  let rawText = buffer.toString("utf8");
+  // Strip BOM so first column header/value is not "\ufeffbadge" or "\ufeff1234"
+  if (rawText.charCodeAt(0) === 0xfeff) rawText = rawText.slice(1);
   if (!rawText.trim()) throw new Error("CSV file is empty");
 
   const lines = rawText
@@ -1013,7 +1021,8 @@ async function importUsersFromCsvBuffer(buffer, opts = {}) {
     const parts = lines[i].split(",");
     const lineNum = i + 1;
 
-    const badge = get(parts, "badge");
+    // Normalize badge so spaces/NBSP/weird chars from CSV (e.g. Excel) are stripped before validation and storage
+    const badge = normalizeBadge(get(parts, "badge"));
     const agencyRaw = get(parts, "agency");
     const firstName = get(parts, "firstname");
     const lastName = get(parts, "lastname");
