@@ -484,17 +484,18 @@ router.get("/search", async (req, res) => {
 
     const authUser = req.authentikUser || null;
     const access = accessSvc.getAgencyAccess(authUser);
-        // ----- ROLE + SORT HELPERS -----
-    const globalAdminGroupPks = await getGlobalAdminGroupPks();
-    const globalAdminSet = new Set(globalAdminGroupPks.map(String));
-
+    // ----- ROLE + SORT HELPERS (single groups fetch for both) -----
     const allGroups = await groupsSvc.getAllGroups({ includeHidden: true });
+    const groupList = Array.isArray(allGroups) ? allGroups : [];
     const groupNameByPk = new Map(
-      (Array.isArray(allGroups) ? allGroups : []).map(g => [
-        String(g.pk),
-        String(g.name || "").toLowerCase()
-      ])
+      groupList.map(g => [String(g.pk), String(g.name || "").toLowerCase()])
     );
+    const namesLower = parseGroupList(getString("PORTAL_AUTH_REQUIRED_GROUP", "").trim());
+    const byNameLower = new Map(
+      groupList.map((g) => [String(g?.name || "").trim().toLowerCase(), String(g?.pk)])
+    );
+    const globalAdminGroupPks = namesLower.map((nm) => byNameLower.get(nm)).filter(Boolean);
+    const globalAdminSet = new Set(globalAdminGroupPks.map(String));
 
     function computeRole(user) {
       const groups = Array.isArray(user?.groups)
@@ -602,15 +603,11 @@ router.get("/search", async (req, res) => {
       accessSvc.isUsernameInAllowedAgencies(authUser, u.username)
     );
 
-    if (access.isAgencyAdmin) {
-      const globalAdminGroupPks = await getGlobalAdminGroupPks();
-      if (globalAdminGroupPks.length) {
-        const pkSet = new Set(globalAdminGroupPks.map(String));
-        visible = visible.filter((u) => {
-          const gs = Array.isArray(u?.groups) ? u.groups.map(String) : [];
-          return !gs.some((gid) => pkSet.has(gid));
-        });
-      }
+    if (access.isAgencyAdmin && globalAdminSet.size) {
+      visible = visible.filter((u) => {
+        const gs = Array.isArray(u?.groups) ? u.groups.map(String) : [];
+        return !gs.some((gid) => globalAdminSet.has(gid));
+      });
     }
 
     applySort(visible);

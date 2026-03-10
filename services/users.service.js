@@ -1641,8 +1641,9 @@ async function removeUserGroups(userId, groupIds) {
 
 let USERS_CACHE = null;
 let USERS_CACHE_TS = 0;
-// TTL in seconds; defaults to 30s. Use 0 to disable caching and always hit Authentik.
-const USERS_CACHE_TTL_MS = (getInt("USERS_CACHE_TTL_SECONDS", 30) || 0) * 1000;
+// TTL in seconds; defaults to 60s. Use 0 to disable caching and always hit Authentik.
+// Cache is invalidated on create/delete/update so paging/sorting stays fast without stale data.
+const USERS_CACHE_TTL_MS = (getInt("USERS_CACHE_TTL_SECONDS", 60) || 0) * 1000;
 
 function invalidateUsersCache() {
   USERS_CACHE = null;

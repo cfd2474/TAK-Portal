@@ -2240,9 +2240,9 @@ searchForm.onsubmit = (e) => {
 
 (async () => {
   try {
-    await loadGroups();
     updateSortIndicators();
-    await loadAllUsers();
+    // Load groups (for Create/Edit modals) and users table in parallel so the table appears faster
+    await Promise.all([loadGroups(), loadAllUsers()]);
   } catch (err) {
     setMsgEl(msg, err.message || "Failed to load page", false);
   }
