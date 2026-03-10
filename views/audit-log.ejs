@@ -39,7 +39,10 @@
         <% } %>
 
         <% (result?.items || []).forEach((log) => { %>
-          <tr data-details='<%- JSON.stringify(log.details || {}) %>'>
+          <tr data-details='<%- JSON.stringify(log.details || {}) %>'
+              data-action="<%= log.action || '' %>"
+              data-target-type="<%= log.targetType || '' %>"
+              data-target-id="<%= log.targetId || '' %>">
 
             <!-- Time -->
             <td>
@@ -48,22 +51,23 @@
 
             <!-- Actor -->
             <td>
-              <strong><%= log.actor?.displayName || log.actor?.username || '-' %></strong><br>
+              <strong><%= log.actor?.displayName || log.actor?.username || '—' %></strong><br>
               <span class="muted"><%= log.actor?.username || '' %></span>
             </td>
 
             <!-- Action -->
             <td>
-              <span class="badge"><%= log.action || '-' %></span>
+              <span class="badge"><%= log.action || '—' %></span>
             </td>
 
-          <!-- Target (Parsed from details) -->
+          <!-- Target (parsed from details, fallback to targetId) -->
           <td>
             <%
               const type = String(log.targetType || '').toLowerCase();
               const details = log.details || {};
+              const targetId = String(log.targetId || '').trim();
 
-              let display = log.targetDisplay || '-';
+              let display = log.targetDisplay || '';
 
               if (type === 'user') {
                 const username = details.username || details.userUsername || '';
@@ -79,28 +83,30 @@
                 } else if (name) {
                   display = name;
                 }
+                if (!display && targetId) display = targetId;
               }
 
               if (type === 'group') {
                 const groupName = details.name || details.groupName;
-                if (groupName) {
-                  display = groupName;
-                }
+                if (groupName) display = groupName;
+                else if (targetId) display = targetId;
               }
-            %>
 
-            <strong><%= log.targetType || '-' %></strong><br>
+              if (!display && targetId) display = targetId;
+              if (!display) display = '—';
+            %>
+            <strong><%= log.targetType || '—' %></strong><br>
             <span class="muted"><%= display %></span>
           </td>
 
-            <!-- Agency (Now PREFIX, not suffix) -->
+            <!-- Agency -->
             <td>
               <%
                 const sfx = String(log.agencySuffix || '').toLowerCase();
                 const agencyObj = agencyMap?.[sfx];
-                const prefix = agencyObj?.groupPrefix || '-';
+                const agencyLabel = agencyObj ? (agencyObj.name || agencyObj.groupPrefix || sfx) : (sfx || '—');
               %>
-              <%= prefix %>
+              <%= agencyLabel %>
             </td>
 
             <!-- Details -->
@@ -137,7 +143,12 @@
           <h2 style="margin:0;">Audit Details</h2>
           <button class="btn closeModalBtn">Close</button>
         </div>
-        <pre class="detailsPre"></pre>
+        <div class="auditDetailsSummary"></div>
+        <div class="auditDetailsFormatted"></div>
+        <details class="auditDetailsRawWrap">
+          <summary class="muted">Raw data</summary>
+          <pre class="detailsPre"></pre>
+        </details>
       </div>
     </div>
   </template>
@@ -167,13 +178,118 @@
   border-radius:8px;
   font-size:13px;
   white-space:pre-wrap;
+  margin-top:8px;
 }
+.auditDetailsSummary{
+  background: rgba(255,255,255,.06);
+  padding:12px;
+  border-radius:8px;
+  margin-bottom:12px;
+  font-size:14px;
+}
+.auditDetailsSummary .detailRow{ display:flex; gap:12px; margin-bottom:6px; }
+.auditDetailsSummary .detailRow:last-child{ margin-bottom:0; }
+.auditDetailsSummary .detailLabel{ color: var(--muted-color, #888); min-width:100px; }
+.auditDetailsFormatted{ margin-bottom:12px; }
+.auditDetailsFormatted .detailBlock{ margin-bottom:12px; }
+.auditDetailsFormatted .detailBlock:last-child{ margin-bottom:0; }
+.auditDetailsFormatted .detailItem{ display:flex; gap:12px; padding:6px 0; border-bottom:1px solid rgba(255,255,255,.06); font-size:14px; }
+.auditDetailsFormatted .detailItem:last-child{ border-bottom:none; }
+.auditDetailsFormatted .detailKey{ color: var(--muted-color, #888); min-width:140px; flex-shrink:0; }
+.auditDetailsFormatted .detailVal{ word-break:break-word; }
+.auditDetailsFormatted .detailVal.empty{ font-style:italic; color: var(--muted-color, #888); }
+.auditDetailsFormatted ul.detailList{ margin:0; padding-left:20px; }
+.auditDetailsFormatted .detailPre{ margin:0; padding:8px; background: rgba(0,0,0,.2); border-radius:4px; font-size:12px; white-space:pre-wrap; word-break:break-word; max-height:200px; overflow:auto; }
+.auditDetailsRawWrap{ margin-top:12px; }
+.auditDetailsRawWrap summary{ cursor:pointer; padding:4px 0; }
 </style>
 
 <script>
 (function(){
   const tbody = document.getElementById('auditTbody');
   const tpl = document.getElementById('detailsTemplate');
+
+  const FRIENDLY_LABELS = {
+    username: 'Username',
+    userUsername: 'Username',
+    name: 'Name',
+    displayName: 'Display name',
+    email: 'Email',
+    is_active: 'Active status',
+    groups: 'Groups',
+    groupIds: 'Group IDs',
+    jobId: 'Job ID',
+    created: 'Created count',
+    skipped: 'Skipped count',
+    durationMs: 'Duration (ms)',
+    durationSeconds: 'Duration (s)',
+    created_method: 'Creation method',
+    tokenIdentifier: 'Token identifier',
+    expiresAt: 'Expires at',
+    error: 'Error',
+    phase: 'Phase',
+    total: 'Total',
+    processed: 'Processed',
+  };
+
+  function isUuid(s) {
+    if (typeof s !== 'string') return false;
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s.trim());
+  }
+
+  function formatValue(val) {
+    if (val == null) return { text: '—', empty: true };
+    if (typeof val === 'boolean') return { text: val ? 'Yes' : 'No', empty: false };
+    if (typeof val === 'number') return { text: String(val), empty: false };
+    if (Array.isArray(val)) {
+      if (val.length === 0) return { text: '—', empty: true };
+      const allUuid = val.every(function (x) { return isUuid(String(x)); });
+      const list = val.map(function (x) {
+        if (allUuid) return 'Group ID: ' + String(x);
+        return String(x);
+      });
+      return { text: list.join(', '), list: list, empty: false };
+    }
+    if (typeof val === 'object') {
+      try { return { text: JSON.stringify(val, null, 2), empty: false, pre: true }; } catch (_) { return { text: '—', empty: true }; }
+    }
+    const s = String(val).trim();
+    return { text: s || '—', empty: !s };
+  }
+
+  function labelForKey(key) {
+    return FRIENDLY_LABELS[key] || key.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+  }
+
+  function buildFormattedHtml(details) {
+    const keys = Object.keys(details).filter(function(k) { return details[k] !== undefined; }).sort();
+    if (keys.length === 0) return '<p class="muted">No additional details recorded.</p>';
+    var html = '';
+    keys.forEach(function(key) {
+      var v = formatValue(details[key]);
+      html += '<div class="detailItem">';
+      html += '<span class="detailKey">' + escapeHtml(labelForKey(key)) + '</span>';
+      html += '<span class="detailVal' + (v.empty ? ' empty' : '') + '">';
+      if (v.list) {
+        html += '<ul class="detailList">';
+        v.list.forEach(function(item) { html += '<li>' + escapeHtml(item) + '</li>'; });
+        html += '</ul>';
+      } else if (v.pre) {
+        html += '<pre class="detailPre">' + escapeHtml(v.text) + '</pre>';
+      } else {
+        html += escapeHtml(v.text);
+      }
+      html += '</span></div>';
+    });
+    return html;
+  }
+
+  function escapeHtml(s) {
+    if (typeof s !== 'string') return '';
+    var div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+  }
 
   function closeModal(){
     const existing = document.querySelector('.modalOverlay');
@@ -186,14 +302,26 @@
 
     const tr = btn.closest('tr');
     const raw = tr.getAttribute('data-details');
+    const action = tr.getAttribute('data-action') || '—';
+    const targetType = tr.getAttribute('data-target-type') || '—';
+    const targetId = tr.getAttribute('data-target-id') || '—';
+
     let details = {};
     try { details = JSON.parse(raw || '{}'); } catch {}
 
     const frag = tpl.content.cloneNode(true);
     const overlay = frag.querySelector('.modalOverlay');
+    const summaryEl = frag.querySelector('.auditDetailsSummary');
+    const formattedEl = frag.querySelector('.auditDetailsFormatted');
     const pre = frag.querySelector('.detailsPre');
     const closeBtn = frag.querySelector('.closeModalBtn');
 
+    summaryEl.innerHTML =
+      '<div class="detailRow"><span class="detailLabel">Action</span><span>' + escapeHtml(action) + '</span></div>' +
+      '<div class="detailRow"><span class="detailLabel">Target type</span><span>' + escapeHtml(targetType) + '</span></div>' +
+      '<div class="detailRow"><span class="detailLabel">Target ID</span><span>' + escapeHtml(targetId) + '</span></div>';
+
+    formattedEl.innerHTML = '<div class="detailBlock">' + buildFormattedHtml(details) + '</div>';
     pre.textContent = JSON.stringify(details, null, 2);
 
     closeBtn.addEventListener('click', closeModal);
