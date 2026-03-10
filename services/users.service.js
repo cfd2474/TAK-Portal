@@ -169,7 +169,7 @@ function buildTakPortalBlock({
             <table role="presentation" cellspacing="0" cellpadding="0" border="0">
               <tr>
                 <td bgcolor="${btnBg}" style="border-radius:${btnRadius}px;">
-                  <a href="${url}" target="_blank" rel="noopener noreferrer"
+                  <a href="${url}" target="_blank" rel="noopener noreferrer" class="btn-link"
                      style="display:inline-block; padding:${btnPadV}px ${btnPadH}px;
                             font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
                             font-size:14px; line-height:16px; font-weight:700;
