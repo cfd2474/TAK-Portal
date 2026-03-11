@@ -128,7 +128,7 @@ case "$CMD" in
     echo "Working directory will be /usr/src/app/data (settings, agencies, etc.)."
     echo "Type 'exit' to return."
     echo
-    $COMPOSE_CMD exec -it -w /usr/src/app/data "$SERVICE_NAME" "${SHELL:-/bin/sh}"
+    $COMPOSE_CMD exec -it -w /usr/src/app/data "$SERVICE_NAME" /bin/sh
     ;;
 
 
