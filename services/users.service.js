@@ -120,6 +120,7 @@ function buildCallsign({
   badgeNumber,
   agencyAbbreviation,
   agencyColor,
+  stateAbbreviation,
 } = {}) {
   let settings = {};
   try {
@@ -140,6 +141,7 @@ function buildCallsign({
     badgeNumber: badgeNumber || "",
     agencyAbbreviation: agencyAbbreviation || "",
     agencyColor: agencyColor || "",
+    stateAbbreviation: stateAbbreviation || "",
   };
 
   return expr.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (match, key) => {
@@ -292,6 +294,7 @@ async function emailUserCreated({ user, groups, hasPassword }) {
       attrs.agency_color ||
       ""
     );
+  const stateAbbreviation = String(agency?.state || attrs.state || "").toUpperCase();
 
   // For user-created emails only: if the user was created from an agency template,
   // prefer that template's color override (when present). Otherwise fall back to
@@ -348,6 +351,7 @@ async function emailUserCreated({ user, groups, hasPassword }) {
     badgeNumber,
     agencyAbbreviation,
     agencyColor: agencyColorEffective,
+    stateAbbreviation,
   });
 
   const html = renderTemplate(templateKey, {
@@ -361,6 +365,7 @@ async function emailUserCreated({ user, groups, hasPassword }) {
     badgeNumber,
     agencyAbbreviation,
     agencyColor: agencyColorEffective,
+    stateAbbreviation,
     callsign,
     takPortalPublicUrl, // keep available if any template uses it elsewhere
     takPortalBlock,     // NEW: injected HTML block used by {{{takPortalBlock}}}
@@ -419,6 +424,7 @@ async function emailPasswordChanged(user) {
     badgeNumber,
     agencyAbbreviation,
     agencyColor,
+    stateAbbreviation,
   });
 
   const html = renderTemplate("password_changed.html", {
@@ -431,6 +437,7 @@ async function emailPasswordChanged(user) {
     agencyAbbreviation,
     agencyColor,
     takPortalPublicUrl,
+    stateAbbreviation,
     callsign,
     takPortalBlock,
   });
@@ -495,6 +502,7 @@ async function emailGroupsUpdated({ user, beforeIds, afterIds }) {
     badgeNumber,
     agencyAbbreviation,
     agencyColor,
+    stateAbbreviation,
   });
 
   const html = renderTemplate("groups_updated.html", {
@@ -508,6 +516,7 @@ async function emailGroupsUpdated({ user, beforeIds, afterIds }) {
     badgeNumber,
     agencyAbbreviation,
     agencyColor,
+    stateAbbreviation,
     callsign,
     takPortalPublicUrl,
     takPortalBlock,

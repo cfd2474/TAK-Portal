@@ -441,6 +441,7 @@
             <small class="settings-help">
               Supported fields:
               <code>agencyAbbreviation</code>,
+              <code>stateAbbreviation</code>,
               <code>firstName</code>,
               <code>lastName</code>,
               <code>lastNameUpper</code>,
@@ -469,6 +470,7 @@
 
               var FIELD_OPTIONS = [
                 { value: "agencyAbbreviation", label: "Agency Abbreviation" },
+                { value: "stateAbbreviation", label: "State (from Agency)" },
                 { value: "firstName", label: "First Name" },
                 { value: "lastNameUpper", label: "Last Name (UPPERCASE)" },
                 { value: "lastName", label: "Last Name" },
@@ -487,6 +489,20 @@
                   serialize();
                 });
                 return btn;
+              }
+
+              function attachDragHandlers(chip) {
+                chip.draggable = true;
+                chip.addEventListener("dragstart", function (e) {
+                  chip.classList.add("dragging");
+                  if (e.dataTransfer) {
+                    e.dataTransfer.effectAllowed = "move";
+                  }
+                });
+                chip.addEventListener("dragend", function () {
+                  chip.classList.remove("dragging");
+                  serialize();
+                });
               }
 
               function createFieldBlock(field) {
@@ -517,6 +533,8 @@
                   wrap.remove();
                 }));
 
+                attachDragHandlers(wrap);
+
                 return wrap;
               }
 
@@ -542,7 +560,23 @@
                   wrap.remove();
                 }));
 
+                attachDragHandlers(wrap);
+
                 return wrap;
+              }
+
+              function getDragAfterElement(container, y) {
+                var els = [].slice.call(
+                  container.querySelectorAll("span[data-type]:not(.dragging)")
+                );
+                return els.reduce(function (closest, child) {
+                  var box = child.getBoundingClientRect();
+                  var offset = y - box.top - box.height / 2;
+                  if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                  }
+                  return closest;
+                }, { offset: Number.NEGATIVE_INFINITY, element: null }).element;
               }
 
               function serialize() {
@@ -577,6 +611,7 @@
 
                 var exampleCtx = {
                   agencyAbbreviation: "AGENCY",
+                  stateAbbreviation: "TN",
                   firstName: "FIRST",
                   lastName: "Last",
                   lastNameUpper: "LAST",
@@ -634,6 +669,18 @@
               addTextBtn.addEventListener("click", function () {
                 blocksHost.appendChild(createTextBlock("-"));
                 serialize();
+              });
+
+              blocksHost.addEventListener("dragover", function (e) {
+                e.preventDefault();
+                var dragging = blocksHost.querySelector(".dragging");
+                if (!dragging) return;
+                var after = getDragAfterElement(blocksHost, e.clientY);
+                if (after == null) {
+                  blocksHost.appendChild(dragging);
+                } else {
+                  blocksHost.insertBefore(dragging, after);
+                }
               });
 
               initFromExpression();
