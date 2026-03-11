@@ -12,6 +12,10 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
+### v1.2.40 - 3/11/26
+✨ `Enhancement` - Modified to check for updates every 15 min rather than 1 hr.<br>
+✨ `Enhancement` - Added an "Open URL" button to the setup my device QR Code to avoid using a second device.
+
 ### v1.2.39 - 3/10/26
 🐛 `Bug Fix` - Fixes issue with Agency Admins getting blocked from accessing the pending user requests page
 

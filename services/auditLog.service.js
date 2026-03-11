@@ -179,10 +179,22 @@ function queryLogs({
 } = {}) {
   const logs = store.load();
   const needle = safeStr(q).trim().toLowerCase();
-  const actorNeedle = safeStr(actor).trim().toLowerCase();
-  const actionNeedle = safeStr(action).trim().toLowerCase();
-  const targetNeedle = safeStr(targetType).trim().toLowerCase();
-  const agencyNeedle = normalizeSuffix(agencySuffix);
+  const actorNeedles = safeStr(actor)
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  const actionNeedles = safeStr(action)
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  const targetNeedles = safeStr(targetType)
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  const agencyNeedles = safeStr(agencySuffix)
+    .split(",")
+    .map((s) => normalizeSuffix(s))
+    .filter(Boolean);
 
   const fromMs = from ? Date.parse(from) : NaN;
   const toMs = to ? Date.parse(to) : NaN;
@@ -218,22 +230,28 @@ function queryLogs({
   const filtered = logs.filter((log) => {
     if (!log) return false;
 
-    if (actorNeedle) {
+    if (actorNeedles.length) {
       const au = safeStr(log.actor && log.actor.username).toLowerCase();
       const dn = safeStr(log.actor && log.actor.displayName).toLowerCase();
-      if (!au.includes(actorNeedle) && !dn.includes(actorNeedle)) return false;
+      const matches = actorNeedles.some(
+        (needle) => (au && au.includes(needle)) || (dn && dn.includes(needle))
+      );
+      if (!matches) return false;
     }
 
-    if (actionNeedle) {
-      if (safeStr(log.action).toLowerCase() !== actionNeedle) return false;
+    if (actionNeedles.length) {
+      const act = safeStr(log.action).toLowerCase();
+      if (!actionNeedles.includes(act)) return false;
     }
 
-    if (targetNeedle) {
-      if (safeStr(log.targetType).toLowerCase() !== targetNeedle) return false;
+    if (targetNeedles.length) {
+      const tt = safeStr(log.targetType).toLowerCase();
+      if (!targetNeedles.includes(tt)) return false;
     }
 
-    if (agencyNeedle) {
-      if (normalizeSuffix(log.agencySuffix) !== agencyNeedle) return false;
+    if (agencyNeedles.length) {
+      const sfx = normalizeSuffix(log.agencySuffix);
+      if (!agencyNeedles.includes(sfx)) return false;
     }
 
     if (!Number.isNaN(fromMs)) {

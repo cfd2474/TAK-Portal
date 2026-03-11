@@ -12,9 +12,66 @@
 
       <form method="GET" action="/audit-log" class="row" style="gap:8px; flex-wrap:wrap; align-items:center;">
         <input type="text" name="q" value="<%= filters?.q || '' %>" class="input" placeholder="Search..." />
-        <input type="text" name="actor" value="<%= filters?.actor || '' %>" class="input" placeholder="Actor" />
-        <input type="text" name="action" value="<%= filters?.action || '' %>" class="input" placeholder="Action" />
-        <input type="text" name="agencySuffix" value="<%= filters?.agencySuffix || '' %>" class="input" placeholder="Agency" />
+
+        <input type="hidden" name="actor" id="actorFilterInput" value="<%= filters?.actor || '' %>" />
+        <input type="hidden" name="action" id="actionFilterInput" value="<%= filters?.action || '' %>" />
+        <input type="hidden" name="agencySuffix" id="agencyFilterInput" value="<%= filters?.agencySuffix || '' %>" />
+
+        <div class="filter-multiselect" data-filter="actor">
+          <button type="button" class="btn filter-toggle" id="actorFilterToggle">Actor ▾</button>
+          <div class="filter-menu">
+            <div class="filter-menu-inner">
+              <label class="filter-option">
+                <input type="checkbox" value="" data-filter-value="__all" checked>
+                <span>All actors</span>
+              </label>
+              <% (actorOptions || []).forEach(function(a) { %>
+                <label class="filter-option">
+                  <input type="checkbox" value="<%= a %>" data-filter-value="<%= a %>">
+                  <span><%= a %></span>
+                </label>
+              <% }); %>
+            </div>
+          </div>
+        </div>
+
+        <div class="filter-multiselect" data-filter="action">
+          <button type="button" class="btn filter-toggle" id="actionFilterToggle">Action ▾</button>
+          <div class="filter-menu">
+            <div class="filter-menu-inner">
+              <label class="filter-option">
+                <input type="checkbox" value="" data-filter-value="__all" checked>
+                <span>All actions</span>
+              </label>
+              <% (actionOptions || []).forEach(function(a) { %>
+                <label class="filter-option">
+                  <input type="checkbox" value="<%= a %>" data-filter-value="<%= a %>">
+                  <span><%= a %></span>
+                </label>
+              <% }); %>
+            </div>
+          </div>
+        </div>
+
+        <div class="filter-multiselect" data-filter="agency">
+          <button type="button" class="btn filter-toggle" id="agencyFilterToggle">Agency ▾</button>
+          <div class="filter-menu">
+            <div class="filter-menu-inner">
+              <label class="filter-option">
+                <input type="checkbox" value="" data-filter-value="__all" checked>
+                <span>All agencies</span>
+              </label>
+              <% (agencyOptions || []).forEach(function(a) { %>
+                <% if (!a.value) { return; } %>
+                <label class="filter-option">
+                  <input type="checkbox" value="<%= a.value %>" data-filter-value="<%= a.value %>">
+                  <span><%= a.label %></span>
+                </label>
+              <% }); %>
+            </div>
+          </div>
+        </div>
+
         <button class="btn" type="submit">Filter</button>
       </form>
     </div>
@@ -170,6 +227,49 @@
 </script>
 
 <style>
+.filter-multiselect{
+  position:relative;
+}
+.filter-multiselect .filter-toggle{
+  white-space:nowrap;
+}
+.filter-multiselect .filter-menu{
+  position:absolute;
+  top:calc(100% + 4px);
+  right:0;
+  z-index:20;
+  min-width:220px;
+  max-height:260px;
+  overflow:auto;
+  background:#111827;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:8px;
+  box-shadow:0 12px 30px rgba(0,0,0,.6);
+  padding:6px 0;
+  display:none;
+}
+.filter-multiselect.open .filter-menu{
+  display:block;
+}
+.filter-multiselect .filter-menu-inner{
+  padding:0 8px 6px;
+}
+.filter-multiselect .filter-option{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:4px 4px;
+  font-size:13px;
+}
+.filter-multiselect .filter-option input[type="checkbox"]{
+  margin:0;
+}
+.filter-multiselect .filter-summary{
+  margin-left:6px;
+  font-size:11px;
+  color:var(--muted-color,#9ca3af);
+}
+
 .modalOverlay{
   position: fixed;
   inset: 0;
@@ -390,6 +490,106 @@
     document.body.appendChild(overlay);
   });
 
+})();
+</script>
+<script>
+(function(){
+  const form = document.querySelector('form[action="/audit-log"]');
+  if (!form) return;
+
+  function parseCsv(val) {
+    return String(val || "")
+      .split(",")
+      .map(function(s){ return s.trim(); })
+      .filter(Boolean);
+  }
+
+  function setupFilter(opts) {
+    const container = document.querySelector(opts.containerSelector);
+    const input = document.getElementById(opts.inputId);
+    if (!container || !input) return;
+
+    const menu = container.querySelector(".filter-menu");
+    const toggle = container.querySelector(".filter-toggle");
+    const checkboxes = Array.prototype.slice.call(
+      container.querySelectorAll('input[type="checkbox"][data-filter-value]')
+    );
+
+    const initial = parseCsv(input.value);
+
+    checkboxes.forEach(function(cb){
+      const val = cb.getAttribute("data-filter-value");
+      if (val === "__all") {
+        cb.checked = initial.length === 0;
+      } else {
+        cb.checked = initial.includes(val);
+      }
+    });
+
+    function syncInput() {
+      const selected = checkboxes
+        .filter(function(cb){ return cb.checked && cb.getAttribute("data-filter-value") !== "__all"; })
+        .map(function(cb){ return cb.getAttribute("data-filter-value"); });
+
+      input.value = selected.join(",");
+
+      const allBox = checkboxes.find(function(cb){ return cb.getAttribute("data-filter-value") === "__all"; });
+      if (allBox) {
+        allBox.checked = selected.length === 0;
+      }
+    }
+
+    checkboxes.forEach(function(cb){
+      cb.addEventListener("change", function(){
+        const val = cb.getAttribute("data-filter-value");
+        if (val === "__all") {
+          if (cb.checked) {
+            checkboxes.forEach(function(other){
+              if (other !== cb) other.checked = false;
+            });
+            input.value = "";
+          }
+        } else {
+          const allBox = checkboxes.find(function(x){ return x.getAttribute("data-filter-value") === "__all"; });
+          if (allBox && cb.checked) {
+            allBox.checked = false;
+          }
+        }
+        syncInput();
+      });
+    });
+
+    if (toggle && menu) {
+      toggle.addEventListener("click", function(){
+        const isOpen = container.classList.contains("open");
+        document.querySelectorAll(".filter-multiselect.open").forEach(function(el){
+          if (el !== container) el.classList.remove("open");
+        });
+        if (!isOpen) container.classList.add("open");
+        else container.classList.remove("open");
+      });
+    }
+  }
+
+  setupFilter({
+    containerSelector: '.filter-multiselect[data-filter="actor"]',
+    inputId: "actorFilterInput"
+  });
+  setupFilter({
+    containerSelector: '.filter-multiselect[data-filter="action"]',
+    inputId: "actionFilterInput"
+  });
+  setupFilter({
+    containerSelector: '.filter-multiselect[data-filter="agency"]',
+    inputId: "agencyFilterInput"
+  });
+
+  document.addEventListener("click", function(e){
+    const openEls = document.querySelectorAll(".filter-multiselect.open");
+    openEls.forEach(function(el){
+      if (!el.contains(e.target)) el.classList.remove("open");
+    });
+  });
 })();
 </script>
 <script>
