@@ -17,4 +17,5 @@
 {{badgeNumber}} - The user's badge number formatted as `1234` <br>
 {{agencyAbbreviation}} - The user's agency formatted as `ABCD` <br>
 {{agencyColor}} - The user's agency color formatted as `Color` <br>
+{{callsign}} - The user's callsign string, built from the configured Callsign Format in Server Settings <br>
 {{takPortalPublicUrl}} - The TAK Portal Public URL <br>

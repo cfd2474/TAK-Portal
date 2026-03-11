@@ -109,6 +109,49 @@ function parseName(displayName) {
   };
 }
 
+/**
+ * Build a callsign string from settings + user context.
+ * Falls back to "{{agencyAbbreviation}}-{{lastNameUpper}}-{{badgeNumber}}" when unset/invalid.
+ */
+function buildCallsign({
+  firstName,
+  lastName,
+  lastNameUpper,
+  badgeNumber,
+  agencyAbbreviation,
+  agencyColor,
+} = {}) {
+  let settings = {};
+  try {
+    settings = settingsSvc.getSettings ? settingsSvc.getSettings() || {} : {};
+  } catch {
+    settings = {};
+  }
+
+  let expr = String(settings.CALLSIGN_FORMAT_EXPRESSION || "").trim();
+  if (!expr) {
+    expr = "{{agencyAbbreviation}}-{{lastNameUpper}}-{{badgeNumber}}";
+  }
+
+  const ctx = {
+    firstName: firstName || "",
+    lastName: lastName || "",
+    lastNameUpper: lastNameUpper || "",
+    badgeNumber: badgeNumber || "",
+    agencyAbbreviation: agencyAbbreviation || "",
+    agencyColor: agencyColor || "",
+  };
+
+  return expr.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (match, key) => {
+    if (Object.prototype.hasOwnProperty.call(ctx, key)) {
+      const v = ctx[key];
+      return v != null ? String(v) : "";
+    }
+    // Unknown tokens are left as-is so misconfigurations are visible.
+    return match;
+  });
+}
+
 function getTakPortalPublicUrl() {
   try {
     const settings = settingsSvc.getSettings ? settingsSvc.getSettings() || {} : {};
@@ -298,6 +341,15 @@ async function emailUserCreated({ user, groups, hasPassword }) {
           "To set your password or get help setting up TAK on your device, contact your TAK Portal Administrator.",
       });
 
+  const callsign = buildCallsign({
+    firstName,
+    lastName,
+    lastNameUpper,
+    badgeNumber,
+    agencyAbbreviation,
+    agencyColor: agencyColorEffective,
+  });
+
   const html = renderTemplate(templateKey, {
     displayName,
     lastName,
@@ -309,6 +361,7 @@ async function emailUserCreated({ user, groups, hasPassword }) {
     badgeNumber,
     agencyAbbreviation,
     agencyColor: agencyColorEffective,
+    callsign,
     takPortalPublicUrl, // keep available if any template uses it elsewhere
     takPortalBlock,     // NEW: injected HTML block used by {{{takPortalBlock}}}
   });
@@ -359,6 +412,15 @@ async function emailPasswordChanged(user) {
       "If you need to change your password or get help setting up TAK on your device, contact your TAK Portal Administrator.",
   });
 
+  const callsign = buildCallsign({
+    firstName,
+    lastName,
+    lastNameUpper,
+    badgeNumber,
+    agencyAbbreviation,
+    agencyColor,
+  });
+
   const html = renderTemplate("password_changed.html", {
     displayName,
     lastName,
@@ -369,6 +431,7 @@ async function emailPasswordChanged(user) {
     agencyAbbreviation,
     agencyColor,
     takPortalPublicUrl,
+    callsign,
     takPortalBlock,
   });
 
@@ -425,6 +488,15 @@ async function emailGroupsUpdated({ user, beforeIds, afterIds }) {
       "If you need to review your access or get help setting up TAK on your device, contact your TAK Portal Administrator.",
   });
 
+  const callsign = buildCallsign({
+    firstName,
+    lastName,
+    lastNameUpper,
+    badgeNumber,
+    agencyAbbreviation,
+    agencyColor,
+  });
+
   const html = renderTemplate("groups_updated.html", {
     displayName,
     lastName,
@@ -436,6 +508,7 @@ async function emailGroupsUpdated({ user, beforeIds, afterIds }) {
     badgeNumber,
     agencyAbbreviation,
     agencyColor,
+    callsign,
     takPortalPublicUrl,
     takPortalBlock,
   });

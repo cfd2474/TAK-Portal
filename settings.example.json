@@ -69,6 +69,7 @@
   "DP_ROLE_FORWARD_OBSERVER": "Drone or Surveillance",
   "DP_ROLE_RTO": "",
   "DP_ROLE_K9": "K9 Handlers",
+  "CALLSIGN_FORMAT_EXPRESSION": "{{agencyAbbreviation}}-{{lastNameUpper}}-{{badgeNumber}}",
   "HCAPTCHA_SITE_KEY": "",
   "HCAPTCHA_SECRET_KEY": ""
 }
