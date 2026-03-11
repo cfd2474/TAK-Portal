@@ -101,6 +101,7 @@
         <div style="text-align:center; min-width: 260px;">
           <img id="setupQrImg" alt="Enrollment QR Code" style="max-width: 280px; width: 100%; height: auto; border-radius: 14px;" />
           <div class="row" style="gap: 10px; margin-top: 14px; justify-content: center;">
+            <button class="btn" type="button" id="setupQrOpenBtn" disabled>Open URL</button>
             <button class="btn" type="button" id="setupQrCopyBtn" disabled>Copy URL</button>
             <button class="btn" type="button" id="setupQrSaveBtn" disabled>Save Image</button>
           </div>
@@ -183,6 +184,7 @@
   const overlay = document.getElementById("setupQrOverlay");
   const closeBtn = document.getElementById("setupQrCloseBtn");
   const qrImg = document.getElementById("setupQrImg");
+  const openUrlBtn = document.getElementById("setupQrOpenBtn");
   const copyBtn = document.getElementById("setupQrCopyBtn");
   const saveBtn = document.getElementById("setupQrSaveBtn");
   const details = document.getElementById("setupQrDetails");
@@ -333,6 +335,7 @@
       const remain = exp.getTime() - Date.now();
       if (remain <= 0) {
         countdownEl.textContent = "QR Code Expired";
+        openUrlBtn.disabled = true;
         copyBtn.disabled = true;
         saveBtn.disabled = true;
         setMsg(msg, "This enrollment QR has expired. Click Scan QR Code to generate a new one.", false);
@@ -392,6 +395,7 @@
     if (obj.username) chips.push(`<span class="chip">User: ${obj.username}</span>`);
     details.innerHTML = chips.join(" ");
 
+    openUrlBtn.disabled = !obj.enrollUrl;
     copyBtn.disabled = !obj.enrollUrl;
     saveBtn.disabled = !(obj.username && obj.token);
     setMsg(msg, "QR ready.", true);
@@ -404,6 +408,7 @@
     // UI reset
     qrImg.src = "";
     details.innerHTML = "";
+    openUrlBtn.disabled = true;
     copyBtn.disabled = true;
     saveBtn.disabled = true;
     countdownEl.textContent = "";
@@ -501,6 +506,10 @@
       if (overlay.style.display !== "none") closeModal();
       if (manualLoginOverlay.style.display !== "none") closeManualLoginModal();
     }
+  });
+
+  openUrlBtn.addEventListener("click", () => {
+    if (cached && cached.enrollUrl) window.open(cached.enrollUrl, "_blank", "noopener,noreferrer");
   });
 
   copyBtn.addEventListener("click", () => {
