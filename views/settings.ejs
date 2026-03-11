@@ -416,15 +416,14 @@
 
         <div class="settings-body">
           <p class="settings-help">
-            Configure how callsigns are displayed in email notifications. Use field blocks (like Agency, Last Name, Badge)
-            and text blocks (like dashes or prefixes) to build the final callsign string.
+            Configure how callsigns are displayed. Use field blocks and text blocks (like dashes or prefixes) to build the final callsign string.
           </p>
 
           <div id="callsignBuilder" style="margin-top:.5rem;">
             <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.5rem;">
               <button type="button" class="btn" id="addCallsignFieldBtn">Add Field</button>
               <button type="button" class="btn" id="addCallsignTextBtn">Add Text</button>
-              <small class="settings-help">Drag rows by the handle to change order.</small>
+              <small class="settings-help">Drag chips by the handle to change order.</small>
             </div>
 
             <ul
@@ -439,16 +438,6 @@
               value="<%- (settings.CALLSIGN_FORMAT_EXPRESSION || '{{agencyAbbreviation}}-{{lastNameUpper}}-{{badgeNumber}}') %>"
             />
 
-            <small class="settings-help">
-              Supported fields:
-              <code>agencyAbbreviation</code>,
-              <code>stateAbbreviation</code>,
-              <code>firstName</code>,
-              <code>lastName</code>,
-              <code>lastNameUpper</code>,
-              <code>badgeNumber</code>.
-              The default is <code>{{'{{'}}agencyAbbreviation{{'}}'}}-{{'{{'}}lastNameUpper{{'}}'}}-{{'{{'}}badgeNumber{{'}}'}}</code>.
-            </small>
 
             <div style="margin-top:.5rem;">
               <strong>Preview:</strong>
@@ -475,7 +464,7 @@
                 { value: "firstName", label: "First Name" },
                 { value: "lastNameUpper", label: "Last Name (UPPERCASE)" },
                 { value: "lastName", label: "Last Name" },
-                { value: "badgeNumber", label: "Badge Number" }
+                { value: "badgeNumber", label: "Badge / Username" }
               ];
 
               function getDragAfterElement(container, x) {
