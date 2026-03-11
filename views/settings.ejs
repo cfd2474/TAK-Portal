@@ -460,6 +460,7 @@
 
               var FIELD_OPTIONS = [
                 { value: "agencyAbbreviation", label: "Agency" },
+                { value: "_dash", label: "— (dash)" },
                 { value: "stateAbbreviation", label: "State" },
                 { value: "firstName", label: "First" },
                 { value: "lastNameUpper", label: "Last (UP)" },
@@ -489,7 +490,11 @@
                   if (type === "field") {
                     var sel = row.querySelector("select[data-field-name]");
                     var v = (sel && sel.value) || "";
-                    if (v) parts.push("{{" + v + "}}");
+                    if (v === "_dash") {
+                      parts.push("-");
+                    } else if (v) {
+                      parts.push("{{" + v + "}}");
+                    }
                   } else if (type === "text") {
                     var inp = row.querySelector("input[data-text-val]");
                     if (inp && inp.value) parts.push(inp.value);
@@ -624,21 +629,25 @@
                 while ((m = re.exec(expr)) !== null) {
                   var textPart = expr.slice(lastIndex, m.index);
                   if (textPart) {
-                    list.appendChild(createRow({ type: "text", text: textPart }));
+                    list.appendChild(textPart === "-"
+                      ? createRow({ type: "field", field: "_dash" })
+                      : createRow({ type: "text", text: textPart }));
                   }
                   list.appendChild(createRow({ type: "field", field: m[1] }));
                   lastIndex = re.lastIndex;
                 }
                 var tail = expr.slice(lastIndex);
                 if (tail) {
-                  list.appendChild(createRow({ type: "text", text: tail }));
+                  list.appendChild(tail === "-"
+                    ? createRow({ type: "field", field: "_dash" })
+                    : createRow({ type: "text", text: tail }));
                 }
 
                 if (!list.querySelector("li[data-callsign-row]")) {
                   list.appendChild(createRow({ type: "field", field: "agencyAbbreviation" }));
-                  list.appendChild(createRow({ type: "text", text: "-" }));
+                  list.appendChild(createRow({ type: "field", field: "_dash" }));
                   list.appendChild(createRow({ type: "field", field: "lastNameUpper" }));
-                  list.appendChild(createRow({ type: "text", text: "-" }));
+                  list.appendChild(createRow({ type: "field", field: "_dash" }));
                   list.appendChild(createRow({ type: "field", field: "badgeNumber" }));
                 }
 
