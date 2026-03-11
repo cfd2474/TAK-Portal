@@ -18,8 +18,11 @@
           const fromDateVal = (filters && filters.from) ? String(filters.from).slice(0, 10) : '';
           const toDateVal = (filters && filters.to) ? String(filters.to).slice(0, 10) : '';
         %>
-        <label class="audit-date-label">From <input type="date" name="from" class="input audit-date-input" value="<%= fromDateVal %>" /></label>
-        <label class="audit-date-label">To <input type="date" name="to" class="input audit-date-input" value="<%= toDateVal %>" /></label>
+        <span class="audit-date-row">
+          <input type="date" name="from" class="input audit-date-input" value="<%= fromDateVal %>" />
+          <span class="audit-date-to">to</span>
+          <input type="date" name="to" class="input audit-date-input" value="<%= toDateVal %>" />
+        </span>
 
         <div class="filter-multiselect" data-filter="actor">
           <button type="button" class="btn filter-toggle" id="actorFilterToggle">Actor ▾</button>
@@ -288,11 +291,14 @@
   font-size:11px;
   color:var(--muted-color,#9ca3af);
 }
-.audit-date-label{
+.audit-date-row{
   display:inline-flex;
   align-items:center;
-  gap:6px;
+  gap:8px;
+}
+.audit-date-to{
   font-size:13px;
+  color:var(--muted,#a8b3cf);
 }
 .audit-date-input{
   width:auto;
