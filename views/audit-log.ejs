@@ -14,21 +14,12 @@
         <input type="hidden" name="actor" id="actorFilterInput" value="<%= filters?.actor || '' %>" />
         <input type="hidden" name="action" id="actionFilterInput" value="<%= filters?.action || '' %>" />
         <input type="hidden" name="agencySuffix" id="agencyFilterInput" value="<%= filters?.agencySuffix || '' %>" />
-        <input type="hidden" name="from" id="dateFromInput" value="<%= filters?.from || '' %>" />
-        <input type="hidden" name="to" id="dateToInput" value="<%= filters?.to || '' %>" />
-
-        <div class="filter-multiselect" data-filter="date">
-          <button type="button" class="btn filter-toggle" id="dateFilterToggle">Date ▾</button>
-          <div class="filter-menu">
-            <div class="filter-menu-inner">
-              <button type="button" class="filter-option filter-option-single" data-range="all">All time</button>
-              <button type="button" class="filter-option filter-option-single" data-range="today">Today</button>
-              <button type="button" class="filter-option filter-option-single" data-range="7">Last 7 days</button>
-              <button type="button" class="filter-option filter-option-single" data-range="30">Last 30 days</button>
-              <button type="button" class="filter-option filter-option-single" data-range="90">Last 90 days</button>
-            </div>
-          </div>
-        </div>
+        <%
+          const fromDateVal = (filters && filters.from) ? String(filters.from).slice(0, 10) : '';
+          const toDateVal = (filters && filters.to) ? String(filters.to).slice(0, 10) : '';
+        %>
+        <label class="audit-date-label">From <input type="date" name="from" class="input audit-date-input" value="<%= fromDateVal %>" /></label>
+        <label class="audit-date-label">To <input type="date" name="to" class="input audit-date-input" value="<%= toDateVal %>" /></label>
 
         <div class="filter-multiselect" data-filter="actor">
           <button type="button" class="btn filter-toggle" id="actorFilterToggle">Actor ▾</button>
@@ -297,22 +288,15 @@
   font-size:11px;
   color:var(--muted-color,#9ca3af);
 }
-.filter-multiselect .filter-option-single{
-  display:block;
-  width:100%;
-  text-align:left;
-  padding:6px 10px;
+.audit-date-label{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
   font-size:13px;
-  background:transparent;
-  border:none;
-  color:inherit;
-  cursor:pointer;
 }
-.filter-multiselect .filter-option-single:hover{
-  background:rgba(255,255,255,.06);
-}
-.filter-multiselect .filter-option-single.selected{
-  background:rgba(255,255,255,.1);
+.audit-date-input{
+  width:auto;
+  min-width:140px;
 }
 
 .modalOverlay{
@@ -644,92 +628,6 @@
       if (!el.contains(e.target)) el.classList.remove("open");
     });
   });
-
-  // Date range dropdown (single-select)
-  (function(){
-    const container = document.querySelector('.filter-multiselect[data-filter="date"]');
-    const fromInput = document.getElementById("dateFromInput");
-    const toInput = document.getElementById("dateToInput");
-    const toggle = container && container.querySelector(".filter-toggle");
-    const menu = container && container.querySelector(".filter-menu");
-    const options = container ? Array.prototype.slice.call(container.querySelectorAll(".filter-option-single")) : [];
-
-    var dateRangeLabels = { all: "All time", today: "Today", "7": "Last 7 days", "30": "Last 30 days", "90": "Last 90 days" };
-
-    function getRangeFromDates(fromVal, toVal) {
-      if (!fromVal || !toVal) return "all";
-      var fromMs = Date.parse(fromVal);
-      var toMs = Date.parse(toVal);
-      if (Number.isNaN(fromMs) || Number.isNaN(toMs)) return "all";
-      var now = new Date();
-      var todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      var todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      if (fromMs >= todayStart.getTime() && toMs >= todayEnd.getTime()) return "today";
-      var days = Math.round((toMs - fromMs) / (24 * 60 * 60 * 1000));
-      if (days <= 1) return "today";
-      if (days <= 8) return "7";
-      if (days <= 32) return "30";
-      if (days <= 92) return "90";
-      return "all";
-    }
-
-    function setDatesForRange(range) {
-      if (range === "all") {
-        fromInput.value = "";
-        toInput.value = "";
-        if (toggle) toggle.textContent = "Date ▾";
-        return;
-      }
-      var end = new Date();
-      var start = new Date();
-      if (range === "today") {
-        start.setHours(0, 0, 0, 0);
-        end.setHours(23, 59, 59, 999);
-      } else {
-        var n = parseInt(range, 10);
-        if (!Number.isFinite(n)) n = 7;
-        start.setDate(start.getDate() - (n - 1));
-        start.setHours(0, 0, 0, 0);
-      }
-      fromInput.value = start.toISOString();
-      toInput.value = end.toISOString();
-      if (toggle) toggle.textContent = "Date: " + (dateRangeLabels[range] || range) + " ▾";
-    }
-
-    function updateSelectedState(selectedRange) {
-      options.forEach(function(opt){
-        var range = opt.getAttribute("data-range");
-        opt.classList.toggle("selected", range === selectedRange);
-      });
-    }
-
-    var initialFrom = (fromInput && fromInput.value) ? fromInput.value.trim() : "";
-    var initialTo = (toInput && toInput.value) ? toInput.value.trim() : "";
-    var initialRange = getRangeFromDates(initialFrom, initialTo);
-    updateSelectedState(initialRange);
-    if (initialRange !== "all" && toggle) toggle.textContent = "Date: " + dateRangeLabels[initialRange] + " ▾";
-
-    options.forEach(function(opt){
-      opt.addEventListener("click", function(){
-        var range = opt.getAttribute("data-range") || "all";
-        setDatesForRange(range);
-        updateSelectedState(range);
-        container.classList.remove("open");
-      });
-    });
-
-    if (toggle && menu) {
-      toggle.addEventListener("click", function(e){
-        e.preventDefault();
-        var isOpen = container.classList.contains("open");
-        document.querySelectorAll(".filter-multiselect.open").forEach(function(el){
-          if (el !== container) el.classList.remove("open");
-        });
-        if (!isOpen) container.classList.add("open");
-        else container.classList.remove("open");
-      });
-    }
-  })();
 })();
 </script>
 <script>
