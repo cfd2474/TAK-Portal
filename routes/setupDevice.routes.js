@@ -3,6 +3,7 @@ const router = express.Router();
 
 const qrSvc = require("../services/qr.service");
 const tokensSvc = require("../services/authentikTokens.service");
+const usersSvc = require("../services/users.service");
 
 function requireLoggedIn(req, res) {
   const u = req.authentikUser;
@@ -62,6 +63,47 @@ router.post("/enroll-qr", async (req, res) => {
         err?.response?.status
           ? `Authentik API error (HTTP ${err.response.status})`
           : (err?.message || "Failed to generate enrollment QR"),
+    });
+  }
+});
+
+// GET preference data + QR for Android Step 3 (Configure Device Preferences)
+router.get("/preference-data", async (req, res) => {
+  try {
+    const user = requireLoggedIn(req, res);
+    if (!user) return;
+
+    const userId = await tokensSvc.getUserIdByUsername(user.username);
+    const fullUser = await usersSvc.getUserById(userId);
+    const data = usersSvc.getPreferenceDataForUser(fullUser);
+
+    const preferenceUrl = qrSvc.buildPreferenceUrl({
+      callsign: data.callsign,
+      teamLabel: data.teamLabel,
+      roleLabel: data.roleLabel,
+    });
+
+    let qrCode = null;
+    if (preferenceUrl) {
+      qrCode = await qrSvc.generateDisplayQrDataUrl(preferenceUrl);
+    }
+
+    return res.json({
+      ok: true,
+      callsign: data.callsign,
+      teamLabel: data.teamLabel,
+      roleLabel: data.roleLabel,
+      preferenceUrl: preferenceUrl || "",
+      qrCode,
+    });
+  } catch (err) {
+    console.error(
+      "[setup-device] Failed to get preference data:",
+      err?.message || err
+    );
+    return res.status(500).json({
+      ok: false,
+      error: err?.message || "Failed to get preference data",
     });
   }
 });

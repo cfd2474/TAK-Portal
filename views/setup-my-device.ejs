@@ -97,6 +97,20 @@
         </button>
       </div>
     </div>
+
+    <div class="card">
+      <h2>Step 3: Configure Device Preferences</h2>
+      <div class="grid2">
+        <button type="button" class="btn tile" id="preferenceScanQrBtn">
+          <span class="title">Scan QR Code (Recommended)</span>
+          <span class="desc">Scan a QR code to set your callsign and team (color) on your device.</span>
+        </button>
+        <button type="button" class="btn tile" id="preferenceManualBtn">
+          <span class="title">Manual Configuration</span>
+          <span class="desc">Enter your callsign and team manually in ATAK preferences.</span>
+        </button>
+      </div>
+    </div>
   </div>
 </main>
 
@@ -144,6 +158,59 @@
         <ol id="manualLoginInstructions" style="margin-top: 6px;"></ol>
         <h3 style="margin-top:0;">Details</h3>
         <div class="chips" id="manualLoginDetails"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Preference QR Modal (Android Step 3) -->
+<div class="modalOverlay" id="preferenceQrOverlay" style="display:none;">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="preferenceQrTitle">
+    <div class="modalHeader">
+      <h2 id="preferenceQrTitle" style="margin:0;">Configure Device Preferences</h2>
+      <button class="btn" id="preferenceQrCloseBtn" type="button">Close</button>
+    </div>
+    <div class="modalBody">
+      <div class="row" style="gap: 24px; align-items: flex-start; flex-wrap: wrap;">
+        <div style="text-align:center; min-width: 260px;">
+          <img id="preferenceQrImg" alt="Preference QR Code" style="max-width: 280px; width: 100%; height: auto; border-radius: 14px;" />
+        </div>
+        <div style="min-width: 320px;">
+          <h3 style="margin-top:0;">How to Scan</h3>
+          <ol id="preferenceQrInstructions" style="margin-top: 6px;">
+            <li>Open ATAK on your Android device.</li>
+            <li>Tap the menu (three lines) and go to <strong>Settings</strong>.</li>
+            <li>Under <strong>Display</strong>, tap <strong>Preferences</strong> or use the device QR scanner to scan this code.</li>
+            <li>Scan this QR code to set your callsign and team (color) automatically.</li>
+          </ol>
+          <h3 style="margin-top:0;">Details</h3>
+          <div class="chips" id="preferenceQrDetails"></div>
+          <div id="preferenceQrMsg" class="msg"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Manual Preference Modal (Android Step 3) -->
+<div class="modalOverlay" id="preferenceManualOverlay" style="display:none;">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="preferenceManualTitle">
+    <div class="modalHeader">
+      <h2 id="preferenceManualTitle" style="margin:0;">Manual Configuration</h2>
+      <button class="btn" id="preferenceManualCloseBtn" type="button">Close</button>
+    </div>
+    <div class="modalBody">
+      <div style="max-width: 600px;">
+        <h3 style="margin-top:0;">Configure callsign and team in ATAK</h3>
+        <p style="margin: 6px 0 12px;">Open ATAK → Settings → Display → Preferences (or equivalent), then enter the values below.</p>
+        <ol id="preferenceManualInstructions" style="margin-top: 6px;">
+          <li>In ATAK, go to <strong>Settings</strong> → <strong>Display</strong> → <strong>Preferences</strong> (or <strong>My Preferences</strong>).</li>
+          <li>Set <strong>Callsign</strong> to the value shown below.</li>
+          <li>Set <strong>Team (color)</strong> to the value shown below.</li>
+          <li>Save your preferences.</li>
+        </ol>
+        <h3 style="margin-top:0;">Your values</h3>
+        <div class="chips" id="preferenceManualDetails"></div>
       </div>
     </div>
   </div>
@@ -507,6 +574,100 @@
     openManualLoginModal();
   }
 
+  // --- Android Step 3: Configure Device Preferences ---
+  const preferenceScanQrBtn = document.getElementById("preferenceScanQrBtn");
+  const preferenceManualBtn = document.getElementById("preferenceManualBtn");
+  const preferenceQrOverlay = document.getElementById("preferenceQrOverlay");
+  const preferenceQrCloseBtn = document.getElementById("preferenceQrCloseBtn");
+  const preferenceQrImg = document.getElementById("preferenceQrImg");
+  const preferenceQrDetails = document.getElementById("preferenceQrDetails");
+  const preferenceQrMsg = document.getElementById("preferenceQrMsg");
+  const preferenceManualOverlay = document.getElementById("preferenceManualOverlay");
+  const preferenceManualCloseBtn = document.getElementById("preferenceManualCloseBtn");
+  const preferenceManualDetails = document.getElementById("preferenceManualDetails");
+
+  function setPreferenceMsg(text, ok = true) {
+    preferenceQrMsg.textContent = text || "";
+    preferenceQrMsg.className = "msg " + (ok ? "ok" : "bad");
+  }
+
+  async function fetchPreferenceData() {
+    const res = await fetch("/api/setup-my-device/preference-data");
+    const rawText = await res.text();
+    let data = {};
+    try { data = JSON.parse(rawText); } catch { data = {}; }
+    if (!res.ok || !data.ok) throw new Error((data && data.error) || "Failed to load preference data");
+    return data;
+  }
+
+  function openPreferenceQrModal() {
+    preferenceQrOverlay.style.display = "flex";
+    document.body.classList.add("noScroll");
+  }
+
+  function closePreferenceQrModal() {
+    preferenceQrOverlay.style.display = "none";
+    document.body.classList.remove("noScroll");
+  }
+
+  function openPreferenceManualModal() {
+    preferenceManualOverlay.style.display = "flex";
+    document.body.classList.add("noScroll");
+  }
+
+  function closePreferenceManualModal() {
+    preferenceManualOverlay.style.display = "none";
+    document.body.classList.remove("noScroll");
+  }
+
+  async function handlePreferenceScanClick() {
+    setPreferenceMsg("Loading...", true);
+    preferenceQrImg.src = "";
+    preferenceQrDetails.innerHTML = "";
+    openPreferenceQrModal();
+    try {
+      const data = await fetchPreferenceData();
+      if (data.qrCode) preferenceQrImg.src = data.qrCode;
+      const chips = [];
+      if (data.callsign) chips.push(`<span class="chip">Callsign: ${escapeHtml(data.callsign)}</span>`);
+      if (data.teamLabel) chips.push(`<span class="chip">Team: ${escapeHtml(data.teamLabel)}</span>`);
+      if (data.roleLabel) chips.push(`<span class="chip">Role: ${escapeHtml(data.roleLabel)}</span>`);
+      preferenceQrDetails.innerHTML = chips.join(" ");
+      setPreferenceMsg("", true);
+    } catch (err) {
+      setPreferenceMsg(err?.message || String(err), false);
+    }
+  }
+
+  function escapeHtml(s) {
+    const div = document.createElement("div");
+    div.textContent = s;
+    return div.innerHTML;
+  }
+
+  async function handlePreferenceManualClick() {
+    const chipsEl = preferenceManualDetails;
+    chipsEl.innerHTML = "";
+    openPreferenceManualModal();
+    try {
+      const data = await fetchPreferenceData();
+      const chips = [];
+      if (data.callsign) chips.push(`<span class="chip">Callsign: <strong>${escapeHtml(data.callsign)}</strong></span>`);
+      if (data.teamLabel) chips.push(`<span class="chip">Team (color): <strong>${escapeHtml(data.teamLabel)}</strong></span>`);
+      if (data.roleLabel) chips.push(`<span class="chip">Role: <strong>${escapeHtml(data.roleLabel)}</strong></span>`);
+      chipsEl.innerHTML = chips.length ? chips.join(" ") : "<span class=\"chip\">No preference data available.</span>";
+    } catch (err) {
+      chipsEl.innerHTML = `<span class="msg bad">${escapeHtml(err?.message || "Failed to load preference data")}</span>`;
+    }
+  }
+
+  preferenceScanQrBtn.addEventListener("click", handlePreferenceScanClick);
+  preferenceManualBtn.addEventListener("click", handlePreferenceManualClick);
+  preferenceQrCloseBtn.addEventListener("click", closePreferenceQrModal);
+  preferenceManualCloseBtn.addEventListener("click", closePreferenceManualModal);
+  preferenceQrOverlay.addEventListener("click", (e) => { if (e.target === preferenceQrOverlay) closePreferenceQrModal(); });
+  preferenceManualOverlay.addEventListener("click", (e) => { if (e.target === preferenceManualOverlay) closePreferenceManualModal(); });
+
   // Attach handlers (buttons exist in DOM even when flows are hidden)
   scanQrBtnTakAware.addEventListener("click", () => handleScanClick("takaware"));
   scanQrBtnAtak.addEventListener("click", () => handleScanClick("atak"));
@@ -527,6 +688,8 @@
     if (e.key === "Escape") {
       if (overlay.style.display !== "none") closeModal();
       if (manualLoginOverlay.style.display !== "none") closeManualLoginModal();
+      if (preferenceQrOverlay.style.display !== "none") closePreferenceQrModal();
+      if (preferenceManualOverlay.style.display !== "none") closePreferenceManualModal();
     }
   });
 
