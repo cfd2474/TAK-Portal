@@ -294,6 +294,7 @@ router.put("/:index/county-abbrev", async (req, res) => {
 
     let anyRenamed = false;
     const updatedIndexes = [];
+    const failedEnsures = [];
 
     // For each agency with the same county+state, update countyAbbrev and rename/ensure its admin group.
     for (let i = 0; i < agencies.length; i++) {
@@ -336,11 +337,13 @@ router.put("/:index/county-abbrev", async (req, res) => {
       agencies[i] = ag;
       updatedIndexes.push(i);
 
-      // Ensure the admin group exists for this agency (idempotent).
+      // Ensure the admin group exists for this agency (idempotent, best-effort).
       try {
         await ensureAgencyAdminGroupExists(ag);
       } catch (err) {
-        return res.status(400).json({
+        failedEnsures.push({
+          index: i,
+          suffix: String(ag.suffix || ""),
           error: err?.response?.data || err?.message || "Failed to ensure agency admin group",
         });
       }
@@ -358,11 +361,17 @@ router.put("/:index/county-abbrev", async (req, res) => {
         before: { countyAbbrev: oldCountyAbbrev || null },
         after: { countyAbbrev: newCountyAbbrev },
         groupRenamed: anyRenamed,
+        failedEnsures,
         updatedIndexes,
       },
     });
 
-    return res.json({ success: true, groupRenamed: anyRenamed, countyAbbrev: newCountyAbbrev });
+    return res.json({
+      success: true,
+      groupRenamed: anyRenamed,
+      countyAbbrev: newCountyAbbrev,
+      failedEnsures,
+    });
   } catch (err) {
     return res.status(500).json({
       error: err?.response?.data || err?.message || "Failed to update county abbreviation",
