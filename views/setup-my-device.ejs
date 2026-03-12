@@ -121,24 +121,11 @@
           <div class="grid2">
             <button type="button" class="btn tile" id="scanQrBtnOtt">
               <span class="title">Scan QR Code (Recommended)</span>
-              <span class="desc">Scan an enrollment QR code to automatically configure Open TAK Tracker.</span>
+              <span class="desc">Scan an enrollment QR code to configure Open TAK Tracker (includes callsign and team).</span>
             </button>
             <button type="button" class="btn tile" id="manualLoginBtnOtt">
               <span class="title">Manual Login</span>
               <span class="desc">Manually configure Open TAK Tracker with step-by-step instructions.</span>
-            </button>
-          </div>
-        </div>
-        <div class="card">
-          <h2>Step 3: Configure Device Preferences - Open TAK Tracker</h2>
-          <div class="grid2">
-            <button type="button" class="btn tile" id="preferenceScanQrBtnOtt">
-              <span class="title">Scan QR Code (Recommended)</span>
-              <span class="desc">Scan a QR code to set your callsign and team (color) on your device.</span>
-            </button>
-            <button type="button" class="btn tile" id="preferenceManualBtnOtt">
-              <span class="title">Manual Configuration</span>
-              <span class="desc">Enter your callsign and team manually in Open TAK Tracker preferences.</span>
             </button>
           </div>
         </div>
@@ -318,7 +305,8 @@
     scanMode = mode;
 
     const isTakAware = mode === "takaware";
-    instructionsTitle.textContent = isTakAware ? "TAK Aware (iOS): How to Scan" : "ATAK (Android): How to Scan";
+    const isOtt = mode === "ott";
+    instructionsTitle.textContent = isTakAware ? "TAK Aware (iOS): How to Scan" : isOtt ? "Open TAK Tracker: How to Scan" : "ATAK (Android): How to Scan";
 
     const steps = isTakAware
       ? [
@@ -327,6 +315,12 @@
           "Enter your assigned Call Sign / Team / Role (per your welcome email).",
           "Tap 'Connect to a TAK Server', then choose 'Scan QR Code'.",
           "Allow camera access and scan the QR until you see 'Status: Succeeded'."
+        ]
+      : mode === "ott"
+      ? [
+          "Open Open TAK Tracker on your Android device.",
+          "Use the in-app QR scanner or your device camera to scan this code.",
+          "The app will enroll and set your callsign and team (color) in one step."
         ]
       : [
           "Open the camera on your Android device.",
@@ -516,7 +510,9 @@
     openModal();
   }
 
-  async function fetchAndShowQr() {
+  async function fetchAndShowQr(app) {
+    app = app || "atak";
+    const isOtt = app === "ott";
     // UI reset
     qrImg.src = "";
     details.innerHTML = "";
@@ -530,7 +526,7 @@
     const res = await fetch("/api/setup-my-device/enroll-qr", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({})
+      body: JSON.stringify(isOtt ? { app: "ott" } : {})
     });
 
     const rawText = await res.text();
@@ -554,18 +550,32 @@
       throw new Error("User mismatch while generating QR. Please refresh and try again.");
     }
 
-    saveCache(obj);
-    renderFromCache(obj);
+    if (!isOtt) saveCache(obj);
+    cached = obj;
+    qrImg.src = obj.qrCode || "";
+    var url = (obj.enrollUrl && String(obj.enrollUrl).trim()) || "";
+    if (enrollUrlHolder) enrollUrlHolder.dataset.enrollUrl = url;
+    const chips = [];
+    if (obj.username) chips.push(`<span class="chip">User: ${obj.username}</span>`);
+    details.innerHTML = chips.join(" ");
+    openUrlBtn.disabled = !url;
+    copyBtn.disabled = !url;
+    saveBtn.disabled = isOtt || !(obj.username && obj.token);
+    setMsg(msg, "QR ready.", true);
+    startCountdown(obj.expiresAt);
+    openModal();
   }
 
   async function handleScanClick(mode) {
     setScanInstructions(mode);
     setMsg(msg, "", true);
 
+    const isOtt = mode === "ott";
+
     // If we can't determine current username, don't reuse cache
     if (!CURRENT_USERNAME) {
       try {
-        await fetchAndShowQr();
+        await fetchAndShowQr(isOtt ? "ott" : "atak");
       } catch (err) {
         setMsg(msg, err?.message || String(err), false);
         openModal();
@@ -573,14 +583,17 @@
       return;
     }
 
-    const existing = loadCache();
-    if (existing && existing.qrCode && existing.enrollUrl && existing.token) {
-      renderFromCache(existing);
-      return;
+    // OTT never uses cache (different URL format); ATAK may use cache
+    if (!isOtt) {
+      const existing = loadCache();
+      if (existing && existing.qrCode && existing.enrollUrl && existing.token) {
+        renderFromCache(existing);
+        return;
+      }
     }
 
     try {
-      await fetchAndShowQr();
+      await fetchAndShowQr(isOtt ? "ott" : "atak");
     } catch (err) {
       setMsg(msg, err?.message || String(err), false);
       openModal();
@@ -703,15 +716,11 @@
   manualLoginBtnTakAware.addEventListener("click", () => handleManualLoginClick("takaware"));
   manualLoginBtnAtak.addEventListener("click", () => handleManualLoginClick("atak"));
 
-  // Open TAK Tracker column: same handlers as ATAK for now
+  // Open TAK Tracker column: OTT enrollment QR (includes callsign/team/role), same manual login modal
   const scanQrBtnOtt = document.getElementById("scanQrBtnOtt");
   const manualLoginBtnOtt = document.getElementById("manualLoginBtnOtt");
-  const preferenceScanQrBtnOtt = document.getElementById("preferenceScanQrBtnOtt");
-  const preferenceManualBtnOtt = document.getElementById("preferenceManualBtnOtt");
-  if (scanQrBtnOtt) scanQrBtnOtt.addEventListener("click", () => handleScanClick("atak"));
+  if (scanQrBtnOtt) scanQrBtnOtt.addEventListener("click", () => handleScanClick("ott"));
   if (manualLoginBtnOtt) manualLoginBtnOtt.addEventListener("click", () => handleManualLoginClick("atak"));
-  if (preferenceScanQrBtnOtt) preferenceScanQrBtnOtt.addEventListener("click", handlePreferenceScanClick);
-  if (preferenceManualBtnOtt) preferenceManualBtnOtt.addEventListener("click", handlePreferenceManualClick);
 
   closeBtn.addEventListener("click", closeModal);
   overlay.addEventListener("click", (e) => {

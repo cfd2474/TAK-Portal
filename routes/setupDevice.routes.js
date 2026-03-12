@@ -28,16 +28,34 @@ router.post("/enroll-qr", async (req, res) => {
       });
     }
 
+    const isOtt = req.body && String(req.body.app || "").toLowerCase() === "ott";
+
     const { identifier, key, expiresAt } =
       await tokensSvc.getOrCreateEnrollmentAppPassword({
         username: user.username,
         userId: user.uid || null,
       });
 
-    const enrollUrl = qrSvc.buildEnrollUrl({
-      username: user.username,
-      token: key,
-    });
+    let enrollUrl;
+    if (isOtt) {
+      const host = qrSvc.getTakHost();
+      const userId = await tokensSvc.getUserIdByUsername(user.username);
+      const fullUser = await usersSvc.getUserById(userId);
+      const pref = usersSvc.getPreferenceDataForUser(fullUser);
+      enrollUrl = qrSvc.buildOttEnrollUrl({
+        host,
+        username: user.username,
+        token: key,
+        callsign: pref.callsign,
+        teamLabel: pref.teamLabel,
+        roleLabel: pref.roleLabel,
+      });
+    } else {
+      enrollUrl = qrSvc.buildEnrollUrl({
+        username: user.username,
+        token: key,
+      });
+    }
 
     const qrCode = await qrSvc.generateDisplayQrDataUrl(enrollUrl);
 
@@ -47,7 +65,7 @@ router.post("/enroll-qr", async (req, res) => {
       tokenIdentifier: identifier,
       token: key,
       expiresAt,
-      enrollUrl,
+      enrollUrl: enrollUrl || "",
       qrCode,
     });
   } catch (err) {
