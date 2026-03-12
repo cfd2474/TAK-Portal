@@ -183,7 +183,7 @@
             <li>Select Yes to apply the configuration inside ATAK.</li>
           </ol>
           <h3 style="margin-top:0;">Details</h3>
-          <div class="chips" id="preferenceQrDetails"></div>
+          <div id="preferenceQrDetails" style="display:flex; flex-direction:column; gap:6px;"></div>
           <div id="preferenceQrMsg" class="msg"></div>
         </div>
       </div>
@@ -619,11 +619,11 @@
     try {
       const data = await fetchPreferenceData();
       if (data.qrCode) preferenceQrImg.src = data.qrCode;
-      const chips = [];
-      if (data.callsign) chips.push(`<span class="chip">Callsign: ${escapeHtml(data.callsign)}</span>`);
-      if (data.teamLabel) chips.push(`<span class="chip">Team: ${escapeHtml(data.teamLabel)}</span>`);
-      if (data.roleLabel) chips.push(`<span class="chip">Role: ${escapeHtml(data.roleLabel)}</span>`);
-      preferenceQrDetails.innerHTML = chips.join(" ");
+      const lines = [];
+      if (data.callsign) lines.push(`<div><strong>Callsign:</strong> ${escapeHtml(data.callsign)}</div>`);
+      if (data.teamLabel) lines.push(`<div><strong>Team:</strong> ${escapeHtml(data.teamLabel)}</div>`);
+      if (data.roleLabel) lines.push(`<div><strong>Role:</strong> ${escapeHtml(data.roleLabel)}</div>`);
+      preferenceQrDetails.innerHTML = lines.length ? lines.join("") : "";
       setPreferenceMsg("", true);
     } catch (err) {
       setPreferenceMsg(err?.message || String(err), false);
