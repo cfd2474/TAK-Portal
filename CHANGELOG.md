@@ -12,6 +12,12 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
+### v1.2.43 - 3/12/26
+✨ `Enhancement` - Adds county codes/abbreviations to the agencies page.  All existing agencies should select the update button to input county abbreviations for existing agencies.<br>
+✨ `Enhancement` - Adds county codes and agency type abbreviations to the callsign format options.<br>
+✨ `Enhancement` - Changes wording on all pages and changes Badge Number to Badge Number / Radio ID / Callsign to accomidate more user vocabulary.
+
+
 ### v1.2.42 - 3/11/26
 🎉 `New Feature` - Adds ATAK Preferences Configuration QR Code to automatically set the user's callsign, team, and role in ATAK.<br>
 ✨ `Enhancement` - Adds instructions to TAK Aware for manually setting callsign, team, and role.
