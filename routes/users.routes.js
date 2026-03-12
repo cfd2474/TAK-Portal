@@ -167,16 +167,23 @@ router.get("/group-lookup", async (req, res) => {
     //  - compute the Role column (User/Admin)
     // without exposing arbitrary hidden groups.
     if (!access.isGlobalAdmin) {
-      const prefixes = accessSvc.getAgencyAndCountyPrefixesForUser(authUser).agencyPrefixes;
-      const allowedPrefixes = Array.isArray(prefixes)
-        ? prefixes.map(p => String(p || "").trim().toUpperCase()).filter(Boolean)
+      const access = accessSvc.getAgencyAccess(authUser);
+      const allowedSuffixes = Array.isArray(access.allowedAgencySuffixes)
+        ? access.allowedAgencySuffixes.map((s) => String(s || "").trim().toLowerCase()).filter(Boolean)
         : [];
 
-      const target = name.toLowerCase();
-      const allowedNames = new Set(
-        allowedPrefixes.map(abbr => `authentik-${abbr}-agencyadmin`.toLowerCase())
-      );
+      const agencies = require("../services/agencies.service").load();
+      const allowedNames = new Set();
+      for (const a of agencies) {
+        const sfx = String(a?.suffix || "").toLowerCase();
+        if (!sfx || !allowedSuffixes.includes(sfx)) continue;
+        const groupName = accessSvc.getAgencyAdminGroupName(a);
+        if (groupName) {
+          allowedNames.add(groupName.toLowerCase());
+        }
+      }
 
+      const target = name.toLowerCase();
       if (!allowedNames.has(target)) {
         return res.status(403).json({ error: "Forbidden" });
       }

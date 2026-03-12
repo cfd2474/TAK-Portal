@@ -6,14 +6,19 @@ const groupsService = require("../services/groups.service");
 const api = require("../services/authentik");
 const auditSvc = require("../services/auditLog.service");
 
-function getAgencyAdminGroupName(groupPrefix) {
-  const abbr = String(groupPrefix || "").trim().toUpperCase();
+function getAgencyAdminGroupName(agency) {
+  const abbr = String(agency?.groupPrefix || "").trim().toUpperCase();
+  const countyAbbrev = String(agency?.countyAbbrev || "").trim().toUpperCase();
   if (!abbr) return null;
+  if (countyAbbrev) {
+    return `authentik-${countyAbbrev}-${abbr}-AgencyAdmin`;
+  }
+  // Legacy pattern (no county abbreviation stored yet)
   return `authentik-${abbr}-AgencyAdmin`;
 }
 
 async function ensureAgencyAdminGroupExists(agency) {
-  const name = getAgencyAdminGroupName(agency?.groupPrefix);
+  const name = getAgencyAdminGroupName(agency);
   if (!name) throw new Error("Agency abbreviation (groupPrefix) is required");
 
   // Create (idempotent-ish): if the group already exists, Authentik will reject.
@@ -71,6 +76,7 @@ function normalizeAgency(a) {
     name: String(a.name || "").trim(),
     type: String(a.type || "").trim(),
     county: String(a.county || "").trim(),
+    countyAbbrev: String(a.countyAbbrev || "").trim().toUpperCase(),
     state: String(a.state || "").trim().toUpperCase(),
     suffix: String(a.suffix || "").trim().toLowerCase(),
     groupPrefix: String(a.groupPrefix || "").trim().toUpperCase(),
@@ -92,6 +98,8 @@ function validateAgency(a) {
   if (!a.suffix) return "Username suffix is required";
   if (!a.groupPrefix) return "Group prefix is required";
   if (!a.color) return "Agency color is required";
+  if (!a.countyAbbrev) return "County abbreviation is required";
+  if (a.countyAbbrev.length < 3) return "County abbreviation must be at least 3 characters";
   return null;
 }
 
@@ -158,7 +166,7 @@ router.get("/:index/admin-group", async (req, res) => {
     if (!Number.isInteger(idx) || !agencies[idx]) return res.status(404).json({ error: "Not found" });
 
     const a = agencies[idx];
-    const groupName = getAgencyAdminGroupName(a?.groupPrefix);
+    const groupName = getAgencyAdminGroupName(a);
     if (!groupName) return res.status(400).json({ error: "Agency abbreviation is missing" });
 
     const g = await getGroupByNameUnfiltered(groupName);
@@ -251,6 +259,117 @@ router.put("/:index", async (req, res) => {
   res.json({ success: true });
 });
 
+// Update county abbreviation for an agency and rename its admin group accordingly.
+router.put("/:index/county-abbrev", async (req, res) => {
+  try {
+    const idx = Number(req.params.index);
+    const agencies = store.load();
+    if (!Number.isInteger(idx) || !agencies[idx]) {
+      return res.status(404).json({ error: "Not found" });
+    }
+
+    const raw = String(req.body?.countyAbbrev || "").trim().toUpperCase();
+    if (!raw) {
+      return res.status(400).json({ error: "County abbreviation is required" });
+    }
+    if (raw.length < 3) {
+      return res.status(400).json({ error: "County abbreviation must be at least 3 characters" });
+    }
+    if (!/^[A-Z]+$/.test(raw)) {
+      return res.status(400).json({ error: "County abbreviation must contain only letters" });
+    }
+
+    const agency = agencies[idx];
+    const abbr = String(agency?.groupPrefix || "").trim().toUpperCase();
+    if (!abbr) {
+      return res.status(400).json({ error: "Agency abbreviation (groupPrefix) is missing" });
+    }
+
+    const oldCountyAbbrev = String(agency.countyAbbrev || "").trim().toUpperCase();
+    const newCountyAbbrev = raw;
+
+    // Normalize target county/state for matching
+    const targetCounty = String(agency.county || "").trim().toLowerCase();
+    const targetState = String(agency.state || "").trim().toUpperCase();
+
+    let anyRenamed = false;
+    const updatedIndexes = [];
+
+    // For each agency with the same county+state, update countyAbbrev and rename/ensure its admin group.
+    for (let i = 0; i < agencies.length; i++) {
+      const ag = agencies[i];
+      if (!ag) continue;
+      const c = String(ag.county || "").trim().toLowerCase();
+      const s = String(ag.state || "").trim().toUpperCase();
+      if (c !== targetCounty || s !== targetState) continue;
+
+      const gp = String(ag.groupPrefix || "").trim().toUpperCase();
+      if (!gp) continue;
+
+      const prevCountyAbbrev = String(ag.countyAbbrev || "").trim().toUpperCase();
+      const desiredName = `authentik-${newCountyAbbrev}-${gp}-AgencyAdmin`;
+
+      const candidates = [];
+      if (prevCountyAbbrev) {
+        candidates.push(`authentik-${prevCountyAbbrev}-${gp}-AgencyAdmin`);
+      }
+      // Legacy pattern with no county abbreviation in name
+      candidates.push(`authentik-${gp}-AgencyAdmin`);
+
+      let renamedThis = false;
+      for (const oldName of candidates) {
+        const g = await getGroupByNameUnfiltered(oldName);
+        if (g && g.pk != null) {
+          try {
+            await api.patch(`/core/groups/${encodeURIComponent(g.pk)}/`, { name: desiredName });
+            renamedThis = true;
+            anyRenamed = true;
+            break;
+          } catch (e) {
+            // If rename fails, fall through to create/ensure below.
+          }
+        }
+      }
+
+      // Update JSON with new county abbreviation for this agency
+      ag.countyAbbrev = newCountyAbbrev;
+      agencies[i] = ag;
+      updatedIndexes.push(i);
+
+      // Ensure the admin group exists for this agency (idempotent).
+      try {
+        await ensureAgencyAdminGroupExists(ag);
+      } catch (err) {
+        return res.status(400).json({
+          error: err?.response?.data || err?.message || "Failed to ensure agency admin group",
+        });
+      }
+    }
+
+    store.save(agencies);
+
+    auditSvc.logEvent({
+      actor: req.authentikUser || null,
+      request: { method: req.method, path: req.originalUrl || req.path, ip: req.ip },
+      action: "UPDATE_AGENCY_COUNTY_ABBREV",
+      targetType: "agency",
+      targetId: String(agency?.suffix || ""),
+      details: {
+        before: { countyAbbrev: oldCountyAbbrev || null },
+        after: { countyAbbrev: newCountyAbbrev },
+        groupRenamed: anyRenamed,
+        updatedIndexes,
+      },
+    });
+
+    return res.json({ success: true, groupRenamed: anyRenamed, countyAbbrev: newCountyAbbrev });
+  } catch (err) {
+    return res.status(500).json({
+      error: err?.response?.data || err?.message || "Failed to update county abbreviation",
+    });
+  }
+});
+
 router.delete("/:index", async (req, res) => {
   try {
     const idx = Number(req.params.index);
@@ -261,7 +380,7 @@ router.delete("/:index", async (req, res) => {
     // We bypass the portal's hidden-group filtering, because these groups
     // typically start with "authentik-".
     const a = agencies[idx];
-    const groupName = getAgencyAdminGroupName(a?.groupPrefix);
+    const groupName = getAgencyAdminGroupName(a);
     if (groupName) {
       const g = await getGroupByNameUnfiltered(groupName);
       if (g?.pk) {

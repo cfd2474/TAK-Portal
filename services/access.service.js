@@ -25,8 +25,26 @@ function normalizeGroupList(raw) {
 
 function getAgencyAdminGroupName(agency) {
   const abbr = String(agency?.groupPrefix || "").trim().toUpperCase();
+  const countyAbbrev = String(agency?.countyAbbrev || "").trim().toUpperCase();
   if (!abbr) return null;
+  if (countyAbbrev) {
+    return `authentik-${countyAbbrev}-${abbr}-AgencyAdmin`;
+  }
+  // Legacy pattern (no county abbreviation stored yet)
   return `authentik-${abbr}-AgencyAdmin`;
+}
+
+function getAllAgencyAdminGroupNames(agency) {
+  const names = [];
+  const abbr = String(agency?.groupPrefix || "").trim().toUpperCase();
+  const countyAbbrev = String(agency?.countyAbbrev || "").trim().toUpperCase();
+  if (!abbr) return names;
+  if (countyAbbrev) {
+    names.push(`authentik-${countyAbbrev}-${abbr}-AgencyAdmin`);
+  }
+  // Always include legacy pattern as a fallback for backwards compatibility
+  names.push(`authentik-${abbr}-AgencyAdmin`);
+  return names;
 }
 
 /**
@@ -52,12 +70,13 @@ function getAllowedAgencySuffixesForGroups(userGroups) {
       agency.adminGroups != null ? agency.adminGroups : agency.adminGroup;
     const legacyAdminList = normalizeGroupList(rawAdmin);
 
-    // New (computed) admin group name
-    const computed = getAgencyAdminGroupName(agency);
-    const computedLower = computed ? computed.toLowerCase() : null;
+    // New (computed) admin group name(s) – support both legacy and county-abbrev patterns
+    const computedNames = getAllAgencyAdminGroupNames(agency).map((n) =>
+      n.toLowerCase()
+    );
 
     const neededGroups = [];
-    if (computedLower) neededGroups.push(computedLower);
+    if (computedNames.length) neededGroups.push(...computedNames);
     if (legacyAdminList.length) neededGroups.push(...legacyAdminList);
 
     if (!neededGroups.length) continue;

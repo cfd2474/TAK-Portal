@@ -24,16 +24,7 @@
                oninput="this.value = this.value.toLowerCase()" />
       </label>
 
-      <!-- 4) County text input (normalized + last-used) -->
-      <label>County
-        <input
-          name="county"
-          placeholder="(ex. Hamilton, Marion)"
-          required
-        />
-      </label>
-
-      <!-- 4.1) State dropdown -->
+      <!-- 4) State dropdown -->
       <label>State
         <select name="state" required>
           <option value="" disabled selected>Select State</option>
@@ -88,6 +79,26 @@
           <option value="WI">WI</option>
           <option value="WY">WY</option>
         </select>
+      </label>
+
+      <!-- 5) County text input (normalized + last-used) -->
+      <label>County
+        <input
+          name="county"
+          placeholder="(ex. Hamilton, Marion)"
+          required
+        />
+      </label>
+
+      <!-- 5.5) County Abbreviation -->
+      <label>County Abbreviation
+        <input
+          name="countyAbbrev"
+          placeholder="(ex. HAMILTON)"
+          required
+          minlength="3"
+          oninput="this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '')"
+        />
       </label>
 
       <!-- 5) Type dropdown -->
@@ -149,6 +160,7 @@
           <th data-sort="groupPrefix" role="button" tabindex="0" title="Sort by Abbreviation">Abbreviation</th>
           <th data-sort="suffix" role="button" tabindex="0" title="Sort by Username Suffix">Username Suffix</th>
           <th data-sort="county" role="button" tabindex="0" title="Sort by County">County</th>
+          <th data-sort="countyAbbrev" role="button" tabindex="0" title="Sort by County Abbreviation">County Abbrev</th>
           <th data-sort="state" role="button" tabindex="0">State</th>
           <th data-sort="type" role="button" tabindex="0" title="Sort by Type">Type</th>
           <th data-sort="color" role="button" tabindex="0" title="Sort by Color">Color</th>
@@ -248,6 +260,37 @@
         </div>
       </div>
     </div>
+
+<!-- County Abbreviation Update Modal -->
+<div class="modalOverlay" id="countyAbbrevOverlay" style="display:none;">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="countyAbbrevTitle">
+    <div class="modalHeader">
+      <h2 id="countyAbbrevTitle" style="margin:0;">Update County Abbreviation</h2>
+      <button class="btn" type="button" id="countyAbbrevCloseBtn">Close</button>
+    </div>
+    <div class="modalBody">
+      <p id="countyAbbrevSummary" class="msg"></p>
+      <label style="display:block; margin-top:8px;">
+        County Abbreviation
+        <input
+          id="countyAbbrevInput"
+          placeholder="(ex. HAMILTON)"
+          required
+          minlength="3"
+          style="width:100%; box-sizing:border-box; margin-top:4px;"
+          oninput="this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '')"
+        />
+      </label>
+      <small class="muted">
+        Must be at least 3 letters and will be stored in Authentik admin group name.
+      </small>
+      <div style="margin-top:14px; text-align:right;">
+        <button class="btn" type="button" id="countyAbbrevCancelBtn">Cancel</button>
+        <button class="btn success" type="button" id="countyAbbrevSaveBtn">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
   </div>
 
 <script>
@@ -287,7 +330,12 @@ function normalizeVal(v){
 
 function adminGroupNameForAgency(a){
   const abbr = String(a?.groupPrefix || "").trim().toUpperCase();
-  if(!abbr) return "";
+  const countyAbbrev = String(a?.countyAbbrev || "").trim().toUpperCase();
+  if (!abbr) return "";
+  if (countyAbbrev) {
+    return `authentik-${countyAbbrev}-${abbr}-AgencyAdmin`;
+  }
+  // Legacy pattern (no county abbreviation stored yet)
   return `authentik-${abbr}-AgencyAdmin`;
 }
 
@@ -401,6 +449,11 @@ function renderAgencies(){
       <td>${esc(a.groupPrefix)}</td>
       <td>${esc(a.suffix)}</td>
       <td>${esc(a.county)}</td>
+      <td>${
+        a.countyAbbrev
+          ? esc(a.countyAbbrev)
+          : `<button class="btn" type="button" onclick="openCountyAbbrevModal('${esc(a._id ?? a.id ?? "")}')">Update</button>`
+      }</td>
       <td>${esc(a.state || "")}</td>
       <td>${esc(a.type)}</td>
       <td>${esc(a.color || "")}</td>
@@ -676,6 +729,124 @@ function saveLastCounty(county) {
   }
 }
 
+function findExistingCountyAbbrev(state, county) {
+  const s = String(state || "").trim().toUpperCase();
+  const c = String(county || "").trim().toLowerCase();
+  if (!s || !c) return null;
+  const match = (agencies || []).find(a =>
+    String(a.state || "").trim().toUpperCase() === s &&
+    String(a.county || "").trim().toLowerCase() === c &&
+    String(a.countyAbbrev || "").trim() !== ""
+  );
+  return match ? String(match.countyAbbrev).trim().toUpperCase() : null;
+}
+
+function syncCountyAbbrevFromExisting() {
+  if (!addForm) return;
+  const stateInput = addForm.elements.state;
+  const countyInput = addForm.elements.county;
+  const countyAbbrevInput = addForm.elements.countyAbbrev;
+  if (!stateInput || !countyInput || !countyAbbrevInput) return;
+
+  const normalizedCounty = normalizeCountyName(countyInput.value);
+  if (normalizedCounty !== countyInput.value) {
+    countyInput.value = normalizedCounty;
+  }
+
+  const existing = findExistingCountyAbbrev(stateInput.value, countyInput.value);
+  if (existing) {
+    countyAbbrevInput.value = existing;
+    countyAbbrevInput.readOnly = true;
+    countyAbbrevInput.classList.add("readonly");
+  } else {
+    if (countyAbbrevInput.readOnly) {
+      countyAbbrevInput.readOnly = false;
+      countyAbbrevInput.classList.remove("readonly");
+    }
+    // Do not overwrite user-entered value if they already started typing
+    if (!countyAbbrevInput.value) {
+      countyAbbrevInput.value = "";
+    }
+  }
+}
+
+let countyAbbrevAgencyId = null;
+
+function showCountyAbbrevModal(on) {
+  const overlay = document.getElementById("countyAbbrevOverlay");
+  if (!overlay) return;
+  overlay.style.display = on ? "flex" : "none";
+  document.body.style.overflow = on ? "hidden" : "";
+}
+
+window.openCountyAbbrevModal = (agencyId) => {
+  countyAbbrevAgencyId = agencyId;
+  const input = document.getElementById("countyAbbrevInput");
+  const summary = document.getElementById("countyAbbrevSummary");
+  if (input) input.value = "";
+  if (summary) {
+    const a = (agencies || []).find(x => String(x._id ?? x.id) === String(agencyId));
+    summary.textContent = a
+      ? `Set county abbreviation for ${a.name} (${a.groupPrefix}).`
+      : "Set county abbreviation for this agency.";
+    summary.className = "msg";
+  }
+  showCountyAbbrevModal(true);
+};
+
+const countyAbbrevOverlay = document.getElementById("countyAbbrevOverlay");
+const countyAbbrevCloseBtn = document.getElementById("countyAbbrevCloseBtn");
+const countyAbbrevCancelBtn = document.getElementById("countyAbbrevCancelBtn");
+const countyAbbrevSaveBtn = document.getElementById("countyAbbrevSaveBtn");
+
+if (countyAbbrevOverlay) {
+  countyAbbrevOverlay.addEventListener("click", (e) => {
+    if (e.target === countyAbbrevOverlay) showCountyAbbrevModal(false);
+  });
+}
+if (countyAbbrevCloseBtn) countyAbbrevCloseBtn.onclick = () => showCountyAbbrevModal(false);
+if (countyAbbrevCancelBtn) countyAbbrevCancelBtn.onclick = () => showCountyAbbrevModal(false);
+if (countyAbbrevSaveBtn) {
+  countyAbbrevSaveBtn.onclick = async () => {
+    const input = document.getElementById("countyAbbrevInput");
+    const summary = document.getElementById("countyAbbrevSummary");
+    const raw = (input && input.value) || "";
+    const value = String(raw).trim().toUpperCase().replace(/[^A-Z]/g, "");
+    if (!value || value.length < 3) {
+      if (summary) {
+        summary.textContent = "County abbreviation must be at least 3 letters.";
+        summary.className = "msg bad";
+      }
+      return;
+    }
+    if (!countyAbbrevAgencyId) return;
+
+    try {
+      const res = await fetch(`/api/agencies/${encodeURIComponent(countyAbbrevAgencyId)}/county-abbrev`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ countyAbbrev: value }),
+      });
+      const out = await res.json();
+      if (!res.ok) {
+        if (summary) {
+          summary.textContent = out.error || "Failed to update county abbreviation.";
+          summary.className = "msg bad";
+        }
+        return;
+      }
+      showCountyAbbrevModal(false);
+      setMsg("County abbreviation updated.", true);
+      loadAgenciesWithCounts();
+    } catch (e) {
+      if (summary) {
+        summary.textContent = "Failed to update county abbreviation.";
+        summary.className = "msg bad";
+      }
+    }
+  };
+}
+
 addForm.onsubmit = async (e) => {
   e.preventDefault();
   setMsg("");
@@ -683,6 +854,18 @@ addForm.onsubmit = async (e) => {
   // Normalize county before sending to backend
   const countyInput = addForm.elements.county;
   countyInput.value = normalizeCountyName(countyInput.value);
+
+  // If an existing county abbreviation is known for this state+county, lock it in.
+  const stateInput = addForm.elements.state;
+  const countyAbbrevInput = addForm.elements.countyAbbrev;
+  if (stateInput && countyInput && countyAbbrevInput) {
+    const existing = findExistingCountyAbbrev(stateInput.value, countyInput.value);
+    if (existing) {
+      countyAbbrevInput.value = existing;
+      countyAbbrevInput.readOnly = true;
+      countyAbbrevInput.classList.add("readonly");
+    }
+  }
 
   // Save last-used county AFTER normalization
   if (countyInput.value) {
@@ -881,23 +1064,39 @@ agencyTable.querySelectorAll("thead th[data-sort]").forEach(th => {
 // Initialize last county + data on page load
 loadLastCounty();
 loadAgenciesWithCounts();
+
+// Wire up auto-fill for county abbreviation based on existing agencies
+if (addForm) {
+  const stateInput = addForm.elements.state;
+  const countyInput = addForm.elements.county;
+  if (stateInput) {
+    stateInput.addEventListener("change", syncCountyAbbrevFromExisting);
+  }
+  if (countyInput) {
+    countyInput.addEventListener("blur", syncCountyAbbrevFromExisting);
+  }
+}
 </script>
 
 <style>
 /* Hide columns on small screens */
 @media (max-width: 640px){
+  /* Hide Username Suffix, County, County Abbrev, State */
+  .table th:nth-child(3),
+  .table td:nth-child(3),
   .table th:nth-child(4),
   .table td:nth-child(4),
   .table th:nth-child(5),
   .table td:nth-child(5),
-  .table th:nth-child(3),
-  .table td:nth-child(3){
+  .table th:nth-child(6),
+  .table td:nth-child(6){
     display: none;
   }
 }
 @media (max-width: 835px){
-  .table th:nth-child(6),
-  .table td:nth-child(6){
+  /* Also hide Type column on medium screens */
+  .table th:nth-child(7),
+  .table td:nth-child(7){
     display: none;
   }
 }
@@ -988,6 +1187,11 @@ loadAgenciesWithCounts();
   display: inline-block;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+input.readonly {
+  background-color: rgba(255,255,255,0.04);
+  cursor: not-allowed;
 }
 @media (max-width: 768px) {
   #accessGroupsInner.groupsInner { column-count: 2; }

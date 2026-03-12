@@ -1296,7 +1296,9 @@ function getUserAgencyAbbreviation(user){
 function getAgencyAdminGroupNameForUser(user){
   const abbr = getUserAgencyAbbreviation(user);
   if (!abbr) return null;
-  return `authentik-${String(abbr).trim().toUpperCase()}-AgencyAdmin`;
+  // We do not know the county abbreviation from user attributes,
+  // so accept any county prefix and match on the tail "-<ABBR>-AgencyAdmin".
+  return `-` + String(abbr).trim().toUpperCase() + `-AgencyAdmin`;
 }
 
 // Cache agency admin group ids per abbreviation so we can show a Role column in the results table
@@ -1311,8 +1313,17 @@ async function ensureAgencyAdminIdsForUsers(users){
 
   for (const abbr of uniq){
     if (agencyAdminGroupIdByAbbr.has(abbr)) continue;
-    const groupName = `authentik-${abbr}-AgencyAdmin`;
-    const id = await resolveGroupIdByName(groupName);
+    // Look for any authentik-* group whose name ends with "-<ABBR>-AgencyAdmin"
+    const suffix = `-${abbr}-AgencyAdmin`.toLowerCase();
+    let id = null;
+    const allGroups = await fetchAllGroupsIncludingHidden();
+    for (const g of allGroups) {
+      const name = String(g?.name || "").trim().toLowerCase();
+      if (name.startsWith("authentik-") && name.endsWith(suffix)) {
+        id = g.pk ?? g.id ?? null;
+        if (id != null) break;
+      }
+    }
     agencyAdminGroupIdByAbbr.set(abbr, id || null);
   }
 }
