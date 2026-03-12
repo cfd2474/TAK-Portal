@@ -56,6 +56,14 @@
         </button>
       </div>
     </div>
+
+    <div class="card">
+      <h2>Step 3: Configure Device Preferences</h2>
+      <button type="button" class="btn tile" id="iosPreferenceManualBtn">
+        <span class="title">Manual Configuration</span>
+        <span class="desc">Enter your callsign, team, and role in TAK Aware settings.</span>
+      </button>
+    </div>
   </div>
 
   <!-- Android flow -->
@@ -228,6 +236,22 @@
       <div style="max-width: 600px;">
         <h3 style="margin-top:0;">Configure callsign and team in ATAK</h3>
         <ol id="preferenceManualInstructions" style="margin-top: 6px;"></ol>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- iOS Step 3: Configure Device Preferences (TAK Aware) -->
+<div class="modalOverlay" id="iosPreferenceManualOverlay" style="display:none;">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="iosPreferenceManualTitle">
+    <div class="modalHeader">
+      <h2 id="iosPreferenceManualTitle" style="margin:0;">Configure Device Preferences - TAK Aware</h2>
+      <button class="btn" id="iosPreferenceManualCloseBtn" type="button">Close</button>
+    </div>
+    <div class="modalBody">
+      <div style="max-width: 600px;">
+        <p style="margin: 0 0 12px;">If not already completed during device setup, please complete the following:</p>
+        <ol id="iosPreferenceManualInstructions" style="margin-top: 6px;"></ol>
       </div>
     </div>
   </div>
@@ -768,6 +792,49 @@
   preferenceQrOverlay.addEventListener("click", (e) => { if (e.target === preferenceQrOverlay) closePreferenceQrModal(); });
   preferenceManualOverlay.addEventListener("click", (e) => { if (e.target === preferenceManualOverlay) closePreferenceManualModal(); });
 
+  // iOS Step 3: Configure Device Preferences (TAK Aware) - manual only
+  const iosPreferenceManualBtn = document.getElementById("iosPreferenceManualBtn");
+  const iosPreferenceManualOverlay = document.getElementById("iosPreferenceManualOverlay");
+  const iosPreferenceManualCloseBtn = document.getElementById("iosPreferenceManualCloseBtn");
+  const iosPreferenceManualInstructions = document.getElementById("iosPreferenceManualInstructions");
+
+  function openIosPreferenceManualModal() {
+    iosPreferenceManualOverlay.style.display = "flex";
+    document.body.classList.add("noScroll");
+  }
+
+  function closeIosPreferenceManualModal() {
+    iosPreferenceManualOverlay.style.display = "none";
+    document.body.classList.remove("noScroll");
+  }
+
+  async function handleIosPreferenceManualClick() {
+    iosPreferenceManualInstructions.innerHTML = "<li>Loading...</li>";
+    openIosPreferenceManualModal();
+    try {
+      const data = await fetchPreferenceData();
+      const callsign = (data.callsign && escapeHtml(data.callsign)) || "";
+      const team = (data.teamLabel && escapeHtml(data.teamLabel)) || "";
+      const role = (data.roleLabel && escapeHtml(data.roleLabel)) || "Team Member";
+      iosPreferenceManualInstructions.innerHTML = [
+        "Open the TAK Aware app on your Apple device.",
+        "Select the menu icon in the top right.",
+        "Select the callsign menu under User Information.",
+        "Select Callsign and enter: <strong>" + callsign + "</strong>",
+        "Select Team and select: <strong>" + team + "</strong>",
+        "Select Role and select: <strong>" + role + "</strong>",
+        "Once complete you may close the window.",
+        "It is also recommended from the settings menu to open display settings and change the base map to \"Flyover\" and to set the map label display to \"Show Full Label\"."
+      ].map(function (s) { return "<li>" + s + "</li>"; }).join("");
+    } catch (err) {
+      iosPreferenceManualInstructions.innerHTML = "<li class=\"msg bad\">" + escapeHtml(err?.message || "Failed to load preference data") + "</li>";
+    }
+  }
+
+  iosPreferenceManualBtn.addEventListener("click", handleIosPreferenceManualClick);
+  iosPreferenceManualCloseBtn.addEventListener("click", closeIosPreferenceManualModal);
+  iosPreferenceManualOverlay.addEventListener("click", (e) => { if (e.target === iosPreferenceManualOverlay) closeIosPreferenceManualModal(); });
+
   preferenceQrOpenBtn.addEventListener("click", () => {
     var url = getCurrentPreferenceUrl();
     if (!url) return;
@@ -823,6 +890,7 @@
       if (manualLoginOverlay.style.display !== "none") closeManualLoginModal();
       if (preferenceQrOverlay.style.display !== "none") closePreferenceQrModal();
       if (preferenceManualOverlay.style.display !== "none") closePreferenceManualModal();
+      if (iosPreferenceManualOverlay.style.display !== "none") closeIosPreferenceManualModal();
     }
   });
 
