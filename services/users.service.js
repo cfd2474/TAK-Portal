@@ -122,6 +122,7 @@ function buildCallsign({
   agencyColor,
   stateAbbreviation,
   county,
+  countyAbbreviation,
 } = {}) {
   let settings = {};
   try {
@@ -144,6 +145,7 @@ function buildCallsign({
     agencyColor: agencyColor || "",
     stateAbbreviation: stateAbbreviation || "",
     county: county || "",
+    countyAbbreviation: countyAbbreviation || "",
   };
 
   return expr.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (match, key) => {
@@ -181,6 +183,7 @@ function getPreferenceDataForUser(user) {
   );
   const stateAbbreviation = String(agency?.state || attrs.state || "").toUpperCase();
   const county = String(agency?.county || attrs.county || "").trim().toUpperCase();
+  const countyAbbreviation = String(agency?.countyAbbrev || "").trim().toUpperCase();
 
   const displayName = String(user?.name || "").trim() || "";
   const { lastName, lastNameUpper, firstName } = parseName(displayName);
@@ -214,6 +217,7 @@ function getPreferenceDataForUser(user) {
     agencyColor: agencyColorEffective,
     stateAbbreviation,
     county,
+    countyAbbreviation,
   });
 
   const roleLabel = String(attrs.atak_role || attrs.role || "Team Member").trim() || "Team Member";
