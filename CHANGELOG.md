@@ -12,6 +12,9 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
+### 1.2.44 - 3/12/26
+🐛 `Bug Fix` - Fixes Mutual Aid Bug -  when the global admin modifies the type of Mutual Aid on an existing group, the group is no longer renamed or changed.  Also added checks to ensure existing groups can not be modified by mutual aid.
+
 ### v1.2.43 - 3/12/26
 ✨ `Enhancement` - Adds county codes/abbreviations to the agencies page.  All existing agencies should select the update button to input county abbreviations for existing agencies.<br>
 ✨ `Enhancement` - Adds county codes and agency type abbreviations to the callsign format options.<br>
