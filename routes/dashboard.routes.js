@@ -2,7 +2,9 @@ const router = require("express").Router();
 const dashboardStatsCache = require("../services/dashboardStatsCache.service");
 const mutualAidService = require("../services/mutualAid.service");
 const bookmarksService = require("../services/bookmarks.service");
-const { getTakMetricsSnapshot } = require("../services/takMetrics.service");
+const { getTakMetricsSnapshot, getSubscriptionsAll } = require("../services/takMetrics.service");
+
+const NODERED_PREFIX = "nodered-";
 const userRequestsSvc = require("../services/userRequests.service");
 
 
@@ -12,7 +14,21 @@ router.get("/", async (req, res) => {
     const bookmarks = bookmarksService.loadBookmarks();
 
     // --- TAK server health metrics (best-effort; dashboard still loads if TAK is down) ---
-    const takMetrics = await getTakMetricsSnapshot().catch(() => null);
+    let takMetrics = await getTakMetricsSnapshot().catch(() => null);
+    if (takMetrics && takMetrics.configured) {
+      try {
+        const sub = await getSubscriptionsAll();
+        const list = Array.isArray(sub.data) ? sub.data : [];
+        const noderedCount = list.filter((item) => {
+          const u = (item.username != null ? String(item.username).trim() : "").toLowerCase();
+          return u.indexOf(NODERED_PREFIX) === 0;
+        }).length;
+        const total = typeof takMetrics.connectedClients === "number" ? takMetrics.connectedClients : 0;
+        takMetrics = { ...takMetrics, connectedClients: Math.max(0, total - noderedCount) };
+      } catch (_) {
+        // leave takMetrics.connectedClients as-is if subscriptions fetch fails
+      }
+    }
 
     // --- Mutual Aid active banners ---
     const pendingUserRequestsCount = userRequestsSvc.countRequestsForUser(req.authentikUser);
