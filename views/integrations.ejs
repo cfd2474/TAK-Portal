@@ -70,6 +70,7 @@
         <tr>
           <th>Username</th>
           <th>Group</th>
+          <th>Status</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -126,6 +127,7 @@
   let agenciesCache = [];
   let groupsCache = [];
   let usersCache = [];
+  let connectedUsernamesSet = new Set();
 
   function stripTakPrefix(name) {
     if (name == null || name === undefined) return "";
@@ -227,14 +229,20 @@
         })
       : usersCache;
     if (list.length === 0) {
-      tbody.innerHTML = "<tr><td colspan=\"3\">" + (needle ? "No integrations match your search." : "No integration users found.") + "</td></tr>";
+      tbody.innerHTML = "<tr><td colspan=\"4\">" + (needle ? "No integrations match your search." : "No integration users found.") + "</td></tr>";
     } else {
       tbody.innerHTML = list.map(function (u) {
         var groupDisplay = (u.groupNames || []).join(", ") || "—";
         var currentGroupPk = (u.groups && u.groups[0]) ? String(u.groups[0]) : "";
+        var username = String(u.username || "").trim();
+        var isConnected = connectedUsernamesSet.has(username);
+        var statusPill = isConnected
+          ? "<span class=\"status-pill status-connected\">Connected</span>"
+          : "<span class=\"status-pill status-disconnected\">Disconnected</span>";
         return "<tr>" +
           "<td>" + esc(u.username) + "</td>" +
           "<td>" + esc(groupDisplay) + "</td>" +
+          "<td>" + statusPill + "</td>" +
           "<td><div class=\"row\" style=\"gap:8px; flex-wrap:wrap;\">" +
           "<button class=\"btn\" type=\"button\" data-action=\"edit\" data-pk=\"" + esc(u.pk) + "\" data-username=\"" + esc(u.username) + "\" data-group=\"" + esc(currentGroupPk) + "\">Edit Group</button>" +
           "<button class=\"btn danger\" type=\"button\" data-action=\"delete\" data-pk=\"" + esc(u.pk) + "\" data-username=\"" + esc(u.username) + "\">Delete</button>" +
@@ -245,9 +253,29 @@
     bindTableActions();
   }
 
+  async function loadConnectedUsernames() {
+    try {
+      const res = await fetch("/api/tak/subscriptions", { headers: { Accept: "application/json" } });
+      const data = await res.json();
+      if (!res.ok || !data.configured) {
+        connectedUsernamesSet = new Set();
+        return;
+      }
+      var list = Array.isArray(data.data) ? data.data : [];
+      var nodered = list.filter(function (item) {
+        var u = (item.username != null ? String(item.username).trim() : "").toLowerCase();
+        return u.indexOf("nodered-") === 0;
+      });
+      connectedUsernamesSet = new Set(nodered.map(function (item) { return String(item.username || "").trim(); }).filter(Boolean));
+    } catch (e) {
+      connectedUsernamesSet = new Set();
+    }
+  }
+
   async function loadIntegrations() {
     setTableMsg("Loading…");
     try {
+      await loadConnectedUsernames();
       const res = await fetch("/api/integrations");
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load integrations");
@@ -428,3 +456,9 @@
   })();
 })();
 </script>
+
+<style>
+.status-pill { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.status-connected { background: rgba(24, 179, 90, 0.2); color: var(--success, #18b35a); }
+.status-disconnected { background: rgba(255, 59, 59, 0.2); color: var(--danger, #ff3b3b); }
+</style>
