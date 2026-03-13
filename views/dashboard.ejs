@@ -114,8 +114,8 @@
   </div>
 
   <!-- TAK stats row (same style as top row) -->
-  <div class="grid3 gridTight" style="margin-top:8px;">
-    <div class="card stat">
+  <div class="grid3 gridTight" id="takStatsRow" style="margin-top:8px;" <%= (isGlobalAdmin || isAgencyAdmin) ? 'data-can-expand-clients="true"' : '' %>>
+    <div class="card stat" id="connectedClientsStatCard" role="<%= (isGlobalAdmin || isAgencyAdmin) ? 'button' : '' %>" tabindex="<%= (isGlobalAdmin || isAgencyAdmin) ? '0' : '-1' %>">
       <div class="statLabel">Connected Users / Clients</div>
       <div class="statValue" id="takClients">--</div>
       <div class="statHint"></div>
@@ -274,6 +274,135 @@
       }
     })();
   </script>
+
+  <script>
+    (function () {
+      var row = document.getElementById("takStatsRow");
+      var card = document.getElementById("connectedClientsStatCard");
+      if (!row || !card || !row.getAttribute("data-can-expand-clients")) return;
+
+      var NODERED_PREFIX = "nodered-";
+      var TEAM_COLORS = {
+        "Blue": "#1e88e5", "Dark Blue": "#0d47a1", "Brown": "#6d4c41", "Cyan": "#00acc1",
+        "Green": "#43a047", "Dark Green": "#1b5e20", "Magenta": "#d81b60", "Maroon": "#800000",
+        "Orange": "#ff7b00", "Purple": "#8e24aa", "Red": "#e53935", "Teal": "#00897b",
+        "White": "#ffffff", "Yellow": "#fdd835"
+      };
+
+      var originalCardHtml = card.innerHTML;
+
+      function esc(s) {
+        if (s == null || s === "") return "";
+        var div = document.createElement("div");
+        div.textContent = s;
+        return div.innerHTML;
+      }
+
+      function teamToBg(team) {
+        if (!team) return "transparent";
+        var hex = TEAM_COLORS[team];
+        return hex ? hex + "33" : "transparent";
+      }
+
+      function renderExpandedView(rows) {
+        var html = '<div class="connected-clients-expanded">' +
+          '<div class="connected-clients-expanded-header">' +
+          '<h2 class="cardTitle">Connected Clients</h2>' +
+          '<button type="button" class="btn" id="connectedClientsCloseBtn">Close</button>' +
+          '</div>' +
+          '<div class="connected-clients-table-wrap"><table class="connected-clients-table">' +
+          '<thead><tr><th>Callsign</th><th>Username</th><th>TAK Client</th><th>Role</th></tr></thead>' +
+          '<tbody id="connectedClientsTableBody"></tbody></table></div></div>';
+        card.innerHTML = html;
+        card.classList.add("connected-clients-expanded-card");
+        row.classList.add("connected-clients-row-expanded");
+        var tbody = document.getElementById("connectedClientsTableBody");
+        if (!tbody) return;
+        (rows || []).forEach(function (row) {
+          var tr = document.createElement("tr");
+          var bg = teamToBg(row.team);
+          if (bg !== "transparent") tr.style.backgroundColor = bg;
+          tr.innerHTML = "<td>" + esc(row.callsign) + "</td><td>" + esc(row.username) + "</td><td>" + esc(row.takClient) + "</td><td>" + esc(row.role) + "</td>";
+          tbody.appendChild(tr);
+        });
+        document.getElementById("connectedClientsCloseBtn").addEventListener("click", function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          collapse();
+        });
+      }
+
+      function collapse() {
+        card.innerHTML = originalCardHtml;
+        card.classList.remove("connected-clients-expanded-card");
+        row.classList.remove("connected-clients-row-expanded");
+        var refreshFn = window.__dashboardTakRefresh;
+        if (typeof refreshFn === "function") refreshFn();
+      }
+
+      card.style.cursor = "pointer";
+      function tryExpand() {
+        if (card.classList.contains("connected-clients-expanded-card")) return;
+        card.querySelector(".statValue").textContent = "…";
+        fetch("/api/tak/subscriptions", { headers: { Accept: "application/json" } })
+          .then(function (res) { return res.json(); })
+          .then(function (data) {
+            if (!data.configured || !Array.isArray(data.data)) {
+              collapse();
+              return;
+            }
+            var list = data.data.filter(function (item) {
+              var u = (item.username != null ? String(item.username).trim() : "").toLowerCase();
+              return u.indexOf(NODERED_PREFIX) !== 0;
+            });
+            var rows = list.map(function (item) {
+              return {
+                callsign: item.callsign != null ? String(item.callsign).trim() : "",
+                username: item.username != null ? String(item.username).trim() : "",
+                takClient: item.takClient != null ? String(item.takClient).trim() || "—" : "—",
+                role: item.role != null ? String(item.role).trim() || "—" : "—",
+                team: item.team != null ? String(item.team).trim() : ""
+              };
+            });
+            rows.sort(function (a, b) { return (a.callsign || "").localeCompare(b.callsign || "", undefined, { sensitivity: "base" }); });
+            renderExpandedView(rows);
+          })
+          .catch(function () { collapse(); });
+      }
+      card.addEventListener("click", function (e) {
+        if (e.target.closest(".connected-clients-expanded") || e.target.closest("button")) return;
+        tryExpand();
+      });
+      card.addEventListener("keydown", function (e) {
+        if (e.target.closest(".connected-clients-expanded") || e.target.closest("button")) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          tryExpand();
+        }
+      });
+
+      window.__dashboardTakRefresh = function () {
+        fetch("/api/tak/metrics", { headers: { Accept: "application/json" } })
+          .then(function (res) { return res.json(); })
+          .then(function (data) {
+            var el = document.getElementById("takClients");
+            if (el) el.textContent = data && typeof data.connectedClients === "number" ? String(data.connectedClients) : "--";
+            var disk = document.getElementById("takDisk");
+            if (disk) disk.textContent = data && typeof data.diskUsagePercent === "number" ? (data.diskUsagePercent < 10 ? data.diskUsagePercent.toFixed(1).replace(/\.0$/, "") : String(Math.round(data.diskUsagePercent))) : "--";
+            var up = document.getElementById("takUptime");
+            if (up && data && typeof data.uptimeSeconds === "number") {
+              var s = Math.floor(data.uptimeSeconds);
+              var d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+              var parts = [];
+              if (d) parts.push(d + "d");
+              if (h || d) parts.push(h + "h");
+              parts.push(m + "m");
+              up.textContent = parts.join(" ");
+            }
+          }).catch(function () {});
+      };
+    })();
+  </script>
 </main>
 
 <style>
@@ -377,4 +506,16 @@
     background: #1a49af;
     display:block;
   }
+
+  #connectedClientsStatCard[role="button"]:hover { border-color: rgba(255,255,255,0.15); }
+  .connected-clients-row-expanded .card.stat:not(.connected-clients-expanded-card) { display: none; }
+  .connected-clients-expanded-card { grid-column: 1 / -1; }
+  .connected-clients-expanded { padding: 12px; }
+  .connected-clients-expanded-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+  .connected-clients-expanded-header .cardTitle { margin: 0; }
+  .connected-clients-table-wrap { max-height: 380px; overflow-y: auto; }
+  .connected-clients-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .connected-clients-table th { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); color: var(--muted); font-weight: 600; }
+  .connected-clients-table td { padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .connected-clients-table tbody tr:hover { background: rgba(255,255,255,0.06); }
 </style>
