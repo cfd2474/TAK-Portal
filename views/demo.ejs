@@ -162,9 +162,13 @@
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", load);
+    document.addEventListener("DOMContentLoaded", function () {
+      load();
+      setInterval(load, 20000);
+    });
   } else {
     load();
+    setInterval(load, 20000);
   }
 })();
 </script>

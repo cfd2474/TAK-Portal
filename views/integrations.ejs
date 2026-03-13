@@ -450,6 +450,7 @@
       await loadGroups();
       await loadIntegrations();
       integrationType.dispatchEvent(new Event("change"));
+      setInterval(loadIntegrations, 20000);
     } catch (err) {
       setTableMsg(err.message || "Failed to load page", false);
     }
