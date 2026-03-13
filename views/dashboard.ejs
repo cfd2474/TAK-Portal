@@ -211,6 +211,8 @@
   <script>
     (function(){
       const $ = (id) => document.getElementById(id);
+      window.__latestConnectedClients = window.__latestConnectedClients || null;
+      window.__latestConnectedIntegrations = window.__latestConnectedIntegrations || null;
 
       // Disk formatting:
       // < 10 => 1 decimal (trim trailing .0), >= 10 => integer
@@ -235,10 +237,13 @@
 
       function apply(data){
         $("takDisk").textContent = fmtPct(data && data.diskUsagePercent);
-        $("takClients").textContent =
-          data && typeof data.connectedClients === "number" ? String(data.connectedClients) : "--";
+        var cc = data && typeof data.connectedClients === "number" ? String(data.connectedClients) : "--";
+        $("takClients").textContent = cc;
+        window.__latestConnectedClients = cc;
         var ci = document.getElementById("takConnectedIntegrations");
-        if (ci) ci.textContent = data && typeof data.connectedIntegrations === "number" ? String(data.connectedIntegrations) : "--";
+        var ciVal = data && typeof data.connectedIntegrations === "number" ? String(data.connectedIntegrations) : "--";
+        if (ci) ci.textContent = ciVal;
+        window.__latestConnectedIntegrations = ciVal;
         $("takUptime").textContent = fmtUptime(data && data.uptimeSeconds);
         $("takUptimeHint").textContent = "";
       }
@@ -372,6 +377,13 @@
         card.innerHTML = originalCardHtml;
         card.classList.remove("connected-clients-expanded-card");
         row.classList.remove("connected-clients-row-expanded");
+        // Reapply latest known metrics so the compact card shows the up-to-date value.
+        var cc = typeof window.__latestConnectedClients === "string" ? window.__latestConnectedClients : null;
+        var ciVal = typeof window.__latestConnectedIntegrations === "string" ? window.__latestConnectedIntegrations : null;
+        var ccEl = document.getElementById("takClients");
+        if (ccEl && cc != null) ccEl.textContent = cc;
+        var ciEl = document.getElementById("takConnectedIntegrations");
+        if (ciEl && ciVal != null) ciEl.textContent = ciVal;
       }
 
       card.style.cursor = "pointer";
@@ -429,9 +441,13 @@
           .then(function (res) { return res.json(); })
           .then(function (data) {
             var el = document.getElementById("takClients");
-            if (el) el.textContent = data && typeof data.connectedClients === "number" ? String(data.connectedClients) : "--";
+            var cc = data && typeof data.connectedClients === "number" ? String(data.connectedClients) : "--";
+            if (el) el.textContent = cc;
+            window.__latestConnectedClients = cc;
             var ci = document.getElementById("takConnectedIntegrations");
-            if (ci) ci.textContent = data && typeof data.connectedIntegrations === "number" ? String(data.connectedIntegrations) : "--";
+            var ciVal = data && typeof data.connectedIntegrations === "number" ? String(data.connectedIntegrations) : "--";
+            if (ci) ci.textContent = ciVal;
+            window.__latestConnectedIntegrations = ciVal;
             var disk = document.getElementById("takDisk");
             if (disk) disk.textContent = data && typeof data.diskUsagePercent === "number" ? (data.diskUsagePercent < 10 ? data.diskUsagePercent.toFixed(1).replace(/\.0$/, "") : String(Math.round(data.diskUsagePercent))) : "--";
             var up = document.getElementById("takUptime");
