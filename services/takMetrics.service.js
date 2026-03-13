@@ -375,6 +375,33 @@ async function getTakMetricsSnapshot() {
   };
 }
 
+// ---- Marti subscriptions (connected clients list) ----
+
+async function getSubscriptionsAll() {
+  const takUrl = getString("TAK_URL", "");
+  if (!String(takUrl || "").trim()) {
+    return { configured: false, data: [] };
+  }
+
+  const base = normalizeBase(takUrl);
+  const client = buildTakAxios();
+  const url = `${base}/api/subscriptions/all`;
+
+  try {
+    const res = await client.get(url, { headers: { Accept: "application/json" } });
+    if (res.status !== 200 || !res.data) return { configured: true, data: [] };
+    const list = Array.isArray(res.data.data) ? res.data.data : [];
+    return { configured: true, data: list };
+  } catch (err) {
+    return {
+      configured: true,
+      data: [],
+      error: err?.response?.data || err?.message || "Failed to fetch subscriptions",
+    };
+  }
+}
+
 module.exports = {
   getTakMetricsSnapshot,
+  getSubscriptionsAll,
 };
