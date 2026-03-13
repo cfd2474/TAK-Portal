@@ -272,8 +272,8 @@
     }
   }
 
-  async function loadIntegrations() {
-    setTableMsg("Loading…");
+  async function loadIntegrations(silent) {
+    if (!silent) setTableMsg("Loading…");
     try {
       await loadConnectedUsernames();
       const res = await fetch("/api/integrations");
@@ -283,9 +283,11 @@
       setTableMsg("");
       renderIntegrations();
     } catch (err) {
-      setTableMsg(err.message || "Failed to load integrations", false);
-      usersCache = [];
-      tbody.innerHTML = "";
+      if (!silent) {
+        setTableMsg(err.message || "Failed to load integrations", false);
+        usersCache = [];
+        tbody.innerHTML = "";
+      }
     }
   }
 
@@ -450,11 +452,11 @@
       await loadGroups();
       await loadIntegrations();
       integrationType.dispatchEvent(new Event("change"));
-      setInterval(loadIntegrations, 20000);
     } catch (err) {
       setTableMsg(err.message || "Failed to load page", false);
     }
   })();
+  setInterval(function () { loadIntegrations(true); }, 20000);
 })();
 </script>
 

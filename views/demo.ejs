@@ -10,8 +10,7 @@
     </p>
   </div>
 
-  <!-- Half-width cards: Connected Clients | Connected Integrations -->
-  <div class="demo-grid grid2 gridTight">
+  <div class="demo-grid demo-grid-single">
     <div class="card demo-subscription-card">
       <h2 class="cardTitle">Connected Clients</h2>
       <div class="subscription-card-wrap">
@@ -33,30 +32,13 @@
         </div>
       </div>
     </div>
-    <div class="card demo-subscription-card">
-      <h2 class="cardTitle">Connected Integrations</h2>
-      <div class="subscription-card-wrap">
-        <div id="connected-integrations-loading" class="subscription-msg">Loading…</div>
-        <div id="connected-integrations-error" class="subscription-msg msg bad" style="display:none;"></div>
-        <div id="connected-integrations-table-wrap" class="subscription-table-wrap" style="display:none;">
-          <table class="subscription-table">
-            <thead>
-              <tr>
-                <th>Callsign</th>
-                <th>Username</th>
-              </tr>
-            </thead>
-            <tbody id="connected-integrations-tbody"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
   </div>
 </main>
 
 <script>
 (function() {
   const NODERED_PREFIX = "nodered-";
+  var isInitialLoad = true;
 
   function escapeHtml(s) {
     if (s == null || s === "") return "";
@@ -75,32 +57,26 @@
     };
   }
 
-  function renderTable(tbodyId, rows, integrationsOnly) {
+  function renderTable(tbodyId, rows) {
     const tbody = document.getElementById(tbodyId);
     if (!tbody) return;
     tbody.innerHTML = "";
     (rows || []).forEach(function(row) {
       const tr = document.createElement("tr");
-      if (integrationsOnly) {
-        tr.innerHTML =
-          "<td>" + escapeHtml(row.callsign) + "</td>" +
-          "<td>" + escapeHtml(row.username) + "</td>";
-      } else {
-        tr.innerHTML =
-          "<td>" + escapeHtml(row.callsign) + "</td>" +
-          "<td>" + escapeHtml(row.username) + "</td>" +
-          "<td>" + escapeHtml(row.takClient) + "</td>" +
-          "<td>" + escapeHtml(row.role) + "</td>" +
-          "<td>" + escapeHtml(row.team) + "</td>";
-      }
+      tr.innerHTML =
+        "<td>" + escapeHtml(row.callsign) + "</td>" +
+        "<td>" + escapeHtml(row.username) + "</td>" +
+        "<td>" + escapeHtml(row.takClient) + "</td>" +
+        "<td>" + escapeHtml(row.role) + "</td>" +
+        "<td>" + escapeHtml(row.team) + "</td>";
       tbody.appendChild(tr);
     });
   }
 
-  function setCardState(cardKey, state, msg) {
-    const loadingEl = document.getElementById("connected-" + cardKey + "-loading");
-    const errorEl = document.getElementById("connected-" + cardKey + "-error");
-    const tableWrap = document.getElementById("connected-" + cardKey + "-table-wrap");
+  function setCardState(state, msg) {
+    const loadingEl = document.getElementById("connected-clients-loading");
+    const errorEl = document.getElementById("connected-clients-error");
+    const tableWrap = document.getElementById("connected-clients-table-wrap");
     if (!loadingEl || !errorEl || !tableWrap) return;
     if (state === "loading") {
       loadingEl.style.display = "block";
@@ -119,21 +95,22 @@
   }
 
   async function load() {
-    setCardState("clients", "loading");
-    setCardState("integrations", "loading");
+    if (isInitialLoad) {
+      setCardState("loading");
+    }
     try {
       const res = await fetch("/api/tak/subscriptions", { headers: { Accept: "application/json" } });
       const data = await res.json();
       if (!res.ok) {
-        const msg = data.error || "HTTP " + res.status;
-        setCardState("clients", "error", msg);
-        setCardState("integrations", "error", msg);
+        if (isInitialLoad) {
+          setCardState("error", data.error || "HTTP " + res.status);
+        }
         return;
       }
       if (!data.configured) {
-        const msg = "TAK URL is not configured.";
-        setCardState("clients", "error", msg);
-        setCardState("integrations", "error", msg);
+        if (isInitialLoad) {
+          setCardState("error", "TAK URL is not configured.");
+        }
         return;
       }
       const list = Array.isArray(data.data) ? data.data : [];
@@ -141,24 +118,18 @@
         var u = (item.username != null ? String(item.username).trim() : "").toLowerCase();
         return !u.startsWith(NODERED_PREFIX);
       });
-      var integrations = list.filter(function(item) {
-        var u = (item.username != null ? String(item.username).trim() : "").toLowerCase();
-        return u.startsWith(NODERED_PREFIX);
-      });
       var clientRows = clients.map(toRow);
       clientRows.sort(function(a, b) {
         return (a.callsign || "").localeCompare(b.callsign || "", undefined, { sensitivity: "base" });
       });
-      var integrationRows = integrations.map(toRow);
-      setCardState("clients", "ok");
-      setCardState("integrations", "ok");
-      renderTable("connected-clients-tbody", clientRows, false);
-      renderTable("connected-integrations-tbody", integrationRows, true);
+      setCardState("ok");
+      renderTable("connected-clients-tbody", clientRows);
     } catch (e) {
-      var msg = e.message || "Network error";
-      setCardState("clients", "error", msg);
-      setCardState("integrations", "error", msg);
+      if (isInitialLoad) {
+        setCardState("error", e.message || "Network error");
+      }
     }
+    isInitialLoad = false;
   }
 
   if (document.readyState === "loading") {
@@ -174,8 +145,7 @@
 </script>
 
 <style>
-.demo-grid.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
-@media (max-width: 1100px) { .demo-grid.grid2 { grid-template-columns: 1fr; } }
+.demo-grid { margin-top: 8px; }
 .demo-grid .card { margin: 0; }
 .demo-subscription-card .cardTitle { font-size: 18px; margin: 0 0 10px 0; font-weight: 900; letter-spacing: -0.01em; }
 .subscription-card-wrap { min-height: 200px; }
