@@ -24,7 +24,6 @@
                 <th>Username</th>
                 <th>TAK Client</th>
                 <th>Role</th>
-                <th>Team</th>
               </tr>
             </thead>
             <tbody id="connected-clients-tbody"></tbody>
@@ -40,6 +39,24 @@
   const NODERED_PREFIX = "nodered-";
   var isInitialLoad = true;
 
+  // Team colors (match mutual-aid.ejs / settings.ejs Color-Team list)
+  var TEAM_COLORS = {
+    "Blue": "#1e88e5",
+    "Dark Blue": "#0d47a1",
+    "Brown": "#6d4c41",
+    "Cyan": "#00acc1",
+    "Green": "#43a047",
+    "Dark Green": "#1b5e20",
+    "Magenta": "#d81b60",
+    "Maroon": "#800000",
+    "Orange": "#ff7b00",
+    "Purple": "#8e24aa",
+    "Red": "#e53935",
+    "Teal": "#00897b",
+    "White": "#ffffff",
+    "Yellow": "#fdd835"
+  };
+
   function escapeHtml(s) {
     if (s == null || s === "") return "";
     const div = document.createElement("div");
@@ -53,8 +70,15 @@
       username: item.username != null ? String(item.username).trim() : "",
       takClient: item.takClient != null ? String(item.takClient).trim() || "—" : "—",
       role: item.role != null ? String(item.role).trim() || "—" : "—",
-      team: item.team != null ? String(item.team).trim() || "—" : "—"
+      team: item.team != null ? String(item.team).trim() : ""
     };
+  }
+
+  function teamToBg(team) {
+    if (!team) return "transparent";
+    var hex = TEAM_COLORS[team];
+    if (!hex) return "transparent";
+    return hex + "33";
   }
 
   function renderTable(tbodyId, rows) {
@@ -63,12 +87,13 @@
     tbody.innerHTML = "";
     (rows || []).forEach(function(row) {
       const tr = document.createElement("tr");
+      var bg = teamToBg(row.team);
+      if (bg !== "transparent") tr.style.backgroundColor = bg;
       tr.innerHTML =
         "<td>" + escapeHtml(row.callsign) + "</td>" +
         "<td>" + escapeHtml(row.username) + "</td>" +
         "<td>" + escapeHtml(row.takClient) + "</td>" +
-        "<td>" + escapeHtml(row.role) + "</td>" +
-        "<td>" + escapeHtml(row.team) + "</td>";
+        "<td>" + escapeHtml(row.role) + "</td>";
       tbody.appendChild(tr);
     });
   }
