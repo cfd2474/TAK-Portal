@@ -15,7 +15,7 @@ Planned features can be accessed [here](docs/roadmap.md)
 ### v1.2.45 - 3/13/26
 ✨ `Enhancement` - Adds a Status pill to the Integrations page to show which integrations are connected to TAK server<br>
 ✨ `Enhancement` - Makes "Connected Users / Clients" clickable on the dashboard to open a list of connected users<br>
-✨ `Enhancement` - Adjusts Connected Users / Clients total count to subtract connected integrations
+✨ `Enhancement` - Adjusts Connected Users / Clients total count to subtract connected integrations 
 
 ### 1.2.44 - 3/12/26
 🐛 `Bug Fix` - Fixes Mutual Aid Bug -  when the global admin modifies the type of Mutual Aid on an existing group, the group is no longer renamed or changed.  Also added checks to ensure existing groups can not be modified by mutual aid.
