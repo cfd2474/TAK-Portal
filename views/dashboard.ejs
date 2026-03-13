@@ -102,7 +102,7 @@
   <!-- TAK stats row: 4-wide; when expanded, Connected Clients uses half -->
   <div class="gridTakStats gridTight" id="takStatsRow" style="margin-top:8px;" <%= (isGlobalAdmin || isAgencyAdmin) ? 'data-can-expand-clients="true"' : '' %>>
     <div class="card stat" id="connectedClientsStatCard" role="<%= (isGlobalAdmin || isAgencyAdmin) ? 'button' : '' %>" tabindex="<%= (isGlobalAdmin || isAgencyAdmin) ? '0' : '-1' %>">
-      <div class="statLabel">Connected Users / Clients</div>
+      <div class="statLabel">Connected Users</div>
       <div class="statValue" id="takClients">--</div>
       <div class="statHint"></div>
     </div>
@@ -472,6 +472,7 @@
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 5px;
+  align-items: flex-start;
   }
   .gridTakStats.connected-clients-row-expanded{
     grid-template-columns: 3fr 1fr 1fr 1fr;
