@@ -236,14 +236,42 @@
       }
 
       function apply(data){
-        $("takDisk").textContent = fmtPct(data && data.diskUsagePercent);
-        var cc = data && typeof data.connectedClients === "number" ? String(data.connectedClients) : "--";
-        $("takClients").textContent = cc;
-        window.__latestConnectedClients = cc;
-        var ci = document.getElementById("takConnectedIntegrations");
-        var ciVal = data && typeof data.connectedIntegrations === "number" ? String(data.connectedIntegrations) : "--";
-        if (ci) ci.textContent = ciVal;
-        window.__latestConnectedIntegrations = ciVal;
+        // Preserve previous values when new data is briefly missing or zero,
+        // to avoid flickering 60 → 0 → 60 during sampling gaps.
+        var prevCcStr = typeof window.__latestConnectedClients === "string" ? window.__latestConnectedClients : null;
+        var prevCiStr = typeof window.__latestConnectedIntegrations === "string" ? window.__latestConnectedIntegrations : null;
+
+        var nextDisk = data && typeof data.diskUsagePercent === "number" ? data.diskUsagePercent : null;
+        $("takDisk").textContent = fmtPct(nextDisk);
+
+        var rawCc = data && typeof data.connectedClients === "number" ? data.connectedClients : null;
+        var rawCi = data && typeof data.connectedIntegrations === "number" ? data.connectedIntegrations : null;
+
+        var ccStr;
+        if (rawCc === null || !isFinite(rawCc)) {
+          ccStr = prevCcStr || "--";
+        } else if (rawCc === 0 && prevCcStr && isFinite(Number(prevCcStr)) && Number(prevCcStr) > 0) {
+          ccStr = prevCcStr;
+        } else {
+          ccStr = String(rawCc);
+        }
+
+        var ciStr;
+        if (rawCi === null || !isFinite(rawCi)) {
+          ciStr = prevCiStr || "--";
+        } else if (rawCi === 0 && prevCiStr && isFinite(Number(prevCiStr)) && Number(prevCiStr) > 0) {
+          ciStr = prevCiStr;
+        } else {
+          ciStr = String(rawCi);
+        }
+
+        $("takClients").textContent = ccStr;
+        window.__latestConnectedClients = ccStr;
+
+        var ciEl = document.getElementById("takConnectedIntegrations");
+        if (ciEl) ciEl.textContent = ciStr;
+        window.__latestConnectedIntegrations = ciStr;
+
         $("takUptime").textContent = fmtUptime(data && data.uptimeSeconds);
         $("takUptimeHint").textContent = "";
       }
@@ -262,6 +290,8 @@
       // Initial render from server-side snapshot
       const initial = <%- JSON.stringify(takMetrics || null) %>;
       if (initial) apply(initial);
+      // Expose smoothing-aware updater for other scripts (manual refresh, etc.)
+      window.__takApplyDashboardMetrics = apply;
 
       // Delay the first health check until after full page load, then +5s.
       // Then poll every 20s.
@@ -440,25 +470,30 @@
         fetch("/api/tak/metrics", { headers: { Accept: "application/json" } })
           .then(function (res) { return res.json(); })
           .then(function (data) {
-            var el = document.getElementById("takClients");
-            var cc = data && typeof data.connectedClients === "number" ? String(data.connectedClients) : "--";
-            if (el) el.textContent = cc;
-            window.__latestConnectedClients = cc;
-            var ci = document.getElementById("takConnectedIntegrations");
-            var ciVal = data && typeof data.connectedIntegrations === "number" ? String(data.connectedIntegrations) : "--";
-            if (ci) ci.textContent = ciVal;
-            window.__latestConnectedIntegrations = ciVal;
-            var disk = document.getElementById("takDisk");
-            if (disk) disk.textContent = data && typeof data.diskUsagePercent === "number" ? (data.diskUsagePercent < 10 ? data.diskUsagePercent.toFixed(1).replace(/\.0$/, "") : String(Math.round(data.diskUsagePercent))) : "--";
-            var up = document.getElementById("takUptime");
-            if (up && data && typeof data.uptimeSeconds === "number") {
-              var s = Math.max(0, Math.floor(data.uptimeSeconds));
-              var d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
-              var parts = [];
-              if (d) parts.push(d + "d");
-              if (h || d) parts.push(h + "h");
-              if (s < 86400) parts.push(m + "m");
-              up.textContent = parts.join(" ");
+            // Reuse the same smoothing logic used by the polling script
+            if (typeof window.__takApplyDashboardMetrics === "function") {
+              window.__takApplyDashboardMetrics(data);
+            } else {
+              var el = document.getElementById("takClients");
+              var cc = data && typeof data.connectedClients === "number" ? String(data.connectedClients) : "--";
+              if (el) el.textContent = cc;
+              window.__latestConnectedClients = cc;
+              var ci = document.getElementById("takConnectedIntegrations");
+              var ciVal = data && typeof data.connectedIntegrations === "number" ? String(data.connectedIntegrations) : "--";
+              if (ci) ci.textContent = ciVal;
+              window.__latestConnectedIntegrations = ciVal;
+              var disk = document.getElementById("takDisk");
+              if (disk) disk.textContent = data && typeof data.diskUsagePercent === "number" ? (data.diskUsagePercent < 10 ? data.diskUsagePercent.toFixed(1).replace(/\.0$/, "") : String(Math.round(data.diskUsagePercent))) : "--";
+              var up = document.getElementById("takUptime");
+              if (up && data && typeof data.uptimeSeconds === "number") {
+                var s = Math.max(0, Math.floor(data.uptimeSeconds));
+                var d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+                var parts = [];
+                if (d) parts.push(d + "d");
+                if (h || d) parts.push(h + "h");
+                if (s < 86400) parts.push(m + "m");
+                up.textContent = parts.join(" ");
+              }
             }
           }).catch(function () {});
       };
