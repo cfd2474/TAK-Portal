@@ -182,6 +182,18 @@ function requireGlobalAdmin(req, res, next) {
 
   next();
 }
+
+// Helper: only allow Global Admins (no Agency Admins)
+function requireStrictGlobalAdmin(req, res, next) {
+  const user = req.authentikUser;
+
+  if (!user || !user.isGlobalAdmin) {
+    const username = user && user.username ? user.username : "";
+    return res.status(403).render("access-denied", { username });
+  }
+
+  next();
+}
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
@@ -265,6 +277,11 @@ app.get("/mutual-aid", requireGlobalAdmin, (req, res) =>
 app.get("/integrations", requireGlobalAdmin, (req, res) =>
   res.render("integrations")
 );
+
+// Demo page: Global Admins only
+app.get("/demo", requireStrictGlobalAdmin, (req, res) => {
+  return res.render("demo");
+});
 
 // Admin: audit log (GLOBAL ADMINS ONLY)
 app.get("/audit-log", requireGlobalAdmin, async (req, res) => {
