@@ -372,8 +372,6 @@
         card.innerHTML = originalCardHtml;
         card.classList.remove("connected-clients-expanded-card");
         row.classList.remove("connected-clients-row-expanded");
-        var refreshFn = window.__dashboardTakRefresh;
-        if (typeof refreshFn === "function") refreshFn();
       }
 
       card.style.cursor = "pointer";
