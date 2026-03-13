@@ -2,6 +2,8 @@ const router = require("express").Router();
 const { getTakMetricsSnapshot, getSubscriptionsAll } = require("../services/takMetrics.service");
 const accessSvc = require("../services/access.service");
 
+const NODERED_PREFIX = "nodered-";
+
 router.get("/metrics", async (req, res) => {
   const user = req.authentikUser;
   const isAdmin = !!(user && (user.isGlobalAdmin || user.isAgencyAdmin));
@@ -9,6 +11,18 @@ router.get("/metrics", async (req, res) => {
 
   try {
     const metrics = await getTakMetricsSnapshot();
+    try {
+      const sub = await getSubscriptionsAll();
+      const list = Array.isArray(sub.data) ? sub.data : [];
+      const noderedCount = list.filter((item) => {
+        const u = (item.username != null ? String(item.username).trim() : "").toLowerCase();
+        return u.indexOf(NODERED_PREFIX) === 0;
+      }).length;
+      const total = typeof metrics.connectedClients === "number" ? metrics.connectedClients : 0;
+      metrics.connectedClients = Math.max(0, total - noderedCount);
+    } catch (_) {
+      // leave metrics.connectedClients as-is if subscriptions fetch fails
+    }
     return res.json(metrics);
   } catch (err) {
     return res.status(500).json({

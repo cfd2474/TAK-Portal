@@ -290,6 +290,8 @@
       };
 
       var originalCardHtml = card.innerHTML;
+      var expandedRefreshTimer = null;
+      var EXPANDED_REFRESH_MS = 20000;
 
       function esc(s) {
         if (s == null || s === "") return "";
@@ -304,6 +306,19 @@
         return hex ? hex + "33" : "transparent";
       }
 
+      function fillExpandedTableBody(rows) {
+        var tbody = document.getElementById("connectedClientsTableBody");
+        if (!tbody) return;
+        tbody.innerHTML = "";
+        (rows || []).forEach(function (r) {
+          var tr = document.createElement("tr");
+          var bg = teamToBg(r.team);
+          if (bg !== "transparent") tr.style.backgroundColor = bg;
+          tr.innerHTML = "<td>" + esc(r.callsign) + "</td><td>" + esc(r.username) + "</td><td>" + esc(r.takClient) + "</td><td>" + esc(r.role) + "</td>";
+          tbody.appendChild(tr);
+        });
+      }
+
       function renderExpandedView(rows) {
         var html = '<div class="connected-clients-expanded">' +
           '<div class="connected-clients-expanded-header">' +
@@ -316,23 +331,44 @@
         card.innerHTML = html;
         card.classList.add("connected-clients-expanded-card");
         row.classList.add("connected-clients-row-expanded");
-        var tbody = document.getElementById("connectedClientsTableBody");
-        if (!tbody) return;
-        (rows || []).forEach(function (row) {
-          var tr = document.createElement("tr");
-          var bg = teamToBg(row.team);
-          if (bg !== "transparent") tr.style.backgroundColor = bg;
-          tr.innerHTML = "<td>" + esc(row.callsign) + "</td><td>" + esc(row.username) + "</td><td>" + esc(row.takClient) + "</td><td>" + esc(row.role) + "</td>";
-          tbody.appendChild(tr);
-        });
+        fillExpandedTableBody(rows);
         document.getElementById("connectedClientsCloseBtn").addEventListener("click", function (e) {
           e.preventDefault();
           e.stopPropagation();
           collapse();
         });
+        if (expandedRefreshTimer) clearInterval(expandedRefreshTimer);
+        expandedRefreshTimer = setInterval(function () {
+          if (!card.classList.contains("connected-clients-expanded-card")) return;
+          fetch("/api/tak/subscriptions", { headers: { Accept: "application/json" } })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+              if (!data.configured || !Array.isArray(data.data)) return;
+              var list = data.data.filter(function (item) {
+                var u = (item.username != null ? String(item.username).trim() : "").toLowerCase();
+                return u.indexOf(NODERED_PREFIX) !== 0;
+              });
+              var nextRows = list.map(function (item) {
+                return {
+                  callsign: item.callsign != null ? String(item.callsign).trim() : "",
+                  username: item.username != null ? String(item.username).trim() : "",
+                  takClient: item.takClient != null ? String(item.takClient).trim() || "—" : "—",
+                  role: item.role != null ? String(item.role).trim() || "—" : "—",
+                  team: item.team != null ? String(item.team).trim() : ""
+                };
+              });
+              nextRows.sort(function (a, b) { return (a.callsign || "").localeCompare(b.callsign || "", undefined, { sensitivity: "base" }); });
+              fillExpandedTableBody(nextRows);
+            })
+            .catch(function () {});
+        }, EXPANDED_REFRESH_MS);
       }
 
       function collapse() {
+        if (expandedRefreshTimer) {
+          clearInterval(expandedRefreshTimer);
+          expandedRefreshTimer = null;
+        }
         card.innerHTML = originalCardHtml;
         card.classList.remove("connected-clients-expanded-card");
         row.classList.remove("connected-clients-row-expanded");
