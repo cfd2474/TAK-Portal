@@ -370,11 +370,20 @@
           .catch(function () { collapse(); });
       }
       card.addEventListener("click", function (e) {
-        if (e.target.closest(".connected-clients-expanded") || e.target.closest("button")) return;
+        if (card.classList.contains("connected-clients-expanded-card")) {
+          collapse();
+          return;
+        }
         tryExpand();
       });
       card.addEventListener("keydown", function (e) {
-        if (e.target.closest(".connected-clients-expanded") || e.target.closest("button")) return;
+        if (card.classList.contains("connected-clients-expanded-card")) {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            collapse();
+          }
+          return;
+        }
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           tryExpand();
