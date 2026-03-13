@@ -44,9 +44,6 @@
               <tr>
                 <th>Callsign</th>
                 <th>Username</th>
-                <th>TAK Client</th>
-                <th>Role</th>
-                <th>Team</th>
               </tr>
             </thead>
             <tbody id="connected-integrations-tbody"></tbody>
@@ -78,18 +75,24 @@
     };
   }
 
-  function renderTable(tbodyId, rows) {
+  function renderTable(tbodyId, rows, integrationsOnly) {
     const tbody = document.getElementById(tbodyId);
     if (!tbody) return;
     tbody.innerHTML = "";
     (rows || []).forEach(function(row) {
       const tr = document.createElement("tr");
-      tr.innerHTML =
-        "<td>" + escapeHtml(row.callsign) + "</td>" +
-        "<td>" + escapeHtml(row.username) + "</td>" +
-        "<td>" + escapeHtml(row.takClient) + "</td>" +
-        "<td>" + escapeHtml(row.role) + "</td>" +
-        "<td>" + escapeHtml(row.team) + "</td>";
+      if (integrationsOnly) {
+        tr.innerHTML =
+          "<td>" + escapeHtml(row.callsign) + "</td>" +
+          "<td>" + escapeHtml(row.username) + "</td>";
+      } else {
+        tr.innerHTML =
+          "<td>" + escapeHtml(row.callsign) + "</td>" +
+          "<td>" + escapeHtml(row.username) + "</td>" +
+          "<td>" + escapeHtml(row.takClient) + "</td>" +
+          "<td>" + escapeHtml(row.role) + "</td>" +
+          "<td>" + escapeHtml(row.team) + "</td>";
+      }
       tbody.appendChild(tr);
     });
   }
@@ -143,11 +146,14 @@
         return u.startsWith(NODERED_PREFIX);
       });
       var clientRows = clients.map(toRow);
+      clientRows.sort(function(a, b) {
+        return (a.callsign || "").localeCompare(b.callsign || "", undefined, { sensitivity: "base" });
+      });
       var integrationRows = integrations.map(toRow);
       setCardState("clients", "ok");
       setCardState("integrations", "ok");
-      renderTable("connected-clients-tbody", clientRows);
-      renderTable("connected-integrations-tbody", integrationRows);
+      renderTable("connected-clients-tbody", clientRows, false);
+      renderTable("connected-integrations-tbody", integrationRows, true);
     } catch (e) {
       var msg = e.message || "Network error";
       setCardState("clients", "error", msg);
