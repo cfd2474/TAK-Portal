@@ -8,31 +8,50 @@
     <p>
       This is a demo page visible only to <strong>Global Admin</strong> users.
     </p>
-    <p>
-      You can safely use this page for testing UI changes, components, or flows
-      without exposing it in the sidebar navigation.
-    </p>
   </div>
 
-  <!-- Connected clients card (dashboard-sized, scrollable list) -->
-  <div class="card demo-connected-card">
-    <h2 class="cardTitle">Connected Clients</h2>
-    <div class="connected-clients-wrap">
-      <div id="connected-clients-loading" class="connected-clients-msg">Loading…</div>
-      <div id="connected-clients-error" class="connected-clients-msg msg bad" style="display:none;"></div>
-      <div id="connected-clients-table-wrap" class="connected-clients-table-wrap" style="display:none;">
-        <table class="connected-clients-table">
-          <thead>
-            <tr>
-              <th>Callsign</th>
-              <th>Username</th>
-              <th>TAK Client</th>
-              <th>Role</th>
-              <th>Team</th>
-            </tr>
-          </thead>
-          <tbody id="connected-clients-tbody"></tbody>
-        </table>
+  <!-- Half-width cards: Connected Clients | Connected Integrations -->
+  <div class="demo-grid grid2 gridTight">
+    <div class="card demo-subscription-card">
+      <h2 class="cardTitle">Connected Clients</h2>
+      <div class="subscription-card-wrap">
+        <div id="connected-clients-loading" class="subscription-msg">Loading…</div>
+        <div id="connected-clients-error" class="subscription-msg msg bad" style="display:none;"></div>
+        <div id="connected-clients-table-wrap" class="subscription-table-wrap" style="display:none;">
+          <table class="subscription-table">
+            <thead>
+              <tr>
+                <th>Callsign</th>
+                <th>Username</th>
+                <th>TAK Client</th>
+                <th>Role</th>
+                <th>Team</th>
+              </tr>
+            </thead>
+            <tbody id="connected-clients-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="card demo-subscription-card">
+      <h2 class="cardTitle">Connected Integrations</h2>
+      <div class="subscription-card-wrap">
+        <div id="connected-integrations-loading" class="subscription-msg">Loading…</div>
+        <div id="connected-integrations-error" class="subscription-msg msg bad" style="display:none;"></div>
+        <div id="connected-integrations-table-wrap" class="subscription-table-wrap" style="display:none;">
+          <table class="subscription-table">
+            <thead>
+              <tr>
+                <th>Callsign</th>
+                <th>Username</th>
+                <th>TAK Client</th>
+                <th>Role</th>
+                <th>Team</th>
+              </tr>
+            </thead>
+            <tbody id="connected-integrations-tbody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -40,26 +59,28 @@
 
 <script>
 (function() {
-  const tbody = document.getElementById("connected-clients-tbody");
-  const loadingEl = document.getElementById("connected-clients-loading");
-  const errorEl = document.getElementById("connected-clients-error");
-  const tableWrap = document.getElementById("connected-clients-table-wrap");
+  const NODERED_PREFIX = "nodered-";
 
-  function showLoading() {
-    loadingEl.style.display = "block";
-    errorEl.style.display = "none";
-    tableWrap.style.display = "none";
+  function escapeHtml(s) {
+    if (s == null || s === "") return "";
+    const div = document.createElement("div");
+    div.textContent = s;
+    return div.innerHTML;
   }
-  function showError(msg) {
-    loadingEl.style.display = "none";
-    errorEl.textContent = msg || "Failed to load connected clients.";
-    errorEl.style.display = "block";
-    tableWrap.style.display = "none";
+
+  function toRow(item) {
+    return {
+      callsign: item.callsign != null ? String(item.callsign).trim() : "",
+      username: item.username != null ? String(item.username).trim() : "",
+      takClient: item.takClient != null ? String(item.takClient).trim() || "—" : "—",
+      role: item.role != null ? String(item.role).trim() || "—" : "—",
+      team: item.team != null ? String(item.team).trim() || "—" : "—"
+    };
   }
-  function showTable(rows) {
-    loadingEl.style.display = "none";
-    errorEl.style.display = "none";
-    tableWrap.style.display = "block";
+
+  function renderTable(tbodyId, rows) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
     tbody.innerHTML = "";
     (rows || []).forEach(function(row) {
       const tr = document.createElement("tr");
@@ -72,39 +93,65 @@
       tbody.appendChild(tr);
     });
   }
-  function escapeHtml(s) {
-    if (s == null || s === "") return "";
-    const div = document.createElement("div");
-    div.textContent = s;
-    return div.innerHTML;
+
+  function setCardState(cardKey, state, msg) {
+    const loadingEl = document.getElementById("connected-" + cardKey + "-loading");
+    const errorEl = document.getElementById("connected-" + cardKey + "-error");
+    const tableWrap = document.getElementById("connected-" + cardKey + "-table-wrap");
+    if (!loadingEl || !errorEl || !tableWrap) return;
+    if (state === "loading") {
+      loadingEl.style.display = "block";
+      errorEl.style.display = "none";
+      tableWrap.style.display = "none";
+    } else if (state === "error") {
+      loadingEl.style.display = "none";
+      errorEl.textContent = msg || "Failed to load.";
+      errorEl.style.display = "block";
+      tableWrap.style.display = "none";
+    } else {
+      loadingEl.style.display = "none";
+      errorEl.style.display = "none";
+      tableWrap.style.display = "block";
+    }
   }
 
   async function load() {
-    showLoading();
+    setCardState("clients", "loading");
+    setCardState("integrations", "loading");
     try {
       const res = await fetch("/api/tak/subscriptions", { headers: { Accept: "application/json" } });
       const data = await res.json();
       if (!res.ok) {
-        showError(data.error || "HTTP " + res.status);
+        const msg = data.error || "HTTP " + res.status;
+        setCardState("clients", "error", msg);
+        setCardState("integrations", "error", msg);
         return;
       }
       if (!data.configured) {
-        showError("TAK URL is not configured.");
+        const msg = "TAK URL is not configured.";
+        setCardState("clients", "error", msg);
+        setCardState("integrations", "error", msg);
         return;
       }
       const list = Array.isArray(data.data) ? data.data : [];
-      const rows = list.map(function(item) {
-        return {
-          callsign: item.callsign != null ? String(item.callsign).trim() : "",
-          username: item.username != null ? String(item.username).trim() : "",
-          takClient: item.takClient != null ? String(item.takClient).trim() || "—" : "—",
-          role: item.role != null ? String(item.role).trim() || "—" : "—",
-          team: item.team != null ? String(item.team).trim() || "—" : "—"
-        };
+      var clients = list.filter(function(item) {
+        var u = (item.username != null ? String(item.username).trim() : "").toLowerCase();
+        return !u.startsWith(NODERED_PREFIX);
       });
-      showTable(rows);
+      var integrations = list.filter(function(item) {
+        var u = (item.username != null ? String(item.username).trim() : "").toLowerCase();
+        return u.startsWith(NODERED_PREFIX);
+      });
+      var clientRows = clients.map(toRow);
+      var integrationRows = integrations.map(toRow);
+      setCardState("clients", "ok");
+      setCardState("integrations", "ok");
+      renderTable("connected-clients-tbody", clientRows);
+      renderTable("connected-integrations-tbody", integrationRows);
     } catch (e) {
-      showError(e.message || "Network error");
+      var msg = e.message || "Network error";
+      setCardState("clients", "error", msg);
+      setCardState("integrations", "error", msg);
     }
   }
 
@@ -117,13 +164,16 @@
 </script>
 
 <style>
-.demo-connected-card .cardTitle { font-size: 18px; margin: 0 0 10px 0; font-weight: 900; letter-spacing: -0.01em; }
-.connected-clients-wrap { min-height: 200px; }
-.connected-clients-msg { padding: 12px; color: var(--muted); }
-.connected-clients-table-wrap { max-height: 380px; overflow-y: auto; }
-.connected-clients-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.connected-clients-table th { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); color: var(--muted); font-weight: 600; }
-.connected-clients-table td { padding: 8px 12px; border-bottom: 1px solid var(--line); }
-.connected-clients-table tbody tr:hover { background: rgba(255,255,255,0.04); }
+.demo-grid.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
+@media (max-width: 1100px) { .demo-grid.grid2 { grid-template-columns: 1fr; } }
+.demo-grid .card { margin: 0; }
+.demo-subscription-card .cardTitle { font-size: 18px; margin: 0 0 10px 0; font-weight: 900; letter-spacing: -0.01em; }
+.subscription-card-wrap { min-height: 200px; }
+.subscription-msg { padding: 12px; color: var(--muted); }
+.subscription-table-wrap { max-height: 380px; overflow-y: auto; }
+.subscription-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.subscription-table th { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); color: var(--muted); font-weight: 600; }
+.subscription-table td { padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.subscription-table tbody tr:hover { background: rgba(255,255,255,0.04); }
 </style>
 
