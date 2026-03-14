@@ -11,8 +11,9 @@ Below you will find a comprehensive list of items planned for implementation in 
 - Further implementation of the Integrations page to create and download certificates for integrations
 
 ## Medium
-- Implement TAK Server Data Sync Mission Management to the dashboard
-- Implement TAK Server Data Package Management to the dashboard
+- Implement Device Profile management
+- Implement TAK Server Data Sync Mission Management
+- Implement TAK Server Data Package Management
 - Expand Mutual Aid to allow Agency Admins to access the page and create events for their agency channels only
 
 ## Food For Thought / Unassigned
