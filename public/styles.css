@@ -97,8 +97,21 @@ body {
     backdrop-filter: blur(10px);
 }
 
-.theme-toggle__classic {
+.theme-toggle__icon {
     display: block;
+}
+
+/* Default: dark mode => show moon */
+.theme-toggle__icon--sun {
+    display: none;
+}
+
+body.theme-light .theme-toggle__icon--sun {
+    display: block;
+}
+
+body.theme-light .theme-toggle__icon--moon {
+    display: none;
 }
 
 .app {
