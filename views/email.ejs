@@ -23,10 +23,12 @@
       <button class="segBtn active" type="button" data-mode="agency">Agency</button>
       <button class="segBtn" type="button" data-mode="groups">Groups</button>
       <button class="segBtn" type="button" data-mode="users">Users</button>
-      <button class="segBtn" type="button" data-mode="all" id="allModeBtn" style="display:none;">All Users</button>
+      <% if (isGlobalAdmin) { %>
+        <button class="segBtn" type="button" data-mode="all" id="emailAllModeBtn">All Users</button>
+      <% } %>
     </div>
 
-    <!-- Agency pane -->
+    <!-- Agency pane (reuse IDs/structure from Groups mass-assign) -->
     <div id="emailAgencyPane" style="margin-top:8px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <input
@@ -119,4 +121,318 @@
   </div>
 </main>
 
-<script src="/email.js" defer></script>
+<script>
+  (function () {
+    const IS_GLOBAL_ADMIN = <%= isGlobalAdmin ? 'true' : 'false' %>;
+
+    const emailAgencyPane = document.getElementById("emailAgencyPane");
+    const emailGroupsPane = document.getElementById("emailGroupsPane");
+    const emailUsersPane = document.getElementById("emailUsersPane");
+    const emailAllPane = document.getElementById("emailAllPane");
+
+    const emailAgencySearch = document.getElementById("emailAgencySearch");
+    const emailAgencyList = document.getElementById("emailAgencyList");
+    const emailAgencySelectAll = document.getElementById("emailAgencySelectAll");
+    const emailAgencyClearAll = document.getElementById("emailAgencyClearAll");
+
+    const emailGroupSearch = document.getElementById("emailGroupSearch");
+    const emailGroupList = document.getElementById("emailGroupList");
+    const emailGroupSelectAll = document.getElementById("emailGroupSelectAll");
+    const emailGroupClearAll = document.getElementById("emailGroupClearAll");
+
+    const emailUsernames = document.getElementById("emailUsernames");
+    const emailAllConfirm = document.getElementById("emailAllConfirm");
+    const emailSubject = document.getElementById("emailSubject");
+    const emailBody = document.getElementById("emailBody");
+    const emailTestOnly = document.getElementById("emailTestOnly");
+    const emailStatus = document.getElementById("emailStatus");
+    const emailResetBtn = document.getElementById("emailResetBtn");
+    const emailSendBtn = document.getElementById("emailSendBtn");
+
+    const emailAllModeBtn = document.getElementById("emailAllModeBtn");
+
+    let agenciesCache = [];
+    let groupsCache = [];
+    let emailMode = "agency";
+
+    function setEmailMode(mode) {
+      emailMode = mode;
+      document.querySelectorAll(".segBtn[data-mode]").forEach((b) => {
+        b.classList.toggle("active", b.dataset.mode === mode);
+      });
+      if (emailAgencyPane) emailAgencyPane.style.display = mode === "agency" ? "block" : "none";
+      if (emailGroupsPane) emailGroupsPane.style.display = mode === "groups" ? "block" : "none";
+      if (emailUsersPane) emailUsersPane.style.display = mode === "users" ? "block" : "none";
+      if (emailAllPane) emailAllPane.style.display = mode === "all" ? "block" : "none";
+    }
+
+    function emailAgencyItems() {
+      return (agenciesCache || [])
+        .filter((a) => String(a.suffix || "").trim())
+        .slice()
+        .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+        .map((a) => ({
+          name: String(a.name || ""),
+          suffix: String(a.suffix || "").trim().toLowerCase(),
+        }));
+    }
+
+    function renderEmailAgencyList() {
+      if (!emailAgencyList) return;
+      const needle = String(emailAgencySearch.value || "").trim().toLowerCase();
+      const items = emailAgencyItems().filter((x) => {
+        if (!needle) return true;
+        return (
+          x.name.toLowerCase().includes(needle) || x.suffix.includes(needle)
+        );
+      });
+
+      emailAgencyList.innerHTML =
+        items
+          .map((x) => {
+            const label = `${x.name} (${x.suffix})`;
+            return `
+              <label class="groupItem">
+                <input type="checkbox" class="agencyChk" value="${x.suffix}" />
+                <span>${label}</span>
+              </label>
+            `;
+          })
+          .join("") ||
+        `<div style="padding:10px; color: var(--muted);">No agencies found.</div>`;
+    }
+
+    function renderEmailGroupList() {
+      if (!emailGroupList) return;
+      const needle = String(emailGroupSearch.value || "").trim().toLowerCase();
+      const items = (groupsCache || [])
+        .slice()
+        .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+        .filter((g) =>
+          !needle
+            ? true
+            : String(g.name || "").toLowerCase().includes(needle)
+        );
+
+      emailGroupList.innerHTML =
+        items
+          .map((g) => {
+            const id = String(g.pk);
+            return `
+              <label class="groupItem">
+                <input type="checkbox" class="srcGroupChk" value="${id}" />
+                <span>${g.name}</span>
+              </label>
+            `;
+          })
+          .join("") ||
+        `<div style="padding:10px; color: var(--muted);">No groups found.</div>`;
+    }
+
+    async function loadEmailAgencies() {
+      try {
+        const res = await fetch("/api/agencies");
+        const out = await res.json();
+        agenciesCache = res.ok && Array.isArray(out) ? out : [];
+        renderEmailAgencyList();
+      } catch (e) {
+        agenciesCache = [];
+        renderEmailAgencyList();
+      }
+    }
+
+    async function loadEmailGroups() {
+      try {
+        const res = await fetch("/api/groups");
+        const out = await res.json();
+        groupsCache = res.ok && Array.isArray(out) ? out : [];
+        renderEmailGroupList();
+      } catch (e) {
+        groupsCache = [];
+        renderEmailGroupList();
+      }
+    }
+
+    function selectedAgencySuffixes() {
+      return Array.from(
+        emailAgencyList.querySelectorAll("input.agencyChk:checked")
+      ).map((ch) => String(ch.value || "").trim().toLowerCase());
+    }
+
+    function selectedGroupIds() {
+      return Array.from(
+        emailGroupList.querySelectorAll("input.srcGroupChk:checked")
+      ).map((ch) => String(ch.value || "").trim());
+    }
+
+    async function sendEmail() {
+      if (!emailSendBtn) return;
+      if (emailStatus) {
+        emailStatus.className = "msg";
+        emailStatus.textContent = "";
+      }
+
+      const payload = {
+        mode: emailMode,
+        agencies: [],
+        groupIds: [],
+        usernames: [],
+        subject: String(emailSubject.value || "").trim(),
+        body: String(emailBody.value || "").trim(),
+        testOnly: !!emailTestOnly.checked,
+      };
+
+      if (!payload.subject || !payload.body) {
+        if (emailStatus) {
+          emailStatus.className = "msg bad";
+          emailStatus.textContent = "Subject and message are required.";
+        }
+        return;
+      }
+
+      if (emailMode === "agency") {
+        payload.agencies = selectedAgencySuffixes();
+      } else if (emailMode === "groups") {
+        payload.groupIds = selectedGroupIds();
+      } else if (emailMode === "users") {
+        const raw = String(emailUsernames.value || "");
+        payload.usernames = raw
+          .split(/[\n,]/g)
+          .map((s) => String(s || "").trim())
+          .filter(Boolean);
+      } else if (emailMode === "all") {
+        if (!IS_GLOBAL_ADMIN) {
+          if (emailStatus) {
+            emailStatus.className = "msg bad";
+            emailStatus.textContent =
+              "Only global admins can email all users.";
+          }
+          return;
+        }
+        if (!emailAllConfirm.checked) {
+          if (emailStatus) {
+            emailStatus.className = "msg bad";
+            emailStatus.textContent =
+              "Please confirm that you want to email all users.";
+          }
+          return;
+        }
+      }
+
+      try {
+        const res = await fetch("/api/email/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify(payload),
+        });
+        const out = await res.json();
+        if (!res.ok || !out.success) {
+          if (emailStatus) {
+            emailStatus.className = "msg bad";
+            emailStatus.textContent = out.error || "Failed to send email.";
+          }
+          return;
+        }
+        if (emailStatus) {
+          emailStatus.className = "msg ok";
+          emailStatus.textContent = `Email queued for ${
+            out.count || 0
+          } recipient(s).`;
+        }
+      } catch (e) {
+        if (emailStatus) {
+          emailStatus.className = "msg bad";
+          emailStatus.textContent = e.message || "Failed to send email.";
+        }
+      }
+    }
+
+    function resetEmailForm() {
+      if (emailSubject) emailSubject.value = "";
+      if (emailBody) emailBody.value = "";
+      if (emailUsernames) emailUsernames.value = "";
+      if (emailTestOnly) emailTestOnly.checked = false;
+      if (emailAllConfirm) emailAllConfirm.checked = false;
+      if (emailAgencyList) {
+        emailAgencyList
+          .querySelectorAll("input.agencyChk")
+          .forEach((ch) => (ch.checked = false));
+      }
+      if (emailGroupList) {
+        emailGroupList
+          .querySelectorAll("input.srcGroupChk")
+          .forEach((ch) => (ch.checked = false));
+      }
+      if (emailStatus) {
+        emailStatus.className = "msg";
+        emailStatus.textContent = "";
+      }
+      setEmailMode("agency");
+    }
+
+    // Wire segmented buttons
+    document
+      .querySelectorAll(".segBtn[data-mode]")
+      .forEach((b) =>
+        b.addEventListener("click", () => {
+          const mode = b.dataset.mode;
+          if (mode === "all" && !IS_GLOBAL_ADMIN) return;
+          setEmailMode(mode);
+        })
+      );
+
+    // Filters
+    if (emailAgencySearch) {
+      emailAgencySearch.addEventListener("input", renderEmailAgencyList);
+    }
+    if (emailGroupSearch) {
+      emailGroupSearch.addEventListener("input", renderEmailGroupList);
+    }
+
+    // Select/Clear buttons
+    if (emailAgencySelectAll) {
+      emailAgencySelectAll.onclick = () => {
+        if (!emailAgencyList) return;
+        emailAgencyList
+          .querySelectorAll("input.agencyChk")
+          .forEach((ch) => (ch.checked = true));
+      };
+    }
+    if (emailAgencyClearAll) {
+      emailAgencyClearAll.onclick = () => {
+        if (!emailAgencyList) return;
+        emailAgencyList
+          .querySelectorAll("input.agencyChk")
+          .forEach((ch) => (ch.checked = false));
+      };
+    }
+    if (emailGroupSelectAll) {
+      emailGroupSelectAll.onclick = () => {
+        if (!emailGroupList) return;
+        emailGroupList
+          .querySelectorAll("input.srcGroupChk")
+          .forEach((ch) => (ch.checked = true));
+      };
+    }
+    if (emailGroupClearAll) {
+      emailGroupClearAll.onclick = () => {
+        if (!emailGroupList) return;
+        emailGroupList
+          .querySelectorAll("input.srcGroupChk")
+          .forEach((ch) => (ch.checked = false));
+      };
+    }
+
+    if (emailResetBtn) {
+      emailResetBtn.onclick = resetEmailForm;
+    }
+    if (emailSendBtn) {
+      emailSendBtn.onclick = sendEmail;
+    }
+
+    // Initial load
+    Promise.all([loadEmailAgencies(), loadEmailGroups()]).catch(() => {});
+    setEmailMode("agency");
+  })();
+</script>
