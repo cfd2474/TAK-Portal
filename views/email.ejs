@@ -5,7 +5,7 @@
   <h1>Email</h1>
 
   <div class="card">
-    <h2 style="margin-top:0;">Bulk Email</h2>
+    <h2 style="margin-top:0;">Choose Recipients</h2>
 
     <%
       const settingsObj = (typeof settings !== "undefined" && settings) ? settings : {};
@@ -18,8 +18,6 @@
         Email is currently disabled. Configure SMTP and set EMAIL_ENABLED=true in Settings to use this page.
       </div>
     <% } %>
-
-    <p class="settings-help" style="margin-bottom:10px;">Choose how you want to send the email, then select recipients.</p>
 
     <label style="display:block; margin-bottom:6px;">Send to</label>
     <div class="segmented" style="margin-bottom:14px;">
@@ -47,7 +45,6 @@
           </div>
         </div>
       </div>
-      <small class="settings-help">Users whose usernames end with the selected agency suffixes.</small>
     </div>
 
     <!-- Groups: dropdown with checkboxes -->
@@ -98,8 +95,10 @@
         <span>I understand and want to email all users.</span>
       </label>
     </div>
+  </div>
 
-    <hr style="margin:16px 0;">
+  <div class="card" style="margin-top:16px;">
+    <h2 style="margin-top:0;">Compose Message</h2>
 
     <label>
       Subject
