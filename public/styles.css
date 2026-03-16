@@ -35,8 +35,8 @@ body.theme-light {
     --bg: #f3f4f6;    /* slate-100 */
     --panel: #ffffff; /* white panel/sidebar */
     --card: #f9fafb;  /* subtle card contrast */
-    --text: #111827;  /* slate-900 */
-    --muted: #6b7280; /* slate-500 */
+    --text: #020617;  /* slate-950 */
+    --muted: #4b5563; /* slate-600 - darker for readability */
     --line: #e5e7eb;  /* slate-200 borders */
     --btn: #2563eb;   /* slightly richer blue */
 
@@ -439,7 +439,7 @@ label {
     flex-direction: column;
     gap: 6px;
     font-size: 13px;
-    color: var(--muted);
+    color: var(--text);
 }
 
 input,
@@ -546,7 +546,7 @@ select:focus {
 
 .table thead th {
     border-top: none;
-    color: var(--muted);
+    color: var(--text);
     font-size: 12px;
 }
 
