@@ -5,22 +5,22 @@
   <h1>Plugin Manager</h1>
   <p class="muted" style="margin-top: 4px;">Link your TAK.gov account to discover plugins, and store downloaded plugins in TAK Portal for your users. Plugins are stored in <code>data/plugins</code>.</p>
 
-  <!-- Link TAK.gov Account (OpenTAKServer-style flow) -->
+  <!-- Link TAK.gov Account (OAuth 2.0 device flow – same as OpenTAKServer) -->
   <div class="card">
     <h2>Link TAK.gov Account</h2>
-    <p>Linking allows you to use the same flow as ATAK’s &quot;Link EUD&quot; feature: generate a code here, enter it at <a href="https://tak.gov/register-device" target="_blank" rel="noopener">tak.gov/register-device</a> (code expires in 3 minutes), then click Link Account below.</p>
+    <p>1) Click <strong>Get Link Code</strong> to receive a code from TAK.gov. 2) Open the TAK.gov link below and enter that code there, then sign in and authorize. 3) Return here and click <strong>Link Account</strong> to complete linking.</p>
     <div id="linkSection" class="row" style="flex-wrap: wrap; gap: 12px; align-items: flex-start;">
       <div id="linkCodeArea" style="display: none;">
-        <label>Your link code (enter at TAK.gov)</label>
-        <div class="row" style="align-items: center; gap: 8px;">
+        <label>Code to enter on TAK.gov (issued by TAK.gov)</label>
+        <div class="row" style="align-items: center; gap: 8px; flex-wrap: wrap;">
           <code id="linkCodeDisplay" style="font-size: 1.2rem; padding: 8px 12px; background: var(--card-bg, #1e1e1e); border-radius: 6px;"></code>
           <span id="linkCodeExpiry" class="muted"></span>
         </div>
+        <p style="margin-top: 8px;">
+          <a id="verificationUriLink" href="https://tak.gov/register-device" target="_blank" rel="noopener">Open TAK.gov to enter this code</a>
+        </p>
       </div>
       <div class="row" style="gap: 8px; align-items: flex-end;">
-        <label>Code entered at TAK.gov
-          <input type="text" id="linkCodeInput" placeholder="e.g. ABCDWXYZ" maxlength="16" style="width: 140px;" pattern="[A-Za-z]*" title="Letters only" />
-        </label>
         <button class="btn" type="button" id="getLinkCodeBtn">Get Link Code</button>
         <button class="btn success" type="button" id="linkAccountBtn">Link Account</button>
       </div>
@@ -93,10 +93,10 @@
   const getLinkCodeBtn = document.getElementById("getLinkCodeBtn");
   const linkAccountBtn = document.getElementById("linkAccountBtn");
   const unlinkBtn = document.getElementById("unlinkBtnBadge");
-  const linkCodeInput = document.getElementById("linkCodeInput");
   const linkCodeDisplay = document.getElementById("linkCodeDisplay");
   const linkCodeExpiry = document.getElementById("linkCodeExpiry");
   const linkCodeArea = document.getElementById("linkCodeArea");
+  const verificationUriLink = document.getElementById("verificationUriLink");
   const linkStatus = document.getElementById("linkStatus");
   const linkedBadge = document.getElementById("linkedBadge");
   const pluginFile = document.getElementById("pluginFile");
@@ -196,13 +196,16 @@
       if (link.linked) {
         linkedBadge.style.display = "flex";
         linkCodeArea.style.display = "none";
-        linkCodeInput.value = "";
         setLinkStatus("", true);
       } else {
         linkedBadge.style.display = "none";
         if (link.linkCode && link.linkCodeExpiry && Date.now() < link.linkCodeExpiry) {
           linkCodeArea.style.display = "block";
           linkCodeDisplay.textContent = link.linkCode;
+          if (link.verificationUri && verificationUriLink) {
+            verificationUriLink.href = link.verificationUri;
+            verificationUriLink.textContent = "Open TAK.gov to enter this code";
+          }
           const sec = Math.max(0, Math.floor((link.linkCodeExpiry - Date.now()) / 1000));
           linkCodeExpiry.textContent = "Expires in " + sec + "s";
         } else {
@@ -216,15 +219,18 @@
   }
 
   getLinkCodeBtn.addEventListener("click", async function () {
-    setLinkStatus("", true);
+    setLinkStatus("Requesting code from TAK.gov…", true);
     try {
       const res = await fetch("/api/plugins/link-code", { method: "POST", headers: { "Content-Type": "application/json" } });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to generate code");
+      if (!res.ok) throw new Error(data.error || "Failed to get code");
       linkCodeArea.style.display = "block";
       linkCodeDisplay.textContent = data.linkCode || "";
-      linkCodeInput.value = "";
-      setLinkStatus(data.message || "Enter this code at https://tak.gov/register-device within 3 minutes.", true);
+      if (data.verificationUri && verificationUriLink) {
+        verificationUriLink.href = data.verificationUri;
+        verificationUriLink.textContent = "Open TAK.gov to enter this code";
+      }
+      setLinkStatus(data.message || "Enter the code above on TAK.gov, then click Link Account.", true);
       if (data.linkCodeExpiry) {
         const interval = setInterval(function () {
           const sec = Math.max(0, Math.floor((data.linkCodeExpiry - Date.now()) / 1000));
@@ -238,17 +244,12 @@
   });
 
   linkAccountBtn.addEventListener("click", async function () {
-    const code = (linkCodeInput && linkCodeInput.value || "").trim();
-    if (!code) {
-      setLinkStatus("Enter the code you received at TAK.gov.", false);
-      return;
-    }
     setLinkStatus("Linking…", true);
     try {
       const res = await fetch("/api/plugins/link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: code }),
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Link failed");

@@ -310,12 +310,12 @@ app.get("/locate-persons", (req, res) => {
 });
 
 // Beta: Plugin Manager (global admin only, beta mode)
-app.get("/plugin-manager", requireGlobalAdmin, (req, res) => {
+app.get("/plugin-manager", requireGlobalAdmin, async (req, res) => {
   const cfg = settingsSvc.getSettings() || {};
   const beta = String(cfg.BETA_MODE || "").toLowerCase() === "true";
   if (!beta) return res.status(404).render("access-denied", { username: req.authentikUser?.username || "" });
   const pluginsSvc = require("./services/plugins.service");
-  const takGovLink = pluginsSvc.getTakGovLinkState(false);
+  const takGovLink = await pluginsSvc.getTakGovLinkState(false);
   const plugins = pluginsSvc.listPlugins();
   return res.render("plugin-manager", { takGovLink, plugins });
 });

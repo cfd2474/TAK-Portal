@@ -36,9 +36,9 @@ function toErrorPayload(err) {
  * GET /api/plugins/state
  * Returns TAK.gov link state and list of installed plugins.
  */
-router.get("/state", (req, res) => {
+router.get("/state", async (req, res) => {
   try {
-    const linkState = pluginsSvc.getTakGovLinkState(false);
+    const linkState = await pluginsSvc.getTakGovLinkState(false);
     const plugins = pluginsSvc.listPlugins();
     res.json({
       takGovLink: linkState,
@@ -51,11 +51,14 @@ router.get("/state", (req, res) => {
 
 /**
  * POST /api/plugins/link-code
- * Generate a new link code for TAK.gov register-device.
+ * Request a new user_code from TAK.gov (OAuth 2.0 device flow). User enters that code at TAK.gov.
  */
-router.post("/link-code", (req, res) => {
+router.post("/link-code", async (req, res) => {
   try {
-    const state = pluginsSvc.getTakGovLinkState(true);
+    const state = await pluginsSvc.getTakGovLinkState(true);
+    if (state.error) {
+      return res.status(400).json({ success: false, error: state.error });
+    }
     const auditUser = req.authentikUser;
     auditSvc.logEvent({
       actor: auditUser,
@@ -73,12 +76,11 @@ router.post("/link-code", (req, res) => {
 
 /**
  * POST /api/plugins/link
- * Body: { code: "..." } - code entered at https://tak.gov/register-device
+ * Exchange stored device_code for tokens (user has already entered user_code on TAK.gov and authorized).
  */
-router.post("/link", (req, res) => {
+router.post("/link", async (req, res) => {
   try {
-    const { code } = req.body || {};
-    const result = pluginsSvc.linkTakGovAccount(code);
+    const result = await pluginsSvc.linkTakGovAccount();
     if (!result.success) {
       return res.status(400).json({ success: false, error: result.message });
     }
