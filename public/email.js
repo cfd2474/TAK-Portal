@@ -5,10 +5,12 @@
 
   var state = {
     isGlobalAdmin: false,
-    agencies: [],
-    groups: [],
     mode: "agency",
   };
+
+  // Caches mirroring the patterns used on Groups / Mutual Aid pages
+  var agenciesCache = [];
+  var groupsCache = [];
 
   function setMode(mode) {
     state.mode = mode;
@@ -31,7 +33,8 @@
     var qEl = $("#emailAgencySearch");
     var needle = qEl ? String(qEl.value || "").trim().toLowerCase() : "";
 
-    var items = (Array.isArray(state.agencies) ? state.agencies : [])
+    // mirror agencyItems()/renderAgencyList() from groups.ejs
+    var items = (Array.isArray(agenciesCache) ? agenciesCache : [])
       .filter(function (a) {
         return String(a.suffix || "").trim();
       })
@@ -77,7 +80,7 @@
     var qEl = $("#emailGroupSearch");
     var needle = qEl ? String(qEl.value || "").trim().toLowerCase() : "";
 
-    var items = (Array.isArray(state.groups) ? state.groups : [])
+    var items = (Array.isArray(groupsCache) ? groupsCache : [])
       .slice()
       .sort(function (a, b) {
         return String(a.name || "").localeCompare(String(b.name || ""));
@@ -223,9 +226,9 @@
         } catch (e) {}
 
         if (agenciesRes.ok && Array.isArray(agenciesRes.data)) {
-          state.agencies = agenciesRes.data;
+          agenciesCache = agenciesRes.data;
         } else {
-          state.agencies = [];
+          agenciesCache = [];
           if (status) {
             status.classList.add("bad");
             status.textContent =
@@ -235,9 +238,9 @@
         }
 
         if (groupsRes.ok && Array.isArray(groupsRes.data)) {
-          state.groups = groupsRes.data;
+          groupsCache = groupsRes.data;
         } else {
-          state.groups = [];
+          groupsCache = [];
           if (status) {
             status.classList.add("bad");
             status.textContent =
