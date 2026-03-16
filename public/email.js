@@ -28,37 +28,82 @@
   function renderAgencies() {
     var host = $("#emailAgencyList");
     if (!host) return;
-    host.innerHTML = "";
-    state.agencies.forEach(function (a) {
-      var row = document.createElement("div");
-      row.className = "groupItem";
-      var input = document.createElement("input");
-      input.type = "checkbox";
-      input.value = a.suffix;
-      var label = document.createElement("span");
-      label.textContent = a.name + " (" + a.suffix + ")";
-      row.appendChild(input);
-      row.appendChild(label);
-      host.appendChild(row);
-    });
+    var qEl = $("#emailAgencySearch");
+    var needle = qEl ? String(qEl.value || "").trim().toLowerCase() : "";
+
+    var items = (Array.isArray(state.agencies) ? state.agencies : [])
+      .filter(function (a) {
+        return String(a.suffix || "").trim();
+      })
+      .slice()
+      .sort(function (a, b) {
+        return String(a.name || "").localeCompare(String(b.name || ""));
+      })
+      .map(function (a) {
+        return {
+          name: String(a.name || ""),
+          suffix: String(a.suffix || "").trim().toLowerCase(),
+        };
+      })
+      .filter(function (x) {
+        if (!needle) return true;
+        return (
+          x.name.toLowerCase().includes(needle) || x.suffix.indexOf(needle) !== -1
+        );
+      });
+
+    host.innerHTML =
+      items
+        .map(function (x) {
+          var label = x.name + " (" + x.suffix + ")";
+          return (
+            '<label class="groupItem">' +
+            '<input type="checkbox" class="agencyChk" value="' +
+            x.suffix +
+            '" />' +
+            "<span>" +
+            label +
+            "</span>" +
+            "</label>"
+          );
+        })
+        .join("") ||
+      '<div style="padding:10px; color: var(--muted);">No agencies found.</div>';
   }
 
   function renderGroups() {
     var host = $("#emailGroupList");
     if (!host) return;
-    host.innerHTML = "";
-    state.groups.forEach(function (g) {
-      var row = document.createElement("div");
-      row.className = "groupItem";
-      var input = document.createElement("input");
-      input.type = "checkbox";
-      input.value = g.pk;
-      var label = document.createElement("span");
-      label.textContent = g.name;
-      row.appendChild(input);
-      row.appendChild(label);
-      host.appendChild(row);
-    });
+    var qEl = $("#emailGroupSearch");
+    var needle = qEl ? String(qEl.value || "").trim().toLowerCase() : "";
+
+    var items = (Array.isArray(state.groups) ? state.groups : [])
+      .slice()
+      .sort(function (a, b) {
+        return String(a.name || "").localeCompare(String(b.name || ""));
+      })
+      .filter(function (g) {
+        if (!needle) return true;
+        return String(g.name || "").toLowerCase().includes(needle);
+      });
+
+    host.innerHTML =
+      items
+        .map(function (g) {
+          var id = String(g.pk);
+          return (
+            '<label class="groupItem">' +
+            '<input type="checkbox" class="srcGroupChk" value="' +
+            id +
+            '" />' +
+            "<span>" +
+            g.name +
+            "</span>" +
+            "</label>"
+          );
+        })
+        .join("") ||
+      '<div style="padding:10px; color: var(--muted);">No groups found.</div>';
   }
 
   function applyFilter(listId, searchId) {
