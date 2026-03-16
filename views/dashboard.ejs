@@ -396,7 +396,11 @@
         var listEl = document.getElementById("clientGroupsList");
         var summaryEl = document.getElementById("clientGroupsSummary");
 
-        function closeClientGroupsModal() {
+        function closeClientGroupsModal(ev) {
+          if (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+          }
           if (overlay) overlay.style.display = "none";
         }
 
@@ -452,16 +456,22 @@
 
         if (closeBtn) {
           closeBtn.addEventListener("click", function (e) {
-            e.preventDefault();
-            closeClientGroupsModal();
+            closeClientGroupsModal(e);
           });
         }
         if (overlay) {
           overlay.addEventListener("click", function (e) {
             if (e.target === overlay) {
-              closeClientGroupsModal();
+              closeClientGroupsModal(e);
             }
           });
+          // Prevent any clicks inside the modal content from toggling the card
+          var modalEl = overlay.querySelector(".modal");
+          if (modalEl) {
+            modalEl.addEventListener("click", function (e) {
+              e.stopPropagation();
+            });
+          }
         }
 
         // Row click -> open modal with that subscription's groups
