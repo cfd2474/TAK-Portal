@@ -287,21 +287,12 @@ app.get("/integrations", requireGlobalAdmin, (req, res) =>
   res.render("integrations")
 );
 
-// Admin: email and locate persons (global + agency admins)
+// Admin: email (global + agency admins; always visible, not gated by beta)
 app.get("/email", (req, res) => {
   const user = req.authentikUser;
   if (!user || (!user.isGlobalAdmin && !user.isAgencyAdmin)) {
     const username = user && user.username ? user.username : "";
     return res.status(403).render("access-denied", { username });
-  }
-  const cfg = settingsSvc.getSettings() || {};
-  const beta = String(cfg.BETA_MODE || "").toLowerCase() === "true";
-  if (!beta) {
-    return res
-      .status(404)
-      .render("access-denied", {
-        username: req.authentikUser?.username || "",
-      });
   }
   return res.render("email");
 });
