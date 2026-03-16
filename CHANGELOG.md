@@ -12,6 +12,9 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
+### v1.2.48 - 3/16/26
+✨ `Enhancement` - Connected clients are now clicable to list active channels that the user has enabled<br>
+
 ### v1.2.47 - 3/13/26
 ✨ `Enhancement` - Adds USA, FED, and OTHER to state options to support federal partners and other states not listed
 
