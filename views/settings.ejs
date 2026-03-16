@@ -708,15 +708,6 @@
                 <small class="settings-help">Shown in sidebar and QR codes.</small>
               <% } %>
             </label>
-
-            <label class="settings-field">
-              <span class="settings-label">Color Theme</span>
-              <% const currentTheme = settings.BRAND_THEME || "dark"; %>
-              <select name="settings[BRAND_THEME]">
-                <option value="dark" <%= currentTheme === "dark" ? "selected" : "" %>>Dark Mode</option>
-                <option value="light" <%= currentTheme === "light" ? "selected" : "" %>>Light Mode</option>
-              </select>
-            </label>
           </div>
         </div>
       </details>

@@ -97,6 +97,23 @@ body {
     backdrop-filter: blur(10px);
 }
 
+.themeToggle-icon {
+    font-size: 13px;
+    line-height: 1;
+}
+
+.themeToggle-icon--light {
+    display: none;
+}
+
+.themeToggle[data-theme="light"] .themeToggle-icon--light {
+    display: inline;
+}
+
+.themeToggle[data-theme="light"] .themeToggle-icon--dark {
+    display: none;
+}
+
 .themeToggle-track {
     width: 30px;
     height: 16px;
@@ -118,10 +135,6 @@ body {
 
 .themeToggle[data-theme="light"] .themeToggle-thumb {
     transform: translateX(12px);
-}
-
-.themeToggle-label {
-    opacity: 0.8;
 }
 
 .app {

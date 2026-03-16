@@ -138,9 +138,8 @@ app.use((req, res, next) => {
   try {
     const settings = settingsSvc.getSettings();
     res.locals.settings = settings || {};
-    const rawTheme = settings.BRAND_THEME || "dark";
-    const allowedThemes = new Set(["dark", "light"]);
-    res.locals.brandTheme = allowedThemes.has(rawTheme) ? rawTheme : "dark";
+    // Hard default: dark mode; per-device toggle is handled client-side.
+    res.locals.brandTheme = "dark";
     res.locals.brandLogoUrl = settings.BRAND_LOGO_URL || "";
     res.locals.currentPath = (req.path || "/").replace(/\/+$/, "") || "/";
   } catch (err) {
