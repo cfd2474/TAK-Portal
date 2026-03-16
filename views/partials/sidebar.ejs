@@ -35,18 +35,57 @@
         <a href="/setup-my-device" class="<%= isActive('/setup-my-device') ? 'active' : '' %>">Setup My Device</a>
       <% } else { %>
         <a href="/" class="<%= isActive('/') ? 'active' : '' %>">Dashboard</a>
-        <a href="/users/manage" class="<%= isActive('/users/manage') ? 'active' : '' %>">Users</a>
-        <a href="/groups" class="<%= isActive('/groups') ? 'active' : '' %>">Groups</a>
-        <a href="/templates" class="<%= isActive('/templates') ? 'active' : '' %>">Templates</a>
+
+        <!-- Users & Groups -->
+        <div class="nav-section" data-section="users-groups">
+          <button type="button" class="nav-section-toggle" aria-expanded="true" aria-controls="nav-users-groups" id="nav-toggle-users-groups">
+            <span class="nav-section-label">Users &amp; Groups</span>
+            <span class="nav-section-chevron" aria-hidden="true">▾</span>
+          </button>
+          <div class="nav-section-links" id="nav-users-groups">
+            <a href="/users/manage" class="<%= isActive('/users/manage') ? 'active' : '' %>">Users</a>
+            <a href="/groups" class="<%= isActive('/groups') ? 'active' : '' %>">Groups</a>
+            <a href="/templates" class="<%= isActive('/templates') ? 'active' : '' %>">Templates</a>
+          </div>
+        </div>
 
         <% if (canSeeSettings) { %>
-          <a href="/agencies" class="<%= isActive('/agencies') ? 'active' : '' %>">Agencies</a>
-          <a href="/mutual-aid" class="<%= isActive('/mutual-aid') ? 'active' : '' %>">Mutual Aid</a>
-          <a href="/integrations" class="<%= isActive('/integrations') ? 'active' : '' %>">Integrations</a>
-          <a href="/audit-log" class="<%= isActive('/audit-log') ? 'active' : '' %>">Audit Log</a>
+        <!-- Configuration -->
+        <div class="nav-section" data-section="configuration">
+          <button type="button" class="nav-section-toggle" aria-expanded="true" aria-controls="nav-configuration" id="nav-toggle-configuration">
+            <span class="nav-section-label">Configuration</span>
+            <span class="nav-section-chevron" aria-hidden="true">▾</span>
+          </button>
+          <div class="nav-section-links" id="nav-configuration">
+            <a href="/agencies" class="<%= isActive('/agencies') ? 'active' : '' %>">Agencies</a>
+            <a href="/integrations" class="<%= isActive('/integrations') ? 'active' : '' %>">Integrations</a>
+          </div>
+        </div>
         <% } %>
 
-        <a href="/setup-my-device" class="<%= isActive('/setup-my-device') ? 'active' : '' %>">Setup My Device</a>
+        <!-- Administration -->
+        <div class="nav-section" data-section="administration">
+          <button type="button" class="nav-section-toggle" aria-expanded="true" aria-controls="nav-administration" id="nav-toggle-administration">
+            <span class="nav-section-label">Administration</span>
+            <span class="nav-section-chevron" aria-hidden="true">▾</span>
+          </button>
+          <div class="nav-section-links" id="nav-administration">
+            <a href="/mutual-aid" class="<%= isActive('/mutual-aid') ? 'active' : '' %>">Mutual Aid</a>
+            <a href="/locate-persons" class="<%= isActive('/locate-persons') ? 'active' : '' %>">Locate Persons</a>
+            <a href="/audit-log" class="<%= isActive('/audit-log') ? 'active' : '' %>">Audit Log</a>
+          </div>
+        </div>
+
+        <!-- Onboarding -->
+        <div class="nav-section" data-section="onboarding">
+          <button type="button" class="nav-section-toggle" aria-expanded="true" aria-controls="nav-onboarding" id="nav-toggle-onboarding">
+            <span class="nav-section-label">Onboarding</span>
+            <span class="nav-section-chevron" aria-hidden="true">▾</span>
+          </button>
+          <div class="nav-section-links" id="nav-onboarding">
+            <a href="/setup-my-device" class="<%= isActive('/setup-my-device') ? 'active' : '' %>">Setup My Device</a>
+          </div>
+        </div>
       <% } %>
     </div>
 
@@ -92,6 +131,54 @@
     </div>
   </nav>
 </aside>
+
+<script>
+(function () {
+  var storageKey = "tak-portal-sidebar-sections";
+  function getStored() {
+    try {
+      var raw = localStorage.getItem(storageKey);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) { return {}; }
+  }
+  function setStored(obj) {
+    try { localStorage.setItem(storageKey, JSON.stringify(obj)); } catch (e) {}
+  }
+  function initSections() {
+    var sections = document.querySelectorAll(".sidebar .nav-section");
+    var stored = getStored();
+    sections.forEach(function (section) {
+      var id = section.getAttribute("data-section");
+      var toggle = section.querySelector(".nav-section-toggle");
+      var links = section.querySelector(".nav-section-links");
+      if (!toggle || !links) return;
+      var hasActive = section.querySelector("a.active");
+      var defaultOpen = hasActive || (stored[id] === undefined);
+      if (defaultOpen) {
+        section.classList.remove("collapsed");
+        toggle.setAttribute("aria-expanded", "true");
+        links.style.maxHeight = links.scrollHeight + "px";
+      } else {
+        section.classList.add("collapsed");
+        toggle.setAttribute("aria-expanded", "false");
+      }
+      toggle.addEventListener("click", function () {
+        var collapsed = section.classList.toggle("collapsed");
+        toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+        if (!collapsed) links.style.maxHeight = links.scrollHeight + "px";
+        var next = getStored();
+        next[id] = !collapsed;
+        setStored(next);
+      });
+    });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initSections);
+  } else {
+    initSections();
+  }
+})();
+</script>
 
 <% /* Modal OUTSIDE sidebar so layout never interferes */ %>
 <% if (_isGlobalAdmin && typeof APP_UPDATE_AVAILABLE !== "undefined" && APP_UPDATE_AVAILABLE) { %>

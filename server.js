@@ -278,6 +278,10 @@ app.get("/integrations", requireGlobalAdmin, (req, res) =>
   res.render("integrations")
 );
 
+// Admin: email and locate persons (global + agency admins)
+app.get("/email", requireGlobalAdmin, (req, res) => res.render("email"));
+app.get("/locate-persons", requireGlobalAdmin, (req, res) => res.render("locate-persons"));
+
 // Demo page: Global Admins only
 app.get("/demo", requireStrictGlobalAdmin, (req, res) => {
   return res.render("demo");

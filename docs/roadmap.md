@@ -6,7 +6,6 @@ Below you will find a comprehensive list of items planned for implementation in 
 
 ## High / In Progress
 - Add locate functionality / texting as well
-- Add additional visibility to details about connected clients
 - Add email functionality to bcc whole agency, all users, or specific people
 - Create Getting Started / Basic User Guides for TAK Aware, ATAK, and Open TAK Tracker
 - Look at hosting or a way to better get ATAK plugins in the hands of users

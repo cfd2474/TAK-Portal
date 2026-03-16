@@ -279,6 +279,58 @@ body {
   background: rgba(255,255,255,.14);
 }
 
+/* Sidebar collapsible sections */
+.nav-section {
+  margin: 4px 0;
+}
+
+.nav-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 10px;
+  margin: 2px 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.nav-section-toggle:hover {
+  background: rgba(255,255,255,.06);
+}
+
+.nav-section-chevron {
+  opacity: 0.8;
+  transition: transform 0.2s ease;
+}
+
+.nav-section.collapsed .nav-section-chevron {
+  transform: rotate(-90deg);
+}
+
+.nav-section-links {
+  overflow: hidden;
+  transition: max-height 0.2s ease-out;
+}
+
+.nav-section.collapsed .nav-section-links {
+  max-height: 0 !important;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+}
+
+.nav-section-links a {
+  padding-left: 20px;
+  margin: 2px 0;
+}
+
 /* ======================
    MAIN CONTENT
    ====================== */
