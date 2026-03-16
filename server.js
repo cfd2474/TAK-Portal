@@ -292,6 +292,29 @@ app.get("/locate-persons", requireGlobalAdmin, (req, res) => {
   return res.render("locate-persons");
 });
 
+// Beta: Plugin Manager (global admin only, beta mode)
+app.get("/plugin-manager", requireGlobalAdmin, (req, res) => {
+  const cfg = settingsSvc.getSettings() || {};
+  const beta = String(cfg.BETA_MODE || "").toLowerCase() === "true";
+  if (!beta) return res.status(404).render("access-denied", { username: req.authentikUser?.username || "" });
+  return res.render("plugin-manager");
+});
+
+// Beta: Onboarding pages (any authenticated user, beta mode)
+app.get("/getting-started", (req, res) => {
+  const cfg = settingsSvc.getSettings() || {};
+  const beta = String(cfg.BETA_MODE || "").toLowerCase() === "true";
+  if (!beta) return res.status(404).render("access-denied", { username: req.authentikUser?.username || "" });
+  return res.render("getting-started");
+});
+
+app.get("/plugins-onboarding", (req, res) => {
+  const cfg = settingsSvc.getSettings() || {};
+  const beta = String(cfg.BETA_MODE || "").toLowerCase() === "true";
+  if (!beta) return res.status(404).render("access-denied", { username: req.authentikUser?.username || "" });
+  return res.render("onboarding-plugins");
+});
+
 // Demo page: Global Admins only
 app.get("/demo", requireStrictGlobalAdmin, (req, res) => {
   return res.render("demo");

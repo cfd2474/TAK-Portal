@@ -38,7 +38,22 @@
   <nav class="sidebar-nav">
     <div class="nav-top">
       <% if (!isAdmin) { %>
-        <a href="/setup-my-device" class="<%= isActive('/setup-my-device') ? 'active' : '' %>">Setup My Device</a>
+        <% if (betaModeEnabled) { %>
+          <!-- Onboarding (beta-only, non-admin) -->
+          <div class="nav-section" data-section="onboarding">
+            <button type="button" class="nav-section-toggle" aria-expanded="true" aria-controls="nav-onboarding" id="nav-toggle-onboarding">
+              <span class="nav-section-label">Onboarding</span>
+              <span class="nav-section-chevron" aria-hidden="true">▾</span>
+            </button>
+            <div class="nav-section-links" id="nav-onboarding">
+              <a href="/getting-started" class="<%= isActive('/getting-started') ? 'active' : '' %>">Getting Started</a>
+              <a href="/plugins-onboarding" class="<%= isActive('/plugins-onboarding') ? 'active' : '' %>">Plugins</a>
+              <a href="/setup-my-device" class="<%= isActive('/setup-my-device') ? 'active' : '' %>">Setup My Device</a>
+            </div>
+          </div>
+        <% } else { %>
+          <a href="/setup-my-device" class="<%= isActive('/setup-my-device') ? 'active' : '' %>">Setup My Device</a>
+        <% } %>
       <% } else { %>
         <a href="/" class="<%= isActive('/') ? 'active' : '' %>">Dashboard</a>
 
@@ -81,6 +96,9 @@
           <div class="nav-section-links" id="nav-configuration">
             <a href="/agencies" class="<%= isActive('/agencies') ? 'active' : '' %>">Agencies</a>
             <a href="/integrations" class="<%= isActive('/integrations') ? 'active' : '' %>">Integrations</a>
+            <% if (betaModeEnabled) { %>
+              <a href="/plugin-manager" class="<%= isActive('/plugin-manager') ? 'active' : '' %>">Plugin Manager</a>
+            <% } %>
             <a href="/settings" class="<%= isActive('/settings') ? 'active' : '' %>">Server Settings</a>
           </div>
         </div>
@@ -93,6 +111,10 @@
             <span class="nav-section-chevron" aria-hidden="true">▾</span>
           </button>
           <div class="nav-section-links" id="nav-onboarding">
+            <% if (betaModeEnabled) { %>
+              <a href="/getting-started" class="<%= isActive('/getting-started') ? 'active' : '' %>">Getting Started</a>
+              <a href="/plugins-onboarding" class="<%= isActive('/plugins-onboarding') ? 'active' : '' %>">Plugins</a>
+            <% } %>
             <a href="/setup-my-device" class="<%= isActive('/setup-my-device') ? 'active' : '' %>">Setup My Device</a>
           </div>
         </div>
