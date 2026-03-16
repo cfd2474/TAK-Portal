@@ -186,8 +186,8 @@
             datasets: [{
               data: agencyData,
               backgroundColor: agencyBackgroundColors,
-              borderColor: agencyBackgroundColors,
-              borderWidth: 1
+              borderColor: "#ffffff",
+              borderWidth: 2
             }]
           },
           options: { responsive: true, plugins: { legend: { position: "bottom" } } }
@@ -202,7 +202,14 @@
 
         new Chart(document.getElementById("typeChart"), {
           type: "pie",
-          data: { labels: typeLabels, datasets: [{ data: typeData }] },
+          data: {
+            labels: typeLabels,
+            datasets: [{
+              data: typeData,
+              borderColor: "#ffffff",
+              borderWidth: 2
+            }]
+          },
           options: { responsive: true, plugins: { legend: { position: "bottom" } } }
         });
       }
