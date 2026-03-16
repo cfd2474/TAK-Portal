@@ -171,6 +171,12 @@
         var agenciesRes = results[0];
         var groupsRes = results[1];
 
+        // Basic debug logging to help verify data flow
+        try {
+          console.log("[EMAIL] agenciesRes", agenciesRes);
+          console.log("[EMAIL] groupsRes", groupsRes);
+        } catch (e) {}
+
         if (agenciesRes.ok && Array.isArray(agenciesRes.data)) {
           state.agencies = agenciesRes.data;
         } else {
