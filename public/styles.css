@@ -102,18 +102,6 @@ body {
     line-height: 1;
 }
 
-.themeToggle-icon--light {
-    display: none;
-}
-
-.themeToggle[data-theme="light"] .themeToggle-icon--light {
-    display: inline;
-}
-
-.themeToggle[data-theme="light"] .themeToggle-icon--dark {
-    display: none;
-}
-
 .themeToggle-track {
     width: 30px;
     height: 16px;
