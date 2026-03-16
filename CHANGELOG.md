@@ -12,7 +12,7 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
-### v1.2.48 - 3/16/26
+### v1.2.48 - 3/16/26 - IN PROGRESS
 ✨ `Enhancement` - Connected clients are now clicable to list active channels that the user has enabled<br>
 
 ### v1.2.47 - 3/13/26
