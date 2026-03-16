@@ -49,6 +49,20 @@
           </div>
         </div>
 
+        <!-- Administration -->
+        <div class="nav-section" data-section="administration">
+          <button type="button" class="nav-section-toggle" aria-expanded="true" aria-controls="nav-administration" id="nav-toggle-administration">
+            <span class="nav-section-label">Administration</span>
+            <span class="nav-section-chevron" aria-hidden="true">▾</span>
+          </button>
+          <div class="nav-section-links" id="nav-administration">
+            <a href="/mutual-aid" class="<%= isActive('/mutual-aid') ? 'active' : '' %>">Mutual Aid</a>
+            <a href="/email" class="<%= isActive('/email') ? 'active' : '' %>">Email</a>
+            <a href="/locate-persons" class="<%= isActive('/locate-persons') ? 'active' : '' %>">Locate Persons</a>
+            <a href="/audit-log" class="<%= isActive('/audit-log') ? 'active' : '' %>">Audit Log</a>
+          </div>
+        </div>
+
         <% if (canSeeSettings) { %>
         <!-- Configuration -->
         <div class="nav-section" data-section="configuration">
@@ -59,22 +73,10 @@
           <div class="nav-section-links" id="nav-configuration">
             <a href="/agencies" class="<%= isActive('/agencies') ? 'active' : '' %>">Agencies</a>
             <a href="/integrations" class="<%= isActive('/integrations') ? 'active' : '' %>">Integrations</a>
+            <a href="/settings" class="<%= isActive('/settings') ? 'active' : '' %>">Server Settings</a>
           </div>
         </div>
         <% } %>
-
-        <!-- Administration -->
-        <div class="nav-section" data-section="administration">
-          <button type="button" class="nav-section-toggle" aria-expanded="true" aria-controls="nav-administration" id="nav-toggle-administration">
-            <span class="nav-section-label">Administration</span>
-            <span class="nav-section-chevron" aria-hidden="true">▾</span>
-          </button>
-          <div class="nav-section-links" id="nav-administration">
-            <a href="/mutual-aid" class="<%= isActive('/mutual-aid') ? 'active' : '' %>">Mutual Aid</a>
-            <a href="/locate-persons" class="<%= isActive('/locate-persons') ? 'active' : '' %>">Locate Persons</a>
-            <a href="/audit-log" class="<%= isActive('/audit-log') ? 'active' : '' %>">Audit Log</a>
-          </div>
-        </div>
 
         <!-- Onboarding -->
         <div class="nav-section" data-section="onboarding">
@@ -91,10 +93,6 @@
 
     <div class="nav-bottom">
       <a href="/logout" class="logout-link">Log Out</a>
-
-      <% if (canSeeSettings) { %>
-        <a href="/settings" class="<%= isActive('/settings') ? 'active' : '' %>">Server Settings</a>
-      <% } %>
 
       <small class="version-text">
         <%= _displayName %>
