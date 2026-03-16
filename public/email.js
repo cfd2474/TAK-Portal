@@ -257,8 +257,15 @@
           }
         }
 
-        renderAgencies();
-        renderGroups();
+        // Render immediately here (in addition to caches) to avoid any timing issues
+        try {
+          renderAgencies();
+          renderGroups();
+        } catch (e) {
+          try {
+            console.error("[EMAIL] render error", e);
+          } catch (_) {}
+        }
 
         if (state.isGlobalAdmin && allModeBtn) {
           allModeBtn.style.display = "";
