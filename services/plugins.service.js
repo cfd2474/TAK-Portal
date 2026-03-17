@@ -353,6 +353,8 @@ async function downloadTakGovPlugin(pluginItem) {
       atakVersion: pluginItem.atak_version || pluginItem.product_version || null,
       package_name: packageName,
       favorite: preservedFavorite,
+      version: pluginItem.version || null,
+      revision_code: pluginItem.revision_code != null ? pluginItem.revision_code : null,
     };
     manifest.plugins.push(plugin);
     saveManifest(manifest);
@@ -778,6 +780,57 @@ async function updatePluginFromTakGov(id) {
   return downloadTakGovPlugin(takGovItem);
 }
 
+/**
+ * Compare two TAK.gov version/revision: true if remote is newer than current.
+ * @param {{ version?: string, revision_code?: number }} current
+ * @param {{ version?: string, revision_code?: number }} remote
+ */
+function isNewerVersion(current, remote) {
+  const cv = (current.version || "").trim();
+  const rv = (remote.version || "").trim();
+  if (!rv) return false;
+  if (!cv) return true;
+  const cParts = cv.split(".").map((n) => parseInt(n, 10) || 0);
+  const rParts = rv.split(".").map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(cParts.length, rParts.length); i++) {
+    const c = cParts[i] || 0;
+    const r = rParts[i] || 0;
+    if (r > c) return true;
+    if (r < c) return false;
+  }
+  const cr = current.revision_code != null ? current.revision_code : 0;
+  const rr = remote.revision_code != null ? remote.revision_code : 0;
+  return rr > cr;
+}
+
+/**
+ * Get which plugins have an update available from TAK.gov.
+ * @returns {Promise<Record<string, boolean>>} map of plugin id -> updateAvailable
+ */
+async function getUpdateStatus() {
+  const manifest = loadManifest();
+  const takGovPlugins = (manifest.plugins || []).filter((p) => p.source === "tak.gov" && p.package_name);
+  if (takGovPlugins.length === 0) return {};
+  const versions = new Set();
+  takGovPlugins.forEach((p) => {
+    const v = p.atakVersion || p.atak_version || "5.5.0";
+    versions.add(v);
+  });
+  const listByVersion = {};
+  for (const productVersion of versions) {
+    const result = await fetchTakGovPlugins("ATAK-CIV", productVersion);
+    listByVersion[productVersion] = result.success ? (result.plugins || []) : [];
+  }
+  const out = {};
+  for (const p of takGovPlugins) {
+    const productVersion = p.atakVersion || p.atak_version || "5.5.0";
+    const list = listByVersion[productVersion] || [];
+    const remote = list.find((r) => r.package_name === p.package_name);
+    out[p.id] = !!remote && isNewerVersion(p, remote);
+  }
+  return out;
+}
+
 module.exports = {
   PLUGINS_DIR,
   MANIFEST_PATH,
@@ -795,4 +848,5 @@ module.exports = {
   getPluginFilePath,
   setPluginFavorite,
   updatePluginFromTakGov,
+  getUpdateStatus,
 };

@@ -3,8 +3,94 @@
 
 <main class="main">
   <h1>Plugins</h1>
-  <div class="card">
-    <p>Onboarding for plugins and integrations. (Coming soon.)</p>
+  <p class="muted" style="margin-top: 4px;">Download plugins for ATAK. Recommended plugins are highlighted by your administrator.</p>
+
+  <%
+    const pluginList = Array.isArray(plugins) ? plugins : [];
+    const recommended = pluginList.filter((p) => p.favorite === true);
+    const other = pluginList.filter((p) => p.favorite !== true);
+
+    function formatSize(bytes) {
+      if (bytes == null) return "—";
+      if (bytes < 1024) return bytes + " B";
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+      return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+    }
+    function formatDate(iso) {
+      if (!iso) return "—";
+      try {
+        const d = new Date(iso);
+        return isNaN(d.getTime()) ? iso : d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      } catch (_) { return iso; }
+    }
+    function esc(s) {
+      if (s == null || s === undefined) return "";
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+    function renderCard(p) {
+      const name = esc(p.name || p.filename || p.id);
+      const meta = [];
+      if (p.filename) meta.push(esc(p.filename));
+      meta.push(formatSize(p.sizeBytes != null ? p.sizeBytes : p.size));
+      meta.push(formatDate(p.downloadedAt));
+      if (p.source) meta.push("Source: " + esc(p.source));
+      const metaStr = meta.join(" · ");
+      const exists = p.exists !== false;
+      const downloadUrl = "/api/plugins/" + encodeURIComponent(p.id) + "/download";
+      return '<div class="plugin-card" data-id="' + esc(p.id) + '">' +
+        '<div class="plugin-name">' + name + '</div>' +
+        '<div class="plugin-meta">' + metaStr + '</div>' +
+        (exists ? '' : '<div class="plugin-meta" style="color: var(--error, #c00);">File missing on disk</div>') +
+        '<div class="plugin-actions">' +
+        (exists ? '<a href="' + downloadUrl + '" class="btn" download>Download</a>' : '') +
+        '</div></div>';
+    }
+  %>
+
+  <% if (recommended.length > 0) { %>
+  <div class="card" style="margin-top: 20px;">
+    <h2 style="margin-top: 0;">Recommended Plugins</h2>
+    <p class="muted" style="margin-top: 4px;">Plugins recommended by your administrator.</p>
+    <div class="plugin-cards onboarding-plugin-cards" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 16px;">
+      <% recommended.forEach(function (p) { %><%- renderCard(p) %><% }); %>
+    </div>
   </div>
+  <% } %>
+
+  <div class="card" style="margin-top: <%= recommended.length > 0 ? 24 : 20 %>px;">
+    <h2 style="margin-top: 0;">Other Plugins</h2>
+    <p class="muted" style="margin-top: 4px;">All other available plugins.</p>
+    <% if (other.length === 0) { %>
+    <p class="muted" style="margin-top: 16px;">No other plugins at this time.</p>
+    <% } else { %>
+    <div class="plugin-cards onboarding-plugin-cards" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 16px;">
+      <% other.forEach(function (p) { %><%- renderCard(p) %><% }); %>
+    </div>
+    <% } %>
+  </div>
+
+  <% if (pluginList.length === 0) { %>
+  <div class="card" style="margin-top: 20px;">
+    <p class="muted">No plugins have been added yet. Check back later or contact your administrator.</p>
+  </div>
+  <% } %>
 </main>
 
+<style>
+  .plugin-cards.onboarding-plugin-cards .plugin-card {
+    background: var(--card-bg, #1a1a1a);
+    border: 1px solid var(--border, #333);
+    border-radius: 8px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .plugin-cards.onboarding-plugin-cards .plugin-name { font-weight: 600; }
+  .plugin-cards.onboarding-plugin-cards .plugin-meta { font-size: 0.9rem; color: var(--muted, #888); }
+  .plugin-cards.onboarding-plugin-cards .plugin-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+</style>

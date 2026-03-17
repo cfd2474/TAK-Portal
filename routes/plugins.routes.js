@@ -50,6 +50,19 @@ router.get("/state", async (req, res) => {
 });
 
 /**
+ * GET /api/plugins/update-status
+ * Returns which plugin ids have an update available from TAK.gov. { updateStatus: { "plugin-1": true, ... } }
+ */
+router.get("/update-status", async (req, res) => {
+  try {
+    const updateStatus = await pluginsSvc.getUpdateStatus();
+    res.json({ updateStatus });
+  } catch (err) {
+    res.status(500).json({ error: toErrorPayload(err) });
+  }
+});
+
+/**
  * POST /api/plugins/link-code
  * Request a new user_code from TAK.gov (OAuth 2.0 device flow). User enters that code at TAK.gov.
  */

@@ -332,7 +332,9 @@ app.get("/plugins-onboarding", (req, res) => {
   const cfg = settingsSvc.getSettings() || {};
   const beta = String(cfg.BETA_MODE || "").toLowerCase() === "true";
   if (!beta) return res.status(404).render("access-denied", { username: req.authentikUser?.username || "" });
-  return res.render("onboarding-plugins");
+  const pluginsSvc = require("./services/plugins.service");
+  const plugins = pluginsSvc.listPlugins();
+  return res.render("onboarding-plugins", { plugins });
 });
 
 // Demo page: Global Admins only

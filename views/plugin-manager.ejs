@@ -62,33 +62,6 @@
     </div>
   </div>
 
-  <!-- Add plugin: Upload or Download from URL -->
-  <div class="card">
-    <h2>Add Plugin</h2>
-    <p>Upload an APK from your computer or download from a URL (e.g. after linking TAK.gov you can use plugin URLs from TAK.gov).</p>
-    <div class="row" style="flex-wrap: wrap; gap: 16px;">
-      <div style="flex: 1; min-width: 280px;">
-        <label>Upload plugin file (APK)
-          <input type="file" id="pluginFile" accept=".apk,.zip,.jar" />
-        </label>
-        <label style="margin-top: 8px;">Display name (optional)
-          <input type="text" id="uploadName" placeholder="e.g. Mission Package Tools" style="width: 100%;" />
-        </label>
-        <button class="btn" type="button" id="uploadPluginBtn" style="margin-top: 8px;">Upload Plugin</button>
-      </div>
-      <div style="flex: 1; min-width: 280px;">
-        <label>Or download from URL
-          <input type="url" id="pluginUrl" placeholder="https://..." style="width: 100%;" />
-        </label>
-        <label style="margin-top: 8px;">Display name (optional)
-          <input type="text" id="downloadName" placeholder="e.g. Mission Package Tools" style="width: 100%;" />
-        </label>
-        <button class="btn" type="button" id="downloadPluginBtn" style="margin-top: 8px;">Download Plugin</button>
-      </div>
-    </div>
-    <div id="addPluginMsg" class="msg"></div>
-  </div>
-
   <!-- Downloaded plugins: cards -->
   <div class="card">
     <h2 style="margin-top: 0;">Downloaded Plugins</h2>
@@ -98,9 +71,38 @@
       <!-- Filled by JS -->
     </div>
     <div id="pluginsEmpty" style="display: none; margin-top: 16px; color: var(--muted, #888);">
-      No plugins yet. Upload or download a plugin above.
+      No plugins yet. Add plugins from the Marketplace above or use Manual Plugin Upload below.
     </div>
   </div>
+
+  <!-- Manual Plugin Upload (collapsed) -->
+  <details class="card settings-section" style="margin-top: 24px;">
+    <summary class="settings-summary" style="cursor: pointer; padding: 4px 0;">Manual Plugin Upload</summary>
+    <div class="settings-body" style="margin-top: 12px;">
+      <p class="muted" style="margin-top: 4px;">Upload an APK from your computer or download from a URL (e.g. after linking TAK.gov you can use plugin URLs from TAK.gov).</p>
+      <div class="row" style="flex-wrap: wrap; gap: 16px;">
+        <div style="flex: 1; min-width: 280px;">
+          <label>Upload plugin file (APK)
+            <input type="file" id="pluginFile" accept=".apk,.zip,.jar" />
+          </label>
+          <label style="margin-top: 8px;">Display name (optional)
+            <input type="text" id="uploadName" placeholder="e.g. Mission Package Tools" style="width: 100%;" />
+          </label>
+          <button class="btn" type="button" id="uploadPluginBtn" style="margin-top: 8px;">Upload Plugin</button>
+        </div>
+        <div style="flex: 1; min-width: 280px;">
+          <label>Or download from URL
+            <input type="url" id="pluginUrl" placeholder="https://..." style="width: 100%;" />
+          </label>
+          <label style="margin-top: 8px;">Display name (optional)
+            <input type="text" id="downloadName" placeholder="e.g. Mission Package Tools" style="width: 100%;" />
+          </label>
+          <button class="btn" type="button" id="downloadPluginBtn" style="margin-top: 8px;">Download Plugin</button>
+        </div>
+      </div>
+      <div id="addPluginMsg" class="msg"></div>
+    </div>
+  </details>
 </main>
 
 <style>
@@ -116,9 +118,9 @@
   .plugin-cards .plugin-card .plugin-name { font-weight: 600; }
   .plugin-cards .plugin-card .plugin-meta { font-size: 0.9rem; color: var(--muted, #888); }
   .plugin-cards .plugin-card .plugin-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; align-items: center; }
-  .btn.favorite { background: #b8860b; color: #000; border-color: #b8860b; }
-  .btn.favorite:hover { filter: brightness(1.1); }
-  .btn.favorite.is-favorite { background: #daa520; color: #000; }
+  .btn.favorite { background: #e6c200; color: #000; border-color: #e6c200; }
+  .btn.favorite:hover { filter: brightness(1.08); }
+  .btn.favorite.is-favorite { background: #f0d000; color: #000; }
   .marketplace-grid .plugin-card .plugin-desc { font-size: 0.85rem; color: var(--muted, #888); max-height: 2.6em; overflow: hidden; text-overflow: ellipsis; }
 </style>
 
@@ -153,6 +155,7 @@
 
   let takgovPluginsCache = [];
   let downloadedPluginsCache = [];
+  let updateStatusCache = {};
 
   function esc(s) {
     if (s == null || s === undefined) return "";
@@ -212,7 +215,7 @@
       const exists = p.exists !== false;
       const downloadUrl = "/api/plugins/" + esc(p.id) + "/download";
       const isFavorite = p.favorite === true;
-      const canUpdate = p.source === "tak.gov" && p.package_name;
+      const updateAvailable = p.source === "tak.gov" && p.package_name && updateStatusCache[p.id] === true;
       return "<div class=\"plugin-card\" data-id=\"" + esc(p.id) + "\">" +
         "<div class=\"plugin-name\">" + name + "</div>" +
         "<div class=\"plugin-meta\">" + metaStr + "</div>" +
@@ -220,7 +223,7 @@
         "<div class=\"plugin-actions\">" +
         "<button class=\"btn favorite " + (isFavorite ? "is-favorite" : "") + "\" type=\"button\" data-favorite=\"" + esc(p.id) + "\" title=\"" + (isFavorite ? "Unfavorite" : "Favorite") + "\">" + (isFavorite ? "★ Unfavorite" : "☆ Favorite") + "</button>" +
         (exists ? "<a href=\"" + downloadUrl + "\" class=\"btn\" download>Download</a>" : "") +
-        (canUpdate ? "<button class=\"btn\" type=\"button\" data-update=\"" + esc(p.id) + "\">Update</button>" : "") +
+        (updateAvailable ? "<button class=\"btn\" type=\"button\" data-update=\"" + esc(p.id) + "\">Update</button>" : "") +
         "<button class=\"btn danger\" type=\"button\" data-delete=\"" + esc(p.id) + "\">Delete</button>" +
         "</div></div>";
     }).join("");
@@ -335,6 +338,14 @@
         }
       }
       downloadedPluginsCache = plugins;
+      updateStatusCache = {};
+      if (link.linked && plugins.some(function (p) { return p.source === "tak.gov" && p.package_name; })) {
+        try {
+          const statusRes = await fetch("/api/plugins/update-status");
+          const statusData = await statusRes.json();
+          if (statusData.updateStatus) updateStatusCache = statusData.updateStatus;
+        } catch (_) {}
+      }
       renderPluginCards(plugins);
       if (takgovPluginsCache.length > 0) renderTakgovMarketplace(takgovPluginsCache);
     } catch (err) {
