@@ -328,7 +328,7 @@ app.get("/getting-started", (req, res) => {
   return res.render("getting-started");
 });
 
-app.get("/plugins-onboarding", (req, res) => {
+app.get("/plugins", (req, res) => {
   const cfg = settingsSvc.getSettings() || {};
   const beta = String(cfg.BETA_MODE || "").toLowerCase() === "true";
   if (!beta) return res.status(404).render("access-denied", { username: req.authentikUser?.username || "" });

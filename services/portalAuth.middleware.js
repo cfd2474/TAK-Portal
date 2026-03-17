@@ -211,7 +211,7 @@ if (!isPublicPath) {
       "/email",
       "/locate-persons",
       "/getting-started",
-      "/plugins-onboarding",
+      "/plugins",
       "/setup-my-device",
       "/pending-user-requests",
       "/api/users",
