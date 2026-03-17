@@ -235,13 +235,21 @@ async function getTakGovAccessToken() {
 
 const TAK_GOV_PLUGINS_URL = "https://tak.gov/eud_api/software/v1/plugins";
 
+const TAKGOV_PLUGINS_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+const takgovPluginsCache = new Map(); // key: "product|product_version", value: { plugins, expiry }
+
 /**
- * Fetch plugin list from TAK.gov (requires linked account).
+ * Fetch plugin list from TAK.gov (requires linked account). Cached per product/version for 1 hour.
  * @param {string} product - e.g. ATAK-CIV, ATAK-GOV, ATAK-MIL
  * @param {string} product_version - e.g. 5.5.0
  * @returns {Promise<{ success: boolean, plugins?: array, error?: string }>}
  */
 async function fetchTakGovPlugins(product, product_version) {
+  const key = `${product}|${product_version}`;
+  const cached = takgovPluginsCache.get(key);
+  if (cached && cached.expiry > Date.now()) {
+    return { success: true, plugins: cached.plugins };
+  }
   const token = await getTakGovAccessToken();
   if (!token.success) return { success: false, error: token.error };
   const u = new URL(TAK_GOV_PLUGINS_URL);
@@ -253,6 +261,7 @@ async function fetchTakGovPlugins(product, product_version) {
       return { success: false, error: data?.error_description || data?.error || `TAK.gov returned ${statusCode}` };
     }
     const plugins = Array.isArray(data) ? data : (data.plugins || data.items || []);
+    takgovPluginsCache.set(key, { plugins, expiry: Date.now() + TAKGOV_PLUGINS_CACHE_TTL_MS });
     return { success: true, plugins };
   } catch (err) {
     return { success: false, error: err?.message || "Failed to fetch plugins from TAK.gov." };

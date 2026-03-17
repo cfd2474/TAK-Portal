@@ -62,6 +62,9 @@
             <option value="5.0.0">5.0.0</option>
           </select>
         </label>
+        <label style="flex: 1; min-width: 200px;">Search
+          <input type="text" id="takgovSearch" placeholder="Search plugins…" style="width: 100%;" />
+        </label>
       </div>
       <div id="marketplaceMsg" class="msg" style="margin-top: 8px;"></div>
       <div id="marketplaceGrid" class="plugin-cards marketplace-grid" style="display: none; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 16px;">
@@ -162,11 +165,13 @@
   const marketplaceIntro = document.getElementById("marketplaceIntro");
   const marketplaceBrowse = document.getElementById("marketplaceBrowse");
   const takgovVersion = document.getElementById("takgovVersion");
+  const takgovSearch = document.getElementById("takgovSearch");
   const marketplaceMsg = document.getElementById("marketplaceMsg");
   const marketplaceGrid = document.getElementById("marketplaceGrid");
   const marketplaceEmpty = document.getElementById("marketplaceEmpty");
 
   let takgovPluginsCache = [];
+  let takgovSearchText = "";
   let downloadedPluginsCache = [];
   let updateStatusCache = {};
 
@@ -286,6 +291,7 @@
           }
           setPluginsMsg("Description updated.", true);
           await loadState();
+          window.setTimeout(function () { setPluginsMsg("", true); }, 10000);
         } catch (err) {
           setPluginsMsg(err.message || "Failed to update description", false);
         }
@@ -394,7 +400,7 @@
       if (pluginsLoading) pluginsLoading.style.display = "none";
       renderPluginCards(plugins);
       if (link.linked) loadTakgovPlugins();
-      else if (takgovPluginsCache.length > 0) renderTakgovMarketplace(takgovPluginsCache);
+      else if (takgovPluginsCache.length > 0) renderTakgovMarketplace(getTakgovDisplayList());
     } catch (err) {
       if (pluginsLoading) pluginsLoading.style.display = "none";
       setPluginsMsg(err.message || "Failed to load plugins", false);
@@ -407,6 +413,23 @@
     marketplaceMsg.style.color = ok === false ? "var(--error, #c00)" : "";
   }
 
+  function getTakgovDisplayList() {
+    const raw = takgovPluginsCache || [];
+    const sorted = raw.slice().sort(function (a, b) {
+      const na = (a.display_name || a.package_name || a.name || "").toLowerCase();
+      const nb = (b.display_name || b.package_name || b.name || "").toLowerCase();
+      return na.localeCompare(nb);
+    });
+    const q = (takgovSearchText || "").trim().toLowerCase();
+    if (!q) return sorted;
+    return sorted.filter(function (p) {
+      const name = (p.display_name || p.package_name || p.name || "").toLowerCase();
+      const desc = (p.description || "").toLowerCase();
+      const pkg = (p.package_name || "").toLowerCase();
+      return name.includes(q) || desc.includes(q) || pkg.includes(q);
+    });
+  }
+
   function renderTakgovMarketplace(plugins) {
     if (!marketplaceGrid || !marketplaceEmpty) return;
     const list = Array.isArray(plugins) ? plugins : [];
@@ -414,6 +437,7 @@
       marketplaceGrid.innerHTML = "";
       marketplaceGrid.style.display = "none";
       marketplaceEmpty.style.display = "block";
+      marketplaceEmpty.textContent = (takgovSearchText || "").trim() ? "No plugins match your search." : "No plugins returned. Try a different ATAK version.";
       return;
     }
     marketplaceEmpty.style.display = "none";
@@ -422,22 +446,14 @@
     marketplaceGrid.innerHTML = list.map(function (p, idx) {
       const name = esc(p.display_name || p.package_name || p.name || "Plugin");
       const desc = (p.description || "").slice(0, 120);
-      const meta = [];
-      if (p.version) meta.push("v" + esc(p.version));
-      if (p.package_name) meta.push(esc(p.package_name));
-      if (p.atak_version) meta.push("ATAK " + esc(p.atak_version));
-      const metaStr = meta.join(" · ");
       const alreadyInstalled = p.package_name && downloaded.some(function (d) { return d.package_name === p.package_name; });
       const btnLabel = alreadyInstalled ? "Update" : "Add to server";
       const btnClass = alreadyInstalled ? "btn" : "btn success";
-      const versionPill = p.version ? "<span class=\"plugin-version-pill\">v" + esc(p.version) + "</span>" : "";
       return "<div class=\"plugin-card\" data-takgov-index=\"" + idx + "\">" +
         "<div class=\"plugin-card-header\">" +
         "<div class=\"plugin-name\">" + name + "</div>" +
-        (versionPill || "") +
         "</div>" +
         (desc ? "<div class=\"plugin-desc\">" + esc(desc) + (desc.length >= 120 ? "…" : "") + "</div>" : "") +
-        "<div class=\"plugin-meta\">" + metaStr + "</div>" +
         "<div class=\"plugin-actions\">" +
         "<button class=\"" + btnClass + "\" type=\"button\" data-takgov-download data-takgov-index=\"" + idx + "\">" + btnLabel + "</button>" +
         "</div></div>";
@@ -445,7 +461,7 @@
     marketplaceGrid.querySelectorAll("[data-takgov-download]").forEach(function (btn) {
       btn.addEventListener("click", function () {
         const idx = parseInt(btn.getAttribute("data-takgov-index"), 10);
-        const pluginItem = takgovPluginsCache[idx];
+        const pluginItem = list[idx];
         if (!pluginItem || !pluginItem.apk_url) return;
         btn.disabled = true;
         btn.textContent = "Adding…";
@@ -494,17 +510,27 @@
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load plugins");
       takgovPluginsCache = data.plugins || [];
+      takgovSearchText = "";
+      if (takgovSearch) takgovSearch.value = "";
       setMarketplaceMsg(takgovPluginsCache.length ? "" : "No plugins found for this product/version.", true);
-      renderTakgovMarketplace(takgovPluginsCache);
+      renderTakgovMarketplace(getTakgovDisplayList());
     } catch (err) {
       setMarketplaceMsg(err.message || "Failed to load", false);
       takgovPluginsCache = [];
+      takgovSearchText = "";
+      if (takgovSearch) takgovSearch.value = "";
       renderTakgovMarketplace([]);
     }
   }
 
   if (takgovVersion) {
     takgovVersion.addEventListener("change", function () { loadTakgovPlugins(); });
+  }
+  if (takgovSearch) {
+    takgovSearch.addEventListener("input", function () {
+      takgovSearchText = takgovSearch.value || "";
+      renderTakgovMarketplace(getTakgovDisplayList());
+    });
   }
 
   getLinkCodeBtn.addEventListener("click", async function () {
