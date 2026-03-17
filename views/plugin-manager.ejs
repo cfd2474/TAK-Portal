@@ -32,6 +32,35 @@
     </div>
   </div>
 
+  <!-- TAK.gov Plugin Marketplace (visible when linked) -->
+  <div class="card" id="marketplaceCard">
+    <h2>TAK.gov Plugin Marketplace</h2>
+    <p id="marketplaceIntro" class="muted">Link your TAK.gov account above to browse and install plugins from TAK.gov.</p>
+    <div id="marketplaceBrowse" style="display: none;">
+      <p class="muted" style="margin-top: 4px;">Choose product and ATAK version, then click <strong>Browse</strong> to load plugins available to your account.</p>
+      <div class="row" style="flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-top: 12px;">
+        <label>Product
+          <select id="takgovProduct" style="min-width: 140px;">
+            <option value="ATAK-CIV">ATAK-CIV</option>
+            <option value="ATAK-GOV">ATAK-GOV</option>
+            <option value="ATAK-MIL">ATAK-MIL</option>
+          </select>
+        </label>
+        <label>ATAK version
+          <input type="text" id="takgovVersion" value="5.5.0" placeholder="e.g. 5.5.0" style="width: 100px;" />
+        </label>
+        <button class="btn" type="button" id="browseTakgovBtn">Browse plugins</button>
+      </div>
+      <div id="marketplaceMsg" class="msg" style="margin-top: 8px;"></div>
+      <div id="marketplaceGrid" class="plugin-cards marketplace-grid" style="display: none; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 16px;">
+        <!-- TAK.gov plugin cards -->
+      </div>
+      <div id="marketplaceEmpty" style="display: none; margin-top: 16px; color: var(--muted, #888);">
+        No plugins returned. Try a different product or version.
+      </div>
+    </div>
+  </div>
+
   <!-- Add plugin: Upload or Download from URL -->
   <div class="card">
     <h2>Add Plugin</h2>
@@ -86,6 +115,7 @@
   .plugin-cards .plugin-card .plugin-name { font-weight: 600; }
   .plugin-cards .plugin-card .plugin-meta { font-size: 0.9rem; color: var(--muted, #888); }
   .plugin-cards .plugin-card .plugin-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+  .marketplace-grid .plugin-card .plugin-desc { font-size: 0.85rem; color: var(--muted, #888); max-height: 2.6em; overflow: hidden; text-overflow: ellipsis; }
 </style>
 
 <script>
@@ -109,6 +139,16 @@
   const pluginCards = document.getElementById("pluginCards");
   const pluginsEmpty = document.getElementById("pluginsEmpty");
   const pluginsMsg = document.getElementById("pluginsMsg");
+  const marketplaceIntro = document.getElementById("marketplaceIntro");
+  const marketplaceBrowse = document.getElementById("marketplaceBrowse");
+  const takgovProduct = document.getElementById("takgovProduct");
+  const takgovVersion = document.getElementById("takgovVersion");
+  const browseTakgovBtn = document.getElementById("browseTakgovBtn");
+  const marketplaceMsg = document.getElementById("marketplaceMsg");
+  const marketplaceGrid = document.getElementById("marketplaceGrid");
+  const marketplaceEmpty = document.getElementById("marketplaceEmpty");
+
+  let takgovPluginsCache = [];
 
   function esc(s) {
     if (s == null || s === undefined) return "";
@@ -197,7 +237,11 @@
         linkedBadge.style.display = "flex";
         linkCodeArea.style.display = "none";
         setLinkStatus("", true);
+        if (marketplaceIntro) marketplaceIntro.style.display = "none";
+        if (marketplaceBrowse) marketplaceBrowse.style.display = "block";
       } else {
+        if (marketplaceIntro) marketplaceIntro.style.display = "block";
+        if (marketplaceBrowse) marketplaceBrowse.style.display = "none";
         linkedBadge.style.display = "none";
         if (link.linkCode && link.linkCodeExpiry && Date.now() < link.linkCodeExpiry) {
           linkCodeArea.style.display = "block";
@@ -213,10 +257,91 @@
         }
       }
       renderPluginCards(plugins);
+      if (takgovPluginsCache.length > 0) renderTakgovMarketplace(takgovPluginsCache);
     } catch (err) {
       setPluginsMsg(err.message || "Failed to load plugins", false);
     }
   }
+
+  function setMarketplaceMsg(text, ok) {
+    if (!marketplaceMsg) return;
+    marketplaceMsg.textContent = text || "";
+    marketplaceMsg.style.color = ok === false ? "var(--error, #c00)" : "";
+  }
+
+  function renderTakgovMarketplace(plugins) {
+    if (!marketplaceGrid || !marketplaceEmpty) return;
+    const list = Array.isArray(plugins) ? plugins : [];
+    if (list.length === 0) {
+      marketplaceGrid.innerHTML = "";
+      marketplaceGrid.style.display = "none";
+      marketplaceEmpty.style.display = "block";
+      return;
+    }
+    marketplaceEmpty.style.display = "none";
+    marketplaceGrid.style.display = "grid";
+    marketplaceGrid.innerHTML = list.map(function (p, idx) {
+      const name = esc(p.display_name || p.package_name || p.name || "Plugin");
+      const desc = (p.description || "").slice(0, 120);
+      const meta = [];
+      if (p.version) meta.push("v" + esc(p.version));
+      if (p.package_name) meta.push(esc(p.package_name));
+      if (p.atak_version) meta.push("ATAK " + esc(p.atak_version));
+      const metaStr = meta.join(" · ");
+      return "<div class=\"plugin-card\" data-takgov-index=\"" + idx + "\">" +
+        "<div class=\"plugin-name\">" + name + "</div>" +
+        (desc ? "<div class=\"plugin-desc\">" + esc(desc) + (desc.length >= 120 ? "…" : "") + "</div>" : "") +
+        "<div class=\"plugin-meta\">" + metaStr + "</div>" +
+        "<div class=\"plugin-actions\">" +
+        "<button class=\"btn success\" type=\"button\" data-takgov-download data-takgov-index=\"" + idx + "\">Add to server</button>" +
+        "</div></div>";
+    }).join("");
+    marketplaceGrid.querySelectorAll("[data-takgov-download]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        const idx = parseInt(btn.getAttribute("data-takgov-index"), 10);
+        const pluginItem = takgovPluginsCache[idx];
+        if (!pluginItem || !pluginItem.apk_url) return;
+        btn.disabled = true;
+        btn.textContent = "Adding…";
+        fetch("/api/plugins/takgov/download", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ plugin: pluginItem }),
+        })
+          .then(function (res) { return res.json().then(function (data) { return { res, data }; }); })
+          .then(function (_ref) {
+            const res = _ref.res;
+            const data = _ref.data;
+            if (!res.ok) throw new Error(data.error || "Download failed");
+            btn.textContent = "Added";
+            loadState();
+          })
+          .catch(function (err) {
+            btn.textContent = "Add to server";
+            btn.disabled = false;
+            setMarketplaceMsg(err.message || "Failed to add plugin", false);
+          });
+      });
+    });
+  }
+
+  browseTakgovBtn.addEventListener("click", async function () {
+    const product = (takgovProduct && takgovProduct.value || "ATAK-CIV").trim();
+    const version = (takgovVersion && takgovVersion.value || "5.5.0").trim();
+    setMarketplaceMsg("Loading…", true);
+    try {
+      const res = await fetch("/api/plugins/takgov/plugins?product=" + encodeURIComponent(product) + "&product_version=" + encodeURIComponent(version));
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load plugins");
+      takgovPluginsCache = data.plugins || [];
+      setMarketplaceMsg(takgovPluginsCache.length ? "" : "No plugins found for this product/version.", true);
+      renderTakgovMarketplace(takgovPluginsCache);
+    } catch (err) {
+      setMarketplaceMsg(err.message || "Failed to load", false);
+      takgovPluginsCache = [];
+      renderTakgovMarketplace([]);
+    }
+  });
 
   getLinkCodeBtn.addEventListener("click", async function () {
     setLinkStatus("Requesting code from TAK.gov…", true);
@@ -348,6 +473,11 @@
   const initialLink = typeof takGovLink !== "undefined" && takGovLink ? takGovLink : { linked: false };
   if (initialLink.linked) {
     linkedBadge.style.display = "flex";
+    if (marketplaceIntro) marketplaceIntro.style.display = "none";
+    if (marketplaceBrowse) marketplaceBrowse.style.display = "block";
+  } else {
+    if (marketplaceIntro) marketplaceIntro.style.display = "block";
+    if (marketplaceBrowse) marketplaceBrowse.style.display = "none";
   }
   renderPluginCards(initialPlugins.length ? initialPlugins : []);
   loadState();

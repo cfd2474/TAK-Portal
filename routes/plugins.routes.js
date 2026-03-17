@@ -135,6 +135,53 @@ router.get("/", (req, res) => {
 });
 
 /**
+ * GET /api/plugins/takgov/plugins
+ * Query TAK.gov for plugin list (requires linked account). Query: product, product_version.
+ */
+router.get("/takgov/plugins", async (req, res) => {
+  try {
+    const product = (req.query.product || "ATAK-CIV").trim();
+    const product_version = (req.query.product_version || "5.5.0").trim();
+    if (!product || !product_version) {
+      return res.status(400).json({ error: "product and product_version are required." });
+    }
+    const result = await pluginsSvc.fetchTakGovPlugins(product, product_version);
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+    res.json({ success: true, plugins: result.plugins || [] });
+  } catch (err) {
+    res.status(500).json({ error: toErrorPayload(err) });
+  }
+});
+
+/**
+ * POST /api/plugins/takgov/download
+ * Download a plugin from TAK.gov and add to server. Body: plugin object from TAK.gov list (apk_url, display_name, etc.).
+ */
+router.post("/takgov/download", async (req, res) => {
+  try {
+    const pluginItem = req.body?.plugin || req.body;
+    const result = await pluginsSvc.downloadTakGovPlugin(pluginItem);
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+    const auditUser = req.authentikUser;
+    auditSvc.logEvent({
+      actor: auditUser,
+      request: { method: req.method, path: req.originalUrl || req.path, ip: req.ip },
+      action: "PLUGIN_DOWNLOADED_TAKGOV",
+      targetType: "plugin",
+      targetId: result.plugin?.id || null,
+      details: { name: result.plugin?.name, filename: result.plugin?.filename },
+    });
+    res.json({ success: true, plugin: result.plugin });
+  } catch (err) {
+    res.status(500).json({ error: toErrorPayload(err) });
+  }
+});
+
+/**
  * POST /api/plugins/download
  * Body: { url, name?, atakFlavor?, atakVersion? } - download plugin from URL and add to store.
  */

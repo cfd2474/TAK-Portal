@@ -78,6 +78,190 @@ function takGovHttp2Post(url, formBody) {
   });
 }
 
+/**
+ * GET a URL using HTTP/2 with optional Bearer token (for TAK.gov eud_api).
+ * @param {string} url - full URL
+ * @param {string} [accessToken] - Bearer token
+ * @param {{ responseType?: 'json'|'buffer', maxRedirects?: number }} [options]
+ * @returns {Promise<{ statusCode: number, data: object|Buffer, headers: object }>}
+ */
+function takGovHttp2Get(url, accessToken, options = {}) {
+  const responseType = options.responseType || "json";
+  const maxRedirects = options.maxRedirects ?? 5;
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const pathname = u.pathname + u.search;
+    const timeout = 120000;
+
+    const client = http2.connect(url, { servername: u.hostname });
+    let timeoutId;
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      client.close();
+    };
+    timeoutId = setTimeout(() => {
+      cleanup();
+      reject(new Error("TAK.gov request timeout"));
+    }, timeout);
+
+    const headers = {
+      ":path": pathname,
+      ":method": "GET",
+      "user-agent": USER_AGENT,
+    };
+    if (accessToken) headers["authorization"] = `Bearer ${accessToken}`;
+
+    const req = client.request(headers);
+    const chunks = [];
+    req.on("response", (responseHeaders) => {
+      const status = Number(responseHeaders[":status"]) || 0;
+      const location = responseHeaders["location"];
+      if ((status === 301 || status === 302 || status === 307 || status === 308) && location && maxRedirects > 0) {
+        cleanup();
+        takGovHttp2Get(location, accessToken, { ...options, maxRedirects: maxRedirects - 1 })
+          .then(resolve)
+          .catch(reject);
+        return;
+      }
+      req.on("data", (chunk) => { chunks.push(chunk); });
+      req.on("end", () => {
+        cleanup();
+        const body = Buffer.concat(chunks);
+        let data;
+        if (responseType === "buffer") {
+          data = body;
+        } else {
+          try {
+            data = body.length ? JSON.parse(body.toString("utf8")) : {};
+          } catch (_) {
+            data = { raw: body.toString("utf8") };
+          }
+        }
+        resolve({ statusCode: status, data, headers: responseHeaders });
+      });
+    });
+    req.on("error", (err) => {
+      cleanup();
+      reject(err);
+    });
+    req.end();
+  });
+}
+
+/**
+ * Get a new access_token using stored refresh_token (for TAK.gov eud_api calls).
+ * @returns {Promise<{ success: boolean, access_token?: string, error?: string }>}
+ */
+async function getTakGovAccessToken() {
+  const manifest = loadManifest();
+  const refreshToken = manifest.takGovLink?.refreshToken;
+  if (!refreshToken) {
+    return { success: false, error: "Not linked to TAK.gov. Link your account first." };
+  }
+  try {
+    const formBody = new URLSearchParams({
+      client_id: TAK_GOV_CLIENT_ID,
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    }).toString();
+    const { statusCode, data } = await takGovHttp2Post(TAK_GOV_TOKEN_URL, formBody);
+    if (statusCode !== 200 || !data.access_token) {
+      const msg = data.error_description || data.error || `Token exchange returned ${statusCode}`;
+      return { success: false, error: msg };
+    }
+    if (data.refresh_token) {
+      const updated = { ...manifest.takGovLink, refreshToken: data.refresh_token };
+      saveManifest({ ...manifest, takGovLink: updated });
+    }
+    return { success: true, access_token: data.access_token };
+  } catch (err) {
+    return { success: false, error: err?.message || "Failed to get access token." };
+  }
+}
+
+const TAK_GOV_PLUGINS_URL = "https://tak.gov/eud_api/software/v1/plugins";
+
+/**
+ * Fetch plugin list from TAK.gov (requires linked account).
+ * @param {string} product - e.g. ATAK-CIV, ATAK-GOV, ATAK-MIL
+ * @param {string} product_version - e.g. 5.5.0
+ * @returns {Promise<{ success: boolean, plugins?: array, error?: string }>}
+ */
+async function fetchTakGovPlugins(product, product_version) {
+  const token = await getTakGovAccessToken();
+  if (!token.success) return { success: false, error: token.error };
+  const u = new URL(TAK_GOV_PLUGINS_URL);
+  u.searchParams.set("product", product);
+  u.searchParams.set("product_version", product_version);
+  try {
+    const { statusCode, data } = await takGovHttp2Get(u.toString(), token.access_token, { responseType: "json" });
+    if (statusCode !== 200) {
+      return { success: false, error: data?.error_description || data?.error || `TAK.gov returned ${statusCode}` };
+    }
+    const plugins = Array.isArray(data) ? data : (data.plugins || data.items || []);
+    return { success: true, plugins };
+  } catch (err) {
+    return { success: false, error: err?.message || "Failed to fetch plugins from TAK.gov." };
+  }
+}
+
+/**
+ * Download a plugin from TAK.gov by URL (using stored refresh token for Bearer).
+ * @param {{ apk_url: string, display_name?: string, version?: string, package_name?: string, atak_version?: string, apk_size_bytes?: number }} pluginItem - from TAK.gov plugins list
+ * @returns {Promise<{ success: boolean, plugin?: object, error?: string }>}
+ */
+async function downloadTakGovPlugin(pluginItem) {
+  const apkUrl = pluginItem?.apk_url;
+  if (!apkUrl || typeof apkUrl !== "string") {
+    return { success: false, error: "Plugin apk_url is required." };
+  }
+  const token = await getTakGovAccessToken();
+  if (!token.success) return { success: false, error: token.error };
+
+  try {
+    const { statusCode, data: bodyBuffer, headers } = await takGovHttp2Get(apkUrl, token.access_token, {
+      responseType: "buffer",
+      maxRedirects: 5,
+    });
+    if (statusCode !== 200) {
+      return { success: false, error: `TAK.gov returned ${statusCode} for plugin download.` };
+    }
+    if (!Buffer.isBuffer(bodyBuffer) || bodyBuffer.length === 0) {
+      return { success: false, error: "Empty or invalid plugin file." };
+    }
+
+    const contentDisp = headers["content-disposition"];
+    let filename = (typeof contentDisp === "string" && contentDisp.match(/filename[*]?=(?:UTF-8'')?["']?([^"'\s;]+)/i)?.[1]) || "plugin.apk";
+    filename = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const destPath = path.join(PLUGINS_DIR, filename);
+    ensurePluginsDir();
+
+    const manifest = loadManifest();
+    const existing = manifest.plugins.find((p) => p.filename === filename);
+    if (existing) {
+      manifest.plugins = manifest.plugins.filter((p) => p.id !== existing.id);
+    }
+    fs.writeFileSync(destPath, bodyBuffer);
+    const stat = fs.statSync(destPath);
+    const id = nextPluginId(manifest.plugins);
+    const plugin = {
+      id,
+      name: pluginItem.display_name || pluginItem.package_name || path.basename(filename, path.extname(filename)) || filename,
+      filename,
+      size: stat.size,
+      downloadedAt: new Date().toISOString(),
+      source: "tak.gov",
+      atakFlavor: pluginItem.product || null,
+      atakVersion: pluginItem.atak_version || pluginItem.product_version || null,
+    };
+    manifest.plugins.push(plugin);
+    saveManifest(manifest);
+    return { success: true, plugin };
+  } catch (err) {
+    return { success: false, error: err?.message || "Download failed." };
+  }
+}
+
 function ensurePluginsDir() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(PLUGINS_DIR)) fs.mkdirSync(PLUGINS_DIR, { recursive: true });
@@ -456,6 +640,9 @@ module.exports = {
   getTakGovLinkState,
   linkTakGovAccount,
   unlinkTakGovAccount,
+  getTakGovAccessToken,
+  fetchTakGovPlugins,
+  downloadTakGovPlugin,
   listPlugins,
   addPluginFromFile,
   addPluginFromUrl,
