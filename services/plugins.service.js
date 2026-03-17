@@ -151,9 +151,24 @@ function takGovHttp2Get(url, accessToken, options = {}) {
   });
 }
 
+const TAK_GOV_SESSION_EXPIRED_MARKERS = [
+  "session doesn't have required client",
+  "invalid_grant",
+  "refresh token",
+  "session",
+  "expired",
+];
+
+function isTakGovSessionExpiredError(message) {
+  const lower = String(message || "").toLowerCase();
+  return TAK_GOV_SESSION_EXPIRED_MARKERS.some((m) => lower.includes(m));
+}
+
 /**
  * Get a new access_token using stored refresh_token (for TAK.gov eud_api calls).
- * @returns {Promise<{ success: boolean, access_token?: string, error?: string }>}
+ * If TAK.gov returns a session/refresh error (e.g. "Session doesn't have required client"),
+ * we clear the stored link so the user can re-link.
+ * @returns {Promise<{ success: boolean, access_token?: string, error?: string, sessionExpired?: boolean }>}
  */
 async function getTakGovAccessToken() {
   const manifest = loadManifest();
@@ -170,6 +185,25 @@ async function getTakGovAccessToken() {
     const { statusCode, data } = await takGovHttp2Post(TAK_GOV_TOKEN_URL, formBody);
     if (statusCode !== 200 || !data.access_token) {
       const msg = data.error_description || data.error || `Token exchange returned ${statusCode}`;
+      if (isTakGovSessionExpiredError(msg)) {
+        const updated = {
+          ...manifest.takGovLink,
+          linked: false,
+          refreshToken: null,
+          linkCode: null,
+          linkCodeExpiry: null,
+          deviceCode: null,
+          deviceCodeExpiry: null,
+          interval: null,
+          verificationUri: null,
+        };
+        saveManifest({ ...manifest, takGovLink: updated });
+        return {
+          success: false,
+          error: "Your TAK.gov session has expired. Please unlink and link your account again: click Unlink account, then Get Link Code → enter the code at TAK.gov → Link Account.",
+          sessionExpired: true,
+        };
+      }
       return { success: false, error: msg };
     }
     if (data.refresh_token) {

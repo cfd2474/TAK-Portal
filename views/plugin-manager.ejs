@@ -339,6 +339,7 @@
       setMarketplaceMsg(err.message || "Failed to load", false);
       takgovPluginsCache = [];
       renderTakgovMarketplace([]);
+      loadState();
     }
   });
 
