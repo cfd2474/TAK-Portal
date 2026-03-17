@@ -233,12 +233,13 @@ if (!isPublicPath) {
     }
   }
 
-  // NORMAL USERS: only setup-my-device
+  // NORMAL USERS: setup-my-device and plugins page
   else {
 
     const allowedUserPrefixes = [
       "/setup-my-device",
       "/api/setup-my-device",
+      "/plugins",
     ];
 
     const allowed = allowedUserPrefixes.some(prefix =>
