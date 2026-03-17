@@ -135,10 +135,21 @@ body.theme-light .theme-toggle__icon--moon {
     padding: 18px;
     background: var(--panel);
     border-right: 1px solid var(--line);
-
-    /* flex column so we can push settings link to the bottom */
     display: flex;
     flex-direction: column;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Hide scrollbar for sidebar (desktop + mobile) */
+.sidebar {
+    scrollbar-width: none;          /* Firefox */
+}
+
+.sidebar::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;                  /* Safari and Chrome */
 }
 
 /* Desktop sticky sidebar: stays visible while main content scrolls */
