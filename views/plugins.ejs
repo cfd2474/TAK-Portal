@@ -69,7 +69,7 @@
 
   <% if (other.length > 0) { %>
   <div class="card" style="margin-top: 24px;">
-    <h2 style="margin-top: 0;"><%= recommended.length > 0 ? "Other Plugins" : "Plugins" %></h2>
+    <h2 style="margin-top: 0;"><%= recommended.length > 0 ? "Other Plugins" : "Avaliable Plugins" %></h2>
     <div class="plugin-cards onboarding-plugin-cards" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 16px;">
       <% other.forEach(function (p) { %><%- renderCard(p) %><% }); %>
     </div>
