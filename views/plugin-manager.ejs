@@ -160,6 +160,7 @@
   const downloadName = document.getElementById("downloadName");
   const downloadPluginBtn = document.getElementById("downloadPluginBtn");
   const addPluginMsg = document.getElementById("addPluginMsg");
+  const pluginsLoading = document.getElementById("pluginsLoading");
   const pluginCards = document.getElementById("pluginCards");
   const pluginsEmpty = document.getElementById("pluginsEmpty");
   const pluginsMsg = document.getElementById("pluginsMsg");
@@ -394,15 +395,23 @@
       }
       downloadedPluginsCache = plugins;
       updateStatusCache = {};
-      if (link.linked && plugins.some(function (p) { return p.source === "tak.gov" && p.package_name; })) {
-        try {
-          const statusRes = await fetch("/api/plugins/update-status");
-          const statusData = await statusRes.json();
-          if (statusData.updateStatus) updateStatusCache = statusData.updateStatus;
-        } catch (_) {}
-      }
-      if (pluginsLoading) pluginsLoading.style.display = "none";
       renderPluginCards(plugins);
+
+      // Fetch TAK.gov update status in the background so we don't block rendering.
+      if (link.linked && plugins.some(function (p) { return p.source === "tak.gov" && p.package_name; })) {
+        (async function () {
+          try {
+            const statusRes = await fetch("/api/plugins/update-status");
+            const statusData = await statusRes.json();
+            if (statusData && statusData.updateStatus) {
+              updateStatusCache = statusData.updateStatus;
+              // Re-render to show/hide update buttons once status arrives.
+              renderPluginCards(downloadedPluginsCache);
+            }
+          } catch (_) {}
+        })();
+      }
+
       if (link.linked) loadTakgovPlugins();
       else if (takgovPluginsCache.length > 0) renderTakgovMarketplace(getTakgovDisplayList());
     } catch (err) {
@@ -672,7 +681,8 @@
     if (marketplaceIntro) marketplaceIntro.style.display = "block";
     if (marketplaceBrowse) marketplaceBrowse.style.display = "none";
   }
-  renderPluginCards(initialPlugins.length ? initialPlugins : []);
+  downloadedPluginsCache = initialPlugins;
+  renderPluginCards(initialPlugins);
   loadState();
 })();
 </script>
