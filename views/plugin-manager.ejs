@@ -460,7 +460,7 @@
       const name = esc(p.display_name || p.package_name || p.name || "Plugin");
       const desc = (p.description || "").slice(0, 120);
       const alreadyInstalled = p.package_name && downloaded.some(function (d) { return d.package_name === p.package_name; });
-      const btnLabel = alreadyInstalled ? "Update" : "Add to server";
+      const btnLabel = alreadyInstalled ? "Check for Update" : "Add to server";
       const btnClass = alreadyInstalled ? "btn" : "btn success";
       return "<div class=\"plugin-card\" data-takgov-index=\"" + idx + "\">" +
         "<div class=\"plugin-card-header\">" +
@@ -502,12 +502,12 @@
               btn.disabled = false;
               return;
             }
-            btn.textContent = "Update";
+            btn.textContent = "Check for Update";
             setMarketplaceMsg("Plugin added/updated on server.", true);
             loadState();
           })
           .catch(function (err) {
-            btn.textContent = btn.classList.contains("success") ? "Add to server" : "Update";
+            btn.textContent = btn.classList.contains("success") ? "Add to server" : "Check for Update";
             btn.disabled = false;
             setMarketplaceMsg(err.message || "Failed to add plugin", false);
           });
