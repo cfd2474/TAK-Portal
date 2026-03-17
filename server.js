@@ -334,7 +334,7 @@ app.get("/plugins", (req, res) => {
   if (!beta) return res.status(404).render("access-denied", { username: req.authentikUser?.username || "" });
   const pluginsSvc = require("./services/plugins.service");
   const plugins = pluginsSvc.listPlugins();
-  return res.render("onboarding-plugins", { plugins });
+  return res.render("plugins", { plugins });
 });
 
 // Demo page: Global Admins only
