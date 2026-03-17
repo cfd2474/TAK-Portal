@@ -37,14 +37,21 @@ function takGovHttp2Post(url, formBody) {
       servername: host,
     });
     let timeoutId;
+    let settled = false;
     const cleanup = () => {
       clearTimeout(timeoutId);
-      client.close();
+      try { client.close(); } catch (_) {}
+    };
+    const finish = (fn, arg) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      fn(arg);
     };
     timeoutId = setTimeout(() => {
-      cleanup();
-      reject(new Error("TAK.gov request timeout"));
+      finish(reject, new Error("TAK.gov request timeout"));
     }, timeout);
+    client.on("error", (err) => finish(reject, err));
 
     const headers = {
       ":path": pathname,
@@ -59,6 +66,8 @@ function takGovHttp2Post(url, formBody) {
       const status = Number(responseHeaders[":status"]) || 0;
       req.on("data", (chunk) => { body += chunk; });
       req.on("end", () => {
+        if (settled) return;
+        settled = true;
         cleanup();
         let data;
         try {
@@ -69,10 +78,7 @@ function takGovHttp2Post(url, formBody) {
         resolve({ statusCode: status, data });
       });
     });
-    req.on("error", (err) => {
-      cleanup();
-      reject(err);
-    });
+    req.on("error", (err) => finish(reject, err));
     req.write(formBody);
     req.end();
   });
@@ -95,14 +101,21 @@ function takGovHttp2Get(url, accessToken, options = {}) {
 
     const client = http2.connect(url, { servername: u.hostname });
     let timeoutId;
+    let settled = false;
     const cleanup = () => {
       clearTimeout(timeoutId);
-      client.close();
+      try { client.close(); } catch (_) {}
+    };
+    const finish = (fn, arg) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      fn(arg);
     };
     timeoutId = setTimeout(() => {
-      cleanup();
-      reject(new Error("TAK.gov request timeout"));
+      finish(reject, new Error("TAK.gov request timeout"));
     }, timeout);
+    client.on("error", (err) => finish(reject, err));
 
     const headers = {
       ":path": pathname,
@@ -128,6 +141,8 @@ function takGovHttp2Get(url, accessToken, options = {}) {
       }
       req.on("data", (chunk) => { chunks.push(chunk); });
       req.on("end", () => {
+        if (settled) return;
+        settled = true;
         cleanup();
         const body = Buffer.concat(chunks);
         let data;
@@ -143,10 +158,7 @@ function takGovHttp2Get(url, accessToken, options = {}) {
         resolve({ statusCode: status, data, headers: responseHeaders });
       });
     });
-    req.on("error", (err) => {
-      cleanup();
-      reject(err);
-    });
+    req.on("error", (err) => finish(reject, err));
     req.end();
   });
 }
