@@ -117,10 +117,6 @@
   .plugin-cards .plugin-card .plugin-meta { font-size: 0.9rem; color: var(--muted, #888); }
   .plugin-cards .plugin-card .plugin-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
   .marketplace-grid .plugin-card .plugin-desc { font-size: 0.85rem; color: var(--muted, #888); max-height: 2.6em; overflow: hidden; text-overflow: ellipsis; }
-  .marketplace-grid .plugin-card .plugin-card-inner { display: flex; gap: 12px; align-items: flex-start; }
-  .marketplace-grid .plugin-card .plugin-icon-wrap { flex-shrink: 0; width: 48px; height: 48px; background: var(--card-bg, #1a1a1a); border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-  .marketplace-grid .plugin-card .plugin-icon-wrap img { width: 40px; height: 40px; object-fit: contain; }
-  .marketplace-grid .plugin-card .plugin-body { flex: 1; min-width: 0; }
 </style>
 
 <script>
@@ -292,21 +288,13 @@
       if (p.package_name) meta.push(esc(p.package_name));
       if (p.atak_version) meta.push("ATAK " + esc(p.atak_version));
       const metaStr = meta.join(" · ");
-      const iconUrl = p.icon_url && String(p.icon_url).trim();
-      const iconSrc = iconUrl ? ("/api/plugins/takgov/icon?icon_url=" + encodeURIComponent(iconUrl)) : "";
-      const iconHtml = iconUrl
-        ? "<div class=\"plugin-icon-wrap\"><img src=\"" + esc(iconSrc) + "\" alt=\"\" onerror=\"this.parentElement.style.display='none'\" /></div>"
-        : "<div class=\"plugin-icon-wrap\" style=\"background: var(--border, #333);\"><span style=\"font-size: 0.7rem; color: var(--muted, #888);\">No icon</span></div>";
       return "<div class=\"plugin-card\" data-takgov-index=\"" + idx + "\">" +
-        "<div class=\"plugin-card-inner\">" +
-        iconHtml +
-        "<div class=\"plugin-body\">" +
         "<div class=\"plugin-name\">" + name + "</div>" +
         (desc ? "<div class=\"plugin-desc\">" + esc(desc) + (desc.length >= 120 ? "…" : "") + "</div>" : "") +
         "<div class=\"plugin-meta\">" + metaStr + "</div>" +
         "<div class=\"plugin-actions\">" +
         "<button class=\"btn success\" type=\"button\" data-takgov-download data-takgov-index=\"" + idx + "\">Add to server</button>" +
-        "</div></div></div></div>";
+        "</div></div>";
     }).join("");
     marketplaceGrid.querySelectorAll("[data-takgov-download]").forEach(function (btn) {
       btn.addEventListener("click", function () {

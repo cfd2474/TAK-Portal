@@ -82,7 +82,7 @@ function takGovHttp2Post(url, formBody) {
  * GET a URL using HTTP/2 with optional Bearer token (for TAK.gov eud_api).
  * @param {string} url - full URL
  * @param {string} [accessToken] - Bearer token
- * @param {{ responseType?: 'json'|'buffer', maxRedirects?: number }} [options]
+ * @param {{ responseType?: 'json'|'buffer', maxRedirects?: number, extraHeaders?: object }} [options]
  * @returns {Promise<{ statusCode: number, data: object|Buffer, headers: object }>}
  */
 function takGovHttp2Get(url, accessToken, options = {}) {
@@ -110,6 +110,9 @@ function takGovHttp2Get(url, accessToken, options = {}) {
       "user-agent": USER_AGENT,
     };
     if (accessToken) headers["authorization"] = `Bearer ${accessToken}`;
+    if (options.extraHeaders && typeof options.extraHeaders === "object") {
+      Object.assign(headers, options.extraHeaders);
+    }
 
     const req = client.request(headers);
     const chunks = [];
@@ -222,9 +225,17 @@ async function downloadTakGovPlugin(pluginItem) {
     const { statusCode, data: bodyBuffer, headers } = await takGovHttp2Get(apkUrl, token.access_token, {
       responseType: "buffer",
       maxRedirects: 5,
+      extraHeaders: { "referer": "https://tak.gov/" },
     });
     if (statusCode !== 200) {
-      return { success: false, error: `TAK.gov returned ${statusCode} for plugin download.` };
+      let errMsg = `TAK.gov returned ${statusCode} for plugin download.`;
+      if (Buffer.isBuffer(bodyBuffer) && bodyBuffer.length > 0) {
+        try {
+          const text = bodyBuffer.toString("utf8").trim().slice(0, 300);
+          if (text) errMsg = text;
+        } catch (_) {}
+      }
+      return { success: false, error: errMsg };
     }
     if (!Buffer.isBuffer(bodyBuffer) || bodyBuffer.length === 0) {
       return { success: false, error: "Empty or invalid plugin file." };
@@ -259,38 +270,6 @@ async function downloadTakGovPlugin(pluginItem) {
     return { success: true, plugin };
   } catch (err) {
     return { success: false, error: err?.message || "Download failed." };
-  }
-}
-
-const TAK_GOV_EUD_API_PREFIX = "https://tak.gov/eud_api";
-
-/**
- * Fetch a plugin icon from TAK.gov (for marketplace display). Validates URL to prevent SSRF.
- * @param {string} iconUrl - must start with https://tak.gov/eud_api
- * @returns {Promise<{ success: boolean, buffer?: Buffer, contentType?: string, error?: string }>}
- */
-async function getTakGovPluginIcon(iconUrl) {
-  const url = typeof iconUrl === "string" ? iconUrl.trim() : "";
-  if (!url || !url.startsWith(TAK_GOV_EUD_API_PREFIX)) {
-    return { success: false, error: "Invalid icon URL." };
-  }
-  const token = await getTakGovAccessToken();
-  if (!token.success) return { success: false, error: token.error };
-  try {
-    const { statusCode, data: bodyBuffer, headers } = await takGovHttp2Get(url, token.access_token, {
-      responseType: "buffer",
-      maxRedirects: 3,
-    });
-    if (statusCode !== 200) {
-      return { success: false, error: `TAK.gov returned ${statusCode}.` };
-    }
-    if (!Buffer.isBuffer(bodyBuffer) || bodyBuffer.length === 0) {
-      return { success: false, error: "Empty icon." };
-    }
-    const contentType = headers["content-type"] || "image/png";
-    return { success: true, buffer: bodyBuffer, contentType };
-  } catch (err) {
-    return { success: false, error: err?.message || "Failed to fetch icon." };
   }
 }
 
@@ -675,7 +654,6 @@ module.exports = {
   getTakGovAccessToken,
   fetchTakGovPlugins,
   downloadTakGovPlugin,
-  getTakGovPluginIcon,
   listPlugins,
   addPluginFromFile,
   addPluginFromUrl,
