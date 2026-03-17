@@ -332,11 +332,6 @@ app.get("/plugins", (req, res) => {
   return res.render("plugins", { plugins });
 });
 
-// Demo page: Global Admins only
-app.get("/demo", requireStrictGlobalAdmin, (req, res) => {
-  return res.render("demo");
-});
-
 // Admin: audit log (GLOBAL ADMINS ONLY)
 app.get("/audit-log", requireGlobalAdmin, async (req, res) => {
   try {
