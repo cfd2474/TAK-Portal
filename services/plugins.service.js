@@ -345,6 +345,7 @@ async function downloadTakGovPlugin(pluginItem) {
     const plugin = {
       id,
       name: pluginItem.display_name || pluginItem.package_name || path.basename(filename, path.extname(filename)) || filename,
+      description: pluginItem.description || null,
       filename,
       size: stat.size,
       downloadedAt: new Date().toISOString(),

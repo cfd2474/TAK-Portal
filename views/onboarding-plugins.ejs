@@ -33,8 +33,11 @@
     }
     function renderCard(p) {
       const name = esc(p.name || p.filename || p.id);
+      const desc = (p.description || "").slice(0, 120);
       const meta = [];
-      if (p.filename) meta.push(esc(p.filename));
+      if (p.version) meta.push("v" + esc(p.version));
+      if (p.package_name) meta.push(esc(p.package_name));
+      if (p.atakVersion || p.atak_version) meta.push("ATAK " + esc(p.atakVersion || p.atak_version));
       meta.push(formatSize(p.sizeBytes != null ? p.sizeBytes : p.size));
       meta.push(formatDate(p.downloadedAt));
       if (p.source) meta.push("Source: " + esc(p.source));
@@ -43,6 +46,7 @@
       const downloadUrl = "/api/plugins/" + encodeURIComponent(p.id) + "/download";
       return '<div class="plugin-card" data-id="' + esc(p.id) + '">' +
         '<div class="plugin-name">' + name + '</div>' +
+        (desc ? '<div class="plugin-desc">' + esc(desc) + (desc.length >= 120 ? "…" : "") + '</div>' : '') +
         '<div class="plugin-meta">' + metaStr + '</div>' +
         (exists ? '' : '<div class="plugin-meta" style="color: var(--error, #c00);">File missing on disk</div>') +
         '<div class="plugin-actions">' +
@@ -91,6 +95,7 @@
     gap: 8px;
   }
   .plugin-cards.onboarding-plugin-cards .plugin-name { font-weight: 600; }
+  .plugin-cards.onboarding-plugin-cards .plugin-desc { font-size: 0.85rem; color: var(--muted, #888); max-height: 2.6em; overflow: hidden; text-overflow: ellipsis; }
   .plugin-cards.onboarding-plugin-cards .plugin-meta { font-size: 0.9rem; color: var(--muted, #888); }
   .plugin-cards.onboarding-plugin-cards .plugin-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
 </style>

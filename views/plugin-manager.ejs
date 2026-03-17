@@ -5,24 +5,26 @@
   <h1>Plugin Manager</h1>
   <p class="muted" style="margin-top: 4px;">Link your TAK.gov account to discover plugins, and store downloaded plugins in TAK Portal for your users. Plugins are stored in <code>data/plugins</code>.</p>
 
-  <!-- Link TAK.gov Account (OAuth 2.0 device flow – same as OpenTAKServer) -->
+  <!-- Link TAK.gov Account (OAuth 2.0 device flow – same as OpenTAKServer). When linked, only show badge. -->
   <div class="card">
     <h2>Link TAK.gov Account</h2>
-    <p>1) Click <strong>Get Link Code</strong> to receive a code from TAK.gov. 2) Open the TAK.gov link below and enter that code there, then sign in and authorize. 3) Return here and click <strong>Link Account</strong> to complete linking.</p>
-    <div id="linkSection" class="row" style="flex-wrap: wrap; gap: 12px; align-items: flex-start;">
-      <div id="linkCodeArea" style="display: none;">
-        <label>Code to enter on TAK.gov (issued by TAK.gov)</label>
-        <div class="row" style="align-items: center; gap: 8px; flex-wrap: wrap;">
-          <code id="linkCodeDisplay" style="font-size: 1.2rem; padding: 8px 12px; background: var(--card-bg, #1e1e1e); border-radius: 6px;"></code>
-          <span id="linkCodeExpiry" class="muted"></span>
+    <div id="linkSetupBlock">
+      <p>1) Click <strong>Get Link Code</strong> to receive a code from TAK.gov. 2) Open the TAK.gov link below and enter that code there, then sign in and authorize. 3) Return here and click <strong>Link Account</strong> to complete linking.</p>
+      <div id="linkSection" class="row" style="flex-wrap: wrap; gap: 12px; align-items: flex-start;">
+        <div id="linkCodeArea" style="display: none;">
+          <label>Code to enter on TAK.gov (issued by TAK.gov)</label>
+          <div class="row" style="align-items: center; gap: 8px; flex-wrap: wrap;">
+            <code id="linkCodeDisplay" style="font-size: 1.2rem; padding: 8px 12px; background: var(--card-bg, #1e1e1e); border-radius: 6px;"></code>
+            <span id="linkCodeExpiry" class="muted"></span>
+          </div>
+          <p style="margin-top: 8px;">
+            <a id="verificationUriLink" href="https://tak.gov/register-device" target="_blank" rel="noopener">Open TAK.gov to enter this code</a>
+          </p>
         </div>
-        <p style="margin-top: 8px;">
-          <a id="verificationUriLink" href="https://tak.gov/register-device" target="_blank" rel="noopener">Open TAK.gov to enter this code</a>
-        </p>
-      </div>
-      <div class="row" style="gap: 8px; align-items: flex-end;">
-        <button class="btn" type="button" id="getLinkCodeBtn">Get Link Code</button>
-        <button class="btn success" type="button" id="linkAccountBtn">Link Account</button>
+        <div class="row" style="gap: 8px; align-items: flex-end;">
+          <button class="btn" type="button" id="getLinkCodeBtn">Get Link Code</button>
+          <button class="btn success" type="button" id="linkAccountBtn">Link Account</button>
+        </div>
       </div>
     </div>
     <div id="linkStatus" class="msg"></div>
@@ -32,10 +34,9 @@
     </div>
   </div>
 
-  <!-- TAK.gov Plugin Marketplace (visible when linked) -->
+  <!-- TAK.gov Plugin Browser (visible when linked) -->
   <div class="card" id="marketplaceCard">
-    <h2>TAK.gov Plugin Marketplace</h2>
-    <p id="marketplaceIntro" class="muted">Link your TAK.gov account above to browse and install plugins from TAK.gov.</p>
+    <h2>TAK Plugin Browser</h2>
     <div id="marketplaceBrowse" style="display: none;">
       <p class="muted" style="margin-top: 4px;">Choose ATAK version and click <strong>Browse</strong> to load ATAK-CIV plugins available to your account.</p>
       <div class="row" style="flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-top: 12px;">
@@ -116,6 +117,7 @@
     gap: 8px;
   }
   .plugin-cards .plugin-card .plugin-name { font-weight: 600; }
+  .plugin-cards .plugin-card .plugin-desc { font-size: 0.85rem; color: var(--muted, #888); max-height: 2.6em; overflow: hidden; text-overflow: ellipsis; }
   .plugin-cards .plugin-card .plugin-meta { font-size: 0.9rem; color: var(--muted, #888); }
   .plugin-cards .plugin-card .plugin-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; align-items: center; }
   .btn.favorite { background: #e6c200; color: #000; border-color: #e6c200; }
@@ -206,8 +208,11 @@
     pluginCards.style.display = "grid";
     pluginCards.innerHTML = list.map(function (p) {
       const name = esc(p.name || p.filename || p.id);
+      const desc = (p.description || "").slice(0, 120);
       const meta = [];
-      if (p.filename) meta.push(esc(p.filename));
+      if (p.version) meta.push("v" + esc(p.version));
+      if (p.package_name) meta.push(esc(p.package_name));
+      if (p.atakVersion || p.atak_version) meta.push("ATAK " + esc(p.atakVersion || p.atak_version));
       meta.push(formatSize(p.sizeBytes != null ? p.sizeBytes : p.size));
       meta.push(formatDate(p.downloadedAt));
       if (p.source) meta.push("Source: " + esc(p.source));
@@ -218,12 +223,13 @@
       const updateAvailable = p.source === "tak.gov" && p.package_name && updateStatusCache[p.id] === true;
       return "<div class=\"plugin-card\" data-id=\"" + esc(p.id) + "\">" +
         "<div class=\"plugin-name\">" + name + "</div>" +
+        (desc ? "<div class=\"plugin-desc\">" + esc(desc) + (desc.length >= 120 ? "…" : "") + "</div>" : "") +
         "<div class=\"plugin-meta\">" + metaStr + "</div>" +
         (exists ? "" : "<div class=\"plugin-meta\" style=\"color: var(--error, #c00);\">File missing on disk</div>") +
         "<div class=\"plugin-actions\">" +
         "<button class=\"btn favorite " + (isFavorite ? "is-favorite" : "") + "\" type=\"button\" data-favorite=\"" + esc(p.id) + "\" title=\"" + (isFavorite ? "Unfavorite" : "Favorite") + "\">" + (isFavorite ? "★ Unfavorite" : "☆ Favorite") + "</button>" +
         (exists ? "<a href=\"" + downloadUrl + "\" class=\"btn\" download>Download</a>" : "") +
-        (updateAvailable ? "<button class=\"btn\" type=\"button\" data-update=\"" + esc(p.id) + "\">Update</button>" : "") +
+        (updateAvailable ? "<button class=\"btn\" type=\"button\" data-update=\"" + esc(p.id) + "\">Check for Updates</button>" : "") +
         "<button class=\"btn danger\" type=\"button\" data-delete=\"" + esc(p.id) + "\">Delete</button>" +
         "</div></div>";
     }).join("");
@@ -279,7 +285,7 @@
   }
 
   function updatePluginFromTakgov(id, btnEl) {
-    if (btnEl) { btnEl.disabled = true; btnEl.textContent = "Updating…"; }
+    if (btnEl) { btnEl.disabled = true; btnEl.textContent = "Checking…"; }
     setPluginsMsg("", true);
     fetch("/api/plugins/" + encodeURIComponent(id) + "/update-from-takgov", { method: "POST" })
       .then(function (res) {
@@ -294,16 +300,16 @@
         const data = _ref.data;
         if (!res.ok) {
           setPluginsMsg((data && data.error) || "Update failed", false);
-          if (btnEl) { btnEl.disabled = false; btnEl.textContent = "Update"; }
+          if (btnEl) { btnEl.disabled = false; btnEl.textContent = "Check for Updates"; }
           return;
         }
         setPluginsMsg("Plugin updated.", true);
         loadState();
-        if (btnEl) { btnEl.disabled = false; btnEl.textContent = "Update"; }
+        if (btnEl) { btnEl.disabled = false; btnEl.textContent = "Check for Updates"; }
       })
       .catch(function (err) {
         setPluginsMsg(err.message || "Update failed", false);
-        if (btnEl) { btnEl.disabled = false; btnEl.textContent = "Update"; }
+        if (btnEl) { btnEl.disabled = false; btnEl.textContent = "Check for Updates"; }
       });
   }
 
@@ -316,11 +322,15 @@
       const plugins = data.plugins || [];
       if (link.linked) {
         linkedBadge.style.display = "flex";
+        const linkSetup = document.getElementById("linkSetupBlock");
+        if (linkSetup) linkSetup.style.display = "none";
         linkCodeArea.style.display = "none";
         setLinkStatus("", true);
         if (marketplaceIntro) marketplaceIntro.style.display = "none";
         if (marketplaceBrowse) marketplaceBrowse.style.display = "block";
       } else {
+        const linkSetup = document.getElementById("linkSetupBlock");
+        if (linkSetup) linkSetup.style.display = "";
         if (marketplaceIntro) marketplaceIntro.style.display = "block";
         if (marketplaceBrowse) marketplaceBrowse.style.display = "none";
         linkedBadge.style.display = "none";
