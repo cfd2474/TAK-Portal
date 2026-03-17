@@ -62,7 +62,6 @@
             <option value="5.0.0">5.0.0</option>
           </select>
         </label>
-        <button class="btn" type="button" id="browseTakgovBtn">Browse plugins</button>
       </div>
       <div id="marketplaceMsg" class="msg" style="margin-top: 8px;"></div>
       <div id="marketplaceGrid" class="plugin-cards marketplace-grid" style="display: none; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 16px;">
@@ -163,7 +162,6 @@
   const marketplaceIntro = document.getElementById("marketplaceIntro");
   const marketplaceBrowse = document.getElementById("marketplaceBrowse");
   const takgovVersion = document.getElementById("takgovVersion");
-  const browseTakgovBtn = document.getElementById("browseTakgovBtn");
   const marketplaceMsg = document.getElementById("marketplaceMsg");
   const marketplaceGrid = document.getElementById("marketplaceGrid");
   const marketplaceEmpty = document.getElementById("marketplaceEmpty");
@@ -237,8 +235,8 @@
         (desc ? "<div class=\"plugin-desc\">" + esc(descShort) + (desc.length > 120 ? "…" : "") + "</div>" : "<div class=\"plugin-desc plugin-desc-empty\">No description</div>") +
         (exists ? "" : "<div class=\"plugin-meta\" style=\"color: var(--error, #c00);\">File missing on disk</div>") +
         "<div class=\"plugin-actions\">" +
-        "<button class=\"btn\" type=\"button\" data-edit-desc=\"" + esc(p.id) + "\" title=\"Edit description\">Edit description</button>" +
         "<button class=\"btn favorite " + (isFavorite ? "is-favorite" : "") + "\" type=\"button\" data-favorite=\"" + esc(p.id) + "\" title=\"" + (isFavorite ? "Unfavorite" : "Favorite") + "\">" + (isFavorite ? "★ Unfavorite" : "☆ Favorite") + "</button>" +
+        "<button class=\"btn\" type=\"button\" data-edit-desc=\"" + esc(p.id) + "\" title=\"Edit description\">Edit description</button>" +
         (exists ? "<a href=\"" + downloadUrl + "\" class=\"btn\" download>Download</a>" : "") +
         (updateAvailable ? "<button class=\"btn\" type=\"button\" data-update=\"" + esc(p.id) + "\">Check for Updates</button>" : "") +
         "<button class=\"btn danger\" type=\"button\" data-delete=\"" + esc(p.id) + "\">Delete</button>" +
@@ -268,32 +266,29 @@
       });
     });
     pluginCards.querySelectorAll("[data-edit-desc]").forEach(function (btn) {
-      btn.addEventListener("click", function () {
+      btn.addEventListener("click", async function () {
         const id = btn.getAttribute("data-edit-desc");
         if (!id) return;
         const p = list.find(function (x) { return x.id === id; });
         const current = (p && p.description) ? String(p.description) : "";
         const value = window.prompt("Edit plugin description:", current);
         if (value === null) return;
-        fetch("/api/plugins/" + encodeURIComponent(id), {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ description: value.trim() }),
-        })
-          .then(function (res) { return res.json().then(function (data) { return { res, data }; }); })
-          .then(function (_ref) {
-            const res = _ref.res;
-            const data = _ref.data;
-            if (!res.ok) {
-              setPluginsMsg(data.error || "Failed to update description", false);
-              return;
-            }
-            setPluginsMsg("", true);
-            loadState();
-          })
-          .catch(function (err) {
-            setPluginsMsg(err.message || "Failed to update description", false);
+        try {
+          const res = await fetch("/api/plugins/" + encodeURIComponent(id), {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ description: value.trim() }),
           });
+          const data = await res.json();
+          if (!res.ok) {
+            setPluginsMsg(data.error || "Failed to update description", false);
+            return;
+          }
+          setPluginsMsg("Description updated.", true);
+          await loadState();
+        } catch (err) {
+          setPluginsMsg(err.message || "Failed to update description", false);
+        }
       });
     });
   }
@@ -398,7 +393,8 @@
       }
       if (pluginsLoading) pluginsLoading.style.display = "none";
       renderPluginCards(plugins);
-      if (takgovPluginsCache.length > 0) renderTakgovMarketplace(takgovPluginsCache);
+      if (link.linked) loadTakgovPlugins();
+      else if (takgovPluginsCache.length > 0) renderTakgovMarketplace(takgovPluginsCache);
     } catch (err) {
       if (pluginsLoading) pluginsLoading.style.display = "none";
       setPluginsMsg(err.message || "Failed to load plugins", false);
@@ -490,7 +486,7 @@
     });
   }
 
-  browseTakgovBtn.addEventListener("click", async function () {
+  async function loadTakgovPlugins() {
     const version = (takgovVersion && takgovVersion.value || "5.5.0").trim();
     setMarketplaceMsg("Loading…", true);
     try {
@@ -504,9 +500,12 @@
       setMarketplaceMsg(err.message || "Failed to load", false);
       takgovPluginsCache = [];
       renderTakgovMarketplace([]);
-      loadState();
     }
-  });
+  }
+
+  if (takgovVersion) {
+    takgovVersion.addEventListener("change", function () { loadTakgovPlugins(); });
+  }
 
   getLinkCodeBtn.addEventListener("click", async function () {
     setLinkStatus("Requesting code from TAK.gov…", true);
