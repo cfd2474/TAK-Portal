@@ -115,7 +115,10 @@
   }
   .plugin-cards .plugin-card .plugin-name { font-weight: 600; }
   .plugin-cards .plugin-card .plugin-meta { font-size: 0.9rem; color: var(--muted, #888); }
-  .plugin-cards .plugin-card .plugin-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+  .plugin-cards .plugin-card .plugin-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; align-items: center; }
+  .btn.favorite { background: #b8860b; color: #000; border-color: #b8860b; }
+  .btn.favorite:hover { filter: brightness(1.1); }
+  .btn.favorite.is-favorite { background: #daa520; color: #000; }
   .marketplace-grid .plugin-card .plugin-desc { font-size: 0.85rem; color: var(--muted, #888); max-height: 2.6em; overflow: hidden; text-overflow: ellipsis; }
 </style>
 
@@ -149,6 +152,7 @@
   const marketplaceEmpty = document.getElementById("marketplaceEmpty");
 
   let takgovPluginsCache = [];
+  let downloadedPluginsCache = [];
 
   function esc(s) {
     if (s == null || s === undefined) return "";
@@ -207,12 +211,16 @@
       const metaStr = meta.join(" · ");
       const exists = p.exists !== false;
       const downloadUrl = "/api/plugins/" + esc(p.id) + "/download";
+      const isFavorite = p.favorite === true;
+      const canUpdate = p.source === "tak.gov" && p.package_name;
       return "<div class=\"plugin-card\" data-id=\"" + esc(p.id) + "\">" +
         "<div class=\"plugin-name\">" + name + "</div>" +
         "<div class=\"plugin-meta\">" + metaStr + "</div>" +
         (exists ? "" : "<div class=\"plugin-meta\" style=\"color: var(--error, #c00);\">File missing on disk</div>") +
         "<div class=\"plugin-actions\">" +
+        "<button class=\"btn favorite " + (isFavorite ? "is-favorite" : "") + "\" type=\"button\" data-favorite=\"" + esc(p.id) + "\" title=\"" + (isFavorite ? "Unfavorite" : "Favorite") + "\">" + (isFavorite ? "★ Unfavorite" : "☆ Favorite") + "</button>" +
         (exists ? "<a href=\"" + downloadUrl + "\" class=\"btn\" download>Download</a>" : "") +
+        (canUpdate ? "<button class=\"btn\" type=\"button\" data-update=\"" + esc(p.id) + "\">Update</button>" : "") +
         "<button class=\"btn danger\" type=\"button\" data-delete=\"" + esc(p.id) + "\">Delete</button>" +
         "</div></div>";
     }).join("");
@@ -224,6 +232,76 @@
         deletePlugin(id);
       });
     });
+    pluginCards.querySelectorAll("[data-favorite]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        const id = btn.getAttribute("data-favorite");
+        if (!id) return;
+        const isFavorite = btn.classList.contains("is-favorite");
+        toggleFavorite(id, !isFavorite, btn);
+      });
+    });
+    pluginCards.querySelectorAll("[data-update]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        const id = btn.getAttribute("data-update");
+        if (!id) return;
+        updatePluginFromTakgov(id, btn);
+      });
+    });
+  }
+
+  function toggleFavorite(id, favorite, btnEl) {
+    fetch("/api/plugins/" + encodeURIComponent(id), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ favorite: favorite }),
+    })
+      .then(function (res) { return res.json().then(function (data) { return { res, data }; }); })
+      .then(function (_ref) {
+        const res = _ref.res;
+        const data = _ref.data;
+        if (!res.ok) {
+          setPluginsMsg(data.error || "Failed to update favorite", false);
+          return;
+        }
+        if (btnEl) {
+          btnEl.classList.toggle("is-favorite", favorite);
+          btnEl.textContent = favorite ? "★ Unfavorite" : "☆ Favorite";
+          btnEl.title = favorite ? "Unfavorite" : "Favorite";
+        }
+        loadState();
+      })
+      .catch(function (err) {
+        setPluginsMsg(err.message || "Failed to update favorite", false);
+      });
+  }
+
+  function updatePluginFromTakgov(id, btnEl) {
+    if (btnEl) { btnEl.disabled = true; btnEl.textContent = "Updating…"; }
+    setPluginsMsg("", true);
+    fetch("/api/plugins/" + encodeURIComponent(id) + "/update-from-takgov", { method: "POST" })
+      .then(function (res) {
+        return res.text().then(function (text) {
+          var data = {};
+          try { data = text ? JSON.parse(text) : {}; } catch (_) {}
+          return { res, data, text };
+        });
+      })
+      .then(function (_ref) {
+        const res = _ref.res;
+        const data = _ref.data;
+        if (!res.ok) {
+          setPluginsMsg((data && data.error) || "Update failed", false);
+          if (btnEl) { btnEl.disabled = false; btnEl.textContent = "Update"; }
+          return;
+        }
+        setPluginsMsg("Plugin updated.", true);
+        loadState();
+        if (btnEl) { btnEl.disabled = false; btnEl.textContent = "Update"; }
+      })
+      .catch(function (err) {
+        setPluginsMsg(err.message || "Update failed", false);
+        if (btnEl) { btnEl.disabled = false; btnEl.textContent = "Update"; }
+      });
   }
 
   async function loadState() {
@@ -256,6 +334,7 @@
           linkCodeArea.style.display = "none";
         }
       }
+      downloadedPluginsCache = plugins;
       renderPluginCards(plugins);
       if (takgovPluginsCache.length > 0) renderTakgovMarketplace(takgovPluginsCache);
     } catch (err) {
@@ -280,6 +359,7 @@
     }
     marketplaceEmpty.style.display = "none";
     marketplaceGrid.style.display = "grid";
+    const downloaded = downloadedPluginsCache || [];
     marketplaceGrid.innerHTML = list.map(function (p, idx) {
       const name = esc(p.display_name || p.package_name || p.name || "Plugin");
       const desc = (p.description || "").slice(0, 120);
@@ -288,12 +368,15 @@
       if (p.package_name) meta.push(esc(p.package_name));
       if (p.atak_version) meta.push("ATAK " + esc(p.atak_version));
       const metaStr = meta.join(" · ");
+      const alreadyInstalled = p.package_name && downloaded.some(function (d) { return d.package_name === p.package_name; });
+      const btnLabel = alreadyInstalled ? "Update" : "Add to server";
+      const btnClass = alreadyInstalled ? "btn" : "btn success";
       return "<div class=\"plugin-card\" data-takgov-index=\"" + idx + "\">" +
         "<div class=\"plugin-name\">" + name + "</div>" +
         (desc ? "<div class=\"plugin-desc\">" + esc(desc) + (desc.length >= 120 ? "…" : "") + "</div>" : "") +
         "<div class=\"plugin-meta\">" + metaStr + "</div>" +
         "<div class=\"plugin-actions\">" +
-        "<button class=\"btn success\" type=\"button\" data-takgov-download data-takgov-index=\"" + idx + "\">Add to server</button>" +
+        "<button class=\"" + btnClass + "\" type=\"button\" data-takgov-download data-takgov-index=\"" + idx + "\">" + btnLabel + "</button>" +
         "</div></div>";
     }).join("");
     marketplaceGrid.querySelectorAll("[data-takgov-download]").forEach(function (btn) {
@@ -323,16 +406,16 @@
             const errMsg = (data && data.error) || (typeof text === "string" && text.slice(0, 200)) || "Download failed";
             if (!res.ok) {
               setMarketplaceMsg(errMsg, false);
-              btn.textContent = "Add to server";
+              btn.textContent = btn.textContent === "Update" ? "Update" : "Add to server";
               btn.disabled = false;
               return;
             }
-            btn.textContent = "Added";
-            setMarketplaceMsg("Plugin added to server.", true);
+            btn.textContent = "Update";
+            setMarketplaceMsg("Plugin added/updated on server.", true);
             loadState();
           })
           .catch(function (err) {
-            btn.textContent = "Add to server";
+            btn.textContent = btn.classList.contains("success") ? "Add to server" : "Update";
             btn.disabled = false;
             setMarketplaceMsg(err.message || "Failed to add plugin", false);
           });

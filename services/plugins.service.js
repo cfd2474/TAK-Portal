@@ -325,8 +325,14 @@ async function downloadTakGovPlugin(pluginItem) {
     const destPath = path.join(PLUGINS_DIR, filename);
 
     const manifest = loadManifest();
-    const existing = manifest.plugins.find((p) => p.filename === filename);
+    const packageName = pluginItem.package_name || null;
+    let preservedFavorite = false;
+    // Remove existing by package_name (update scenario) or by same filename
+    const existingByPkg = packageName ? manifest.plugins.find((p) => p.package_name === packageName) : null;
+    const existingByFile = manifest.plugins.find((p) => p.filename === filename);
+    const existing = existingByPkg || existingByFile;
     if (existing) {
+      preservedFavorite = existing.favorite === true;
       try {
         const oldPath = path.join(PLUGINS_DIR, existing.filename);
         if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
@@ -345,6 +351,8 @@ async function downloadTakGovPlugin(pluginItem) {
       source: "tak.gov",
       atakFlavor: pluginItem.product || null,
       atakVersion: pluginItem.atak_version || pluginItem.product_version || null,
+      package_name: packageName,
+      favorite: preservedFavorite,
     };
     manifest.plugins.push(plugin);
     saveManifest(manifest);
@@ -613,6 +621,7 @@ function addPluginFromFile(sourceFilePath, meta = {}) {
     source: meta.source || "upload",
     atakFlavor: meta.atakFlavor || null,
     atakVersion: meta.atakVersion || null,
+    favorite: false,
   };
   manifest.plugins.push(plugin);
   saveManifest(manifest);
@@ -688,6 +697,7 @@ async function addPluginFromUrl(downloadUrl, meta = {}) {
     source: meta.source || "tak.gov",
     atakFlavor: meta.atakFlavor || null,
     atakVersion: meta.atakVersion || null,
+    favorite: false,
   };
   manifest.plugins.push(plugin);
   saveManifest(manifest);
@@ -727,6 +737,47 @@ function getPluginFilePath(id) {
   return fs.existsSync(filePath) && fs.statSync(filePath).isFile() ? filePath : null;
 }
 
+/**
+ * Set favorite flag on a plugin.
+ * @param {string} id - plugin id
+ * @param {boolean} favorite
+ * @returns {{ success: boolean, error?: string }}
+ */
+function setPluginFavorite(id, favorite) {
+  const manifest = loadManifest();
+  const plugin = manifest.plugins.find((p) => p.id === id);
+  if (!plugin) return { success: false, error: "Plugin not found." };
+  plugin.favorite = favorite === true;
+  saveManifest(manifest);
+  return { success: true, plugin: { ...plugin, favorite: plugin.favorite } };
+}
+
+/**
+ * Update a TAK.gov-sourced plugin to the latest version from TAK.gov.
+ * Fetches plugins for the plugin's atak_version and replaces by package_name.
+ * @param {string} id - plugin id (must be source tak.gov with package_name)
+ * @returns {Promise<{ success: boolean, plugin?: object, error?: string }>}
+ */
+async function updatePluginFromTakGov(id) {
+  const manifest = loadManifest();
+  const plugin = manifest.plugins.find((p) => p.id === id);
+  if (!plugin) return { success: false, error: "Plugin not found." };
+  if (plugin.source !== "tak.gov" || !plugin.package_name) {
+    return { success: false, error: "Only TAK.gov plugins with a package name can be updated." };
+  }
+  const productVersion = plugin.atakVersion || plugin.atak_version || "5.5.0";
+  const token = await getTakGovAccessToken();
+  if (!token.success) return { success: false, error: token.error };
+  const listResult = await fetchTakGovPlugins("ATAK-CIV", productVersion);
+  if (!listResult.success) return { success: false, error: listResult.error || "Failed to fetch plugin list." };
+  const list = listResult.plugins || [];
+  const takGovItem = list.find((p) => p.package_name === plugin.package_name);
+  if (!takGovItem) {
+    return { success: false, error: "Plugin not found in TAK.gov for this ATAK version." };
+  }
+  return downloadTakGovPlugin(takGovItem);
+}
+
 module.exports = {
   PLUGINS_DIR,
   MANIFEST_PATH,
@@ -742,4 +793,6 @@ module.exports = {
   addPluginFromUrl,
   deletePlugin,
   getPluginFilePath,
+  setPluginFavorite,
+  updatePluginFromTakGov,
 };

@@ -258,6 +258,53 @@ router.post("/upload", upload.single("plugin"), (req, res) => {
 });
 
 /**
+ * PATCH /api/plugins/:id
+ * Update plugin metadata (e.g. favorite). Body: { favorite: boolean }
+ */
+router.patch("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { favorite } = req.body || {};
+    if (typeof favorite !== "boolean") {
+      return res.status(400).json({ error: "Body must include favorite (boolean)." });
+    }
+    const result = pluginsSvc.setPluginFavorite(id, favorite);
+    if (!result.success) {
+      return res.status(404).json({ error: result.error });
+    }
+    res.json({ success: true, plugin: result.plugin });
+  } catch (err) {
+    res.status(500).json({ error: toErrorPayload(err) });
+  }
+});
+
+/**
+ * POST /api/plugins/:id/update-from-takgov
+ * Update a TAK.gov plugin to the latest version from TAK.gov (by package_name).
+ */
+router.post("/:id/update-from-takgov", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pluginsSvc.updatePluginFromTakGov(id);
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+    const auditUser = req.authentikUser;
+    auditSvc.logEvent({
+      actor: auditUser,
+      request: { method: req.method, path: req.originalUrl || req.path, ip: req.ip },
+      action: "PLUGIN_UPDATED_TAKGOV",
+      targetType: "plugin",
+      targetId: result.plugin?.id || id,
+      details: { name: result.plugin?.name, filename: result.plugin?.filename },
+    });
+    res.json({ success: true, plugin: result.plugin });
+  } catch (err) {
+    res.status(500).json({ error: toErrorPayload(err) });
+  }
+});
+
+/**
  * DELETE /api/plugins/:id
  * Remove plugin and its file.
  */
