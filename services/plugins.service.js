@@ -1,11 +1,14 @@
 /**
  * Plugin Manager service: TAK.gov link state + plugin storage under data/plugins.
  * Uses TAK.gov OAuth 2.0 Device Authorization Grant (same as OpenTAKServer).
+ * TAK.gov returns 421 if not using HTTP/2, so we use Node's http2 module.
  * See: https://raw.githubusercontent.com/brian7704/OpenTAKServer/master/opentakserver/blueprints/ots_api/tak_gov_link_api.py
  */
 
 const fs = require("fs");
 const path = require("path");
+const http2 = require("http2");
+const { URL } = require("url");
 
 const DATA_DIR = path.join(__dirname, "..", "data");
 const PLUGINS_DIR = path.join(DATA_DIR, "plugins");
@@ -14,7 +17,66 @@ const MANIFEST_PATH = path.join(DATA_DIR, "plugin-manifest.json");
 const TAK_GOV_DEVICE_URL = "https://auth.tak.gov/auth/realms/TPC/protocol/openid-connect/auth/device";
 const TAK_GOV_TOKEN_URL = "https://auth.tak.gov/auth/realms/TPC/protocol/openid-connect/token";
 const TAK_GOV_CLIENT_ID = "tak-gov-eud";
-const USER_AGENT = "TAK-Portal/1.0";
+// Match OpenTAKServer User-Agent; TAK.gov may expect it
+const USER_AGENT = "OpenTAKServer 1.7.9";
+
+/**
+ * POST to a TAK.gov URL using HTTP/2 (required; TAK.gov returns 421 over HTTP/1.1).
+ * @param {string} url - full URL
+ * @param {string} formBody - application/x-www-form-urlencoded body
+ * @returns {Promise<{ statusCode: number, data: object }>}
+ */
+function takGovHttp2Post(url, formBody) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const host = u.hostname;
+    const pathname = u.pathname || "/";
+    const timeout = 15000;
+
+    const client = http2.connect(url, {
+      servername: host,
+    });
+    let timeoutId;
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      client.close();
+    };
+    timeoutId = setTimeout(() => {
+      cleanup();
+      reject(new Error("TAK.gov request timeout"));
+    }, timeout);
+
+    const headers = {
+      ":path": pathname,
+      ":method": "POST",
+      "content-type": "application/x-www-form-urlencoded",
+      "user-agent": USER_AGENT,
+    };
+    const req = client.request(headers);
+    let body = "";
+    req.setEncoding("utf8");
+    req.on("response", (responseHeaders) => {
+      const status = Number(responseHeaders[":status"]) || 0;
+      req.on("data", (chunk) => { body += chunk; });
+      req.on("end", () => {
+        cleanup();
+        let data;
+        try {
+          data = body ? JSON.parse(body) : {};
+        } catch (_) {
+          data = { raw: body };
+        }
+        resolve({ statusCode: status, data });
+      });
+    });
+    req.on("error", (err) => {
+      cleanup();
+      reject(err);
+    });
+    req.write(formBody);
+    req.end();
+  });
+}
 
 function ensurePluginsDir() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -66,24 +128,20 @@ async function getTakGovLinkState(generateNewCode = false) {
   const { takGovLink } = manifest;
 
   if (generateNewCode) {
-    const axios = require("axios");
     try {
-      const response = await axios.post(
-        TAK_GOV_DEVICE_URL,
-        new URLSearchParams({
-          client_id: TAK_GOV_CLIENT_ID,
-          scope: "openid offline_access email profile",
-          grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-        }).toString(),
-        {
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "User-Agent": USER_AGENT,
-          },
-          timeout: 15000,
-        }
-      );
-      const data = response.data;
+      const formBody = new URLSearchParams({
+        client_id: TAK_GOV_CLIENT_ID,
+        scope: "openid offline_access email profile",
+        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+      }).toString();
+      const { statusCode, data } = await takGovHttp2Post(TAK_GOV_DEVICE_URL, formBody);
+
+      if (statusCode !== 200) {
+        const msg = data.error_description || data.error || `TAK.gov returned ${statusCode}`;
+        console.warn("[plugins.service] TAK.gov device request failed:", statusCode, msg);
+        return { linked: !!takGovLink.linked, error: msg };
+      }
+
       const userCode = data.user_code;
       const deviceCode = data.device_code;
       const expiresIn = typeof data.expires_in === "number" ? data.expires_in : 180;
@@ -109,7 +167,7 @@ async function getTakGovLinkState(generateNewCode = false) {
         message: `Enter this code at ${verificationUri} (expires in ${Math.floor(expiresIn / 60)} minutes).`,
       };
     } catch (err) {
-      const msg = err?.response?.data?.error_description || err?.response?.data?.error || err?.message || "Failed to get link code from TAK.gov.";
+      const msg = err?.message || "Failed to get link code from TAK.gov.";
       console.warn("[plugins.service] TAK.gov device request failed:", msg);
       return {
         linked: !!takGovLink.linked,
@@ -143,27 +201,16 @@ async function linkTakGovAccount() {
     return { success: false, message: "Link code expired. Click \"Get Link Code\" to get a new one." };
   }
 
-  const axios = require("axios");
   try {
-    const response = await axios.post(
-      TAK_GOV_TOKEN_URL,
-      new URLSearchParams({
-        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-        device_code: deviceCode,
-        client_id: TAK_GOV_CLIENT_ID,
-      }).toString(),
-      {
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "User-Agent": USER_AGENT,
-        },
-        timeout: 15000,
-        validateStatus: (status) => status === 200 || status === 400,
-      }
-    );
+    const formBody = new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+      device_code: deviceCode,
+      client_id: TAK_GOV_CLIENT_ID,
+    }).toString();
+    const { statusCode, data } = await takGovHttp2Post(TAK_GOV_TOKEN_URL, formBody);
 
-    if (response.status === 200 && response.data.access_token) {
-      const refreshToken = response.data.refresh_token;
+    if (statusCode === 200 && data.access_token) {
+      const refreshToken = data.refresh_token;
       const updated = {
         ...takGovLink,
         linked: true,
@@ -179,8 +226,8 @@ async function linkTakGovAccount() {
       return { success: true, message: "TAK.gov account linked successfully." };
     }
 
-    const err = response.data?.error;
-    const desc = response.data?.error_description || err;
+    const err = data?.error;
+    const desc = data?.error_description || err;
     if (err === "authorization_pending") {
       return { success: false, message: "Enter the code on TAK.gov and complete authorization, then click \"Link Account\" again." };
     }
@@ -189,7 +236,7 @@ async function linkTakGovAccount() {
     }
     return { success: false, message: desc || "Linking failed. Try getting a new link code." };
   } catch (err) {
-    const msg = err?.response?.data?.error_description || err?.response?.data?.error || err?.message || "Failed to link.";
+    const msg = err?.message || "Failed to link.";
     console.warn("[plugins.service] TAK.gov token request failed:", msg);
     return { success: false, message: msg };
   }
