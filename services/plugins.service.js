@@ -445,6 +445,7 @@ async function getTakGovLinkState(generateNewCode = false) {
       const expiresIn = typeof data.expires_in === "number" ? data.expires_in : 180;
       const interval = typeof data.interval === "number" ? data.interval : 5;
       const verificationUri = data.verification_uri || "https://tak.gov/register-device";
+      const verificationUriComplete = typeof data.verification_uri_complete === "string" ? data.verification_uri_complete : null;
       const expiry = Date.now() + expiresIn * 1000;
 
       const updated = {
@@ -455,6 +456,7 @@ async function getTakGovLinkState(generateNewCode = false) {
         deviceCodeExpiry: expiry,
         interval,
         verificationUri,
+        verificationUriComplete: verificationUriComplete || undefined,
       };
       saveManifest({ ...manifest, takGovLink: updated });
       return {
@@ -462,6 +464,7 @@ async function getTakGovLinkState(generateNewCode = false) {
         linkCode: userCode,
         linkCodeExpiry: expiry,
         verificationUri,
+        verificationUriComplete: verificationUriComplete || undefined,
         message: `Enter this code at ${verificationUri} (expires in ${Math.floor(expiresIn / 60)} minutes).`,
       };
     } catch (err) {
@@ -480,6 +483,7 @@ async function getTakGovLinkState(generateNewCode = false) {
     linkCode: hasValidCode ? takGovLink.linkCode : null,
     linkCodeExpiry: takGovLink.linkCodeExpiry || null,
     verificationUri: takGovLink.verificationUri || "https://tak.gov/register-device",
+    verificationUriComplete: takGovLink.verificationUriComplete || null,
   };
 }
 

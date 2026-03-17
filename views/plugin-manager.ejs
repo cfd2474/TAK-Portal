@@ -8,22 +8,36 @@
   <div class="card">
     <h2>Link TAK.gov Account</h2>
     <div id="linkSetupBlock">
-      <p>1) Click <strong>Get Link Code</strong> to receive a code from TAK.gov. 2) Open the TAK.gov link below and enter that code there, then sign in and authorize. 3) Return here and click <strong>Link Account</strong> to complete linking.</p>
-      <div id="linkSection" class="row" style="flex-wrap: wrap; gap: 12px; align-items: flex-start;">
-        <div id="linkCodeArea" style="display: none;">
-          <label>Code to enter on TAK.gov (issued by TAK.gov)</label>
+      <div id="linkStep1" class="card" style="margin-top: 16px;">
+        <h2 style="margin-top: 0;">Step 1: Get link code</h2>
+        <p class="muted" style="margin-bottom: 12px;">Request a one-time code from TAK.gov. The code will appear below.</p>
+        <button class="btn tile" type="button" id="getLinkCodeBtn">
+          <span class="title">Get link code</span>
+          <span class="desc">Request a code from TAK.gov to link this server.</span>
+        </button>
+        <div id="linkCodeArea" style="display: none; margin-top: 16px; padding: 12px; background: var(--card); border-radius: 8px; border: 1px solid var(--line);">
+          <label style="display: block; margin-bottom: 6px;">Code to enter on TAK.gov</label>
           <div class="row" style="align-items: center; gap: 8px; flex-wrap: wrap;">
-            <code id="linkCodeDisplay" style="font-size: 1.2rem; padding: 8px 12px; background: var(--card); border-radius: 6px;"></code>
+            <code id="linkCodeDisplay" style="font-size: 1.4rem; padding: 10px 14px; background: var(--bg); border-radius: 6px; letter-spacing: 0.05em;"></code>
             <span id="linkCodeExpiry" class="muted"></span>
           </div>
-          <p style="margin-top: 8px;">
-            <a id="verificationUriLink" href="https://tak.gov/register-device" target="_blank" rel="noopener">Open TAK.gov to enter this code</a>
-          </p>
         </div>
-        <div class="row" style="gap: 8px; align-items: flex-end;">
-          <button class="btn" type="button" id="getLinkCodeBtn">Get Link Code</button>
-          <button class="btn success" type="button" id="linkAccountBtn">Link Account</button>
-        </div>
+      </div>
+      <div id="linkStep2" class="card" style="margin-top: 16px;">
+        <h2 style="margin-top: 0;">Step 2: Enter code on TAK.gov</h2>
+        <p class="muted" style="margin-bottom: 12px;">Open TAK.gov in a new tab, enter the code from Step 1, sign in, and authorize.</p>
+        <a id="verificationUriLink" href="https://tak.gov/register-device" target="_blank" rel="noopener noreferrer" class="btn tile">
+          <span class="title">Open TAK.gov to enter code</span>
+          <span class="desc">Opens tak.gov/register-device in a new tab. If TAK.gov supports it, the code may be pre-filled from the URL.</span>
+        </a>
+      </div>
+      <div id="linkStep3" class="card" style="margin-top: 16px;">
+        <h2 style="margin-top: 0;">Step 3: Perform account link</h2>
+        <p class="muted" style="margin-bottom: 12px;">After you’ve entered the code and authorized on TAK.gov, click below to complete linking.</p>
+        <button class="btn tile success" type="button" id="linkAccountBtn">
+          <span class="title">Link account</span>
+          <span class="desc">Complete the link using the code you authorized on TAK.gov.</span>
+        </button>
       </div>
     </div>
     <div id="linkStatus" class="msg"></div>
@@ -383,9 +397,8 @@
         if (link.linkCode && link.linkCodeExpiry && Date.now() < link.linkCodeExpiry) {
           linkCodeArea.style.display = "block";
           linkCodeDisplay.textContent = link.linkCode;
-          if (link.verificationUri && verificationUriLink) {
-            verificationUriLink.href = link.verificationUri;
-            verificationUriLink.textContent = "Open TAK.gov to enter this code";
+          if (verificationUriLink) {
+            verificationUriLink.href = link.verificationUriComplete || link.verificationUri || "https://tak.gov/register-device";
           }
           const sec = Math.max(0, Math.floor((link.linkCodeExpiry - Date.now()) / 1000));
           linkCodeExpiry.textContent = "Expires in " + sec + "s";
@@ -546,9 +559,8 @@
       if (!res.ok) throw new Error(data.error || "Failed to get code");
       linkCodeArea.style.display = "block";
       linkCodeDisplay.textContent = data.linkCode || "";
-      if (data.verificationUri && verificationUriLink) {
-        verificationUriLink.href = data.verificationUri;
-        verificationUriLink.textContent = "Open TAK.gov to enter this code";
+      if (verificationUriLink) {
+        verificationUriLink.href = data.verificationUriComplete || data.verificationUri || "https://tak.gov/register-device";
       }
       setLinkStatus(data.message || "Enter the code above on TAK.gov, then click Link Account.", true);
       if (data.linkCodeExpiry) {
