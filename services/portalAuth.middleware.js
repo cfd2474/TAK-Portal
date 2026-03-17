@@ -174,12 +174,13 @@ if (!isPublicPath) {
   }
 
   // If admin groups exist, user must be at least agency admin — except
-  // any authenticated user may access Setup My Device (enroll QR + preference QR).
+  // any authenticated user may access Setup My Device and the Plugins page.
   if (!hasAnyRequired) {
-    const isSetupMyDevicePath =
+    const isAllowedNonAdminPath =
       normalizedPath === "/setup-my-device" ||
-      normalizedPath.startsWith("/api/setup-my-device");
-    if (!isSetupMyDevicePath) {
+      normalizedPath.startsWith("/api/setup-my-device") ||
+      normalizedPath === "/plugins";
+    if (!isAllowedNonAdminPath) {
       return deny();
     }
   }
