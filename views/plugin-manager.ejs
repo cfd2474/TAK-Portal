@@ -3,7 +3,6 @@
 
 <main class="main">
   <h1>Plugin Manager</h1>
-  <p class="muted" style="margin-top: 4px;">Link your TAK.gov account to discover plugins, and store downloaded plugins in TAK Portal for your users. Plugins are stored in <code>data/plugins</code>.</p>
 
   <!-- Link TAK.gov Account (OAuth 2.0 device flow – same as OpenTAKServer). When linked, only show badge. -->
   <div class="card">
@@ -37,9 +36,9 @@
   <!-- Downloaded plugins: cards (above Plugin Browser) -->
   <div class="card">
     <h2 style="margin-top: 0;">Downloaded Plugins</h2>
-    <p class="muted" style="margin-top: 4px;">Plugins stored in <code>data/plugins</code>. You can download or delete each one.</p>
     <div id="pluginsMsg" class="msg"></div>
-    <div id="pluginCards" class="plugin-cards" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 16px;">
+    <div id="pluginsLoading" class="muted" style="margin-top: 16px;">Loading Plugins...</div>
+    <div id="pluginCards" class="plugin-cards" style="display: none; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 16px;">
       <!-- Filled by JS -->
     </div>
     <div id="pluginsEmpty" style="display: none; margin-top: 16px; color: var(--muted, #888);">
@@ -51,7 +50,6 @@
   <div class="card" id="marketplaceCard">
     <h2 style="margin-top: 0;">TAK Plugin Browser</h2>
     <div id="marketplaceBrowse" style="display: none;">
-      <p class="muted" style="margin-top: 4px;">Choose ATAK version and click <strong>Browse</strong> to load ATAK-CIV plugins available to your account.</p>
       <div class="row" style="flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-top: 12px;">
         <label>ATAK version
           <select id="takgovVersion" style="min-width: 120px;">
@@ -374,9 +372,11 @@
           if (statusData.updateStatus) updateStatusCache = statusData.updateStatus;
         } catch (_) {}
       }
+      if (pluginsLoading) pluginsLoading.style.display = "none";
       renderPluginCards(plugins);
       if (takgovPluginsCache.length > 0) renderTakgovMarketplace(takgovPluginsCache);
     } catch (err) {
+      if (pluginsLoading) pluginsLoading.style.display = "none";
       setPluginsMsg(err.message || "Failed to load plugins", false);
     }
   }
