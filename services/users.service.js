@@ -1667,7 +1667,14 @@ async function searchUsersByAgencyAbbreviationPaged({
   }
 
   if (Array.isArray(groupsByPk) && groupsByPk.length) {
-    params.groups_by_pk = groupsByPk.map((x) => String(x).trim()).filter(Boolean);
+    const cleaned = groupsByPk.map((x) => String(x).trim()).filter(Boolean);
+    // axios may serialize arrays in a way Authentik's filters don't accept.
+    // In practice, the global-admin set is usually a single group; handle
+    // that reliably as a scalar. If we have multiple, force fallback.
+    if (cleaned.length > 1) {
+      throw new Error("Delegated global-admin exclusion requires a single group PK");
+    }
+    if (cleaned.length === 1) params.groups_by_pk = cleaned[0];
   }
 
   if (q && String(q).trim()) {
@@ -1785,7 +1792,11 @@ async function searchUsersByAgencySuffixPaged({
   }
 
   if (Array.isArray(groupsByPk) && groupsByPk.length) {
-    params.groups_by_pk = groupsByPk.map((x) => String(x).trim()).filter(Boolean);
+    const cleaned = groupsByPk.map((x) => String(x).trim()).filter(Boolean);
+    if (cleaned.length > 1) {
+      throw new Error("Delegated global-admin exclusion requires a single group PK");
+    }
+    if (cleaned.length === 1) params.groups_by_pk = cleaned[0];
   }
 
   if (q && String(q).trim()) {

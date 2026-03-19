@@ -776,6 +776,7 @@ router.get("/search", async (req, res) => {
               JSON.stringify({
                 globalAdminsCount,
                 totalVisible,
+                globalAdminGroupPks: globalAdminGroupPks.map(String),
               })
             );
           }
