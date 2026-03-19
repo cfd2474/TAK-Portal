@@ -739,22 +739,6 @@ router.get("/search", async (req, res) => {
           const globalAdminGroupPks = await getGlobalAdminGroupPks();
           const globalAdminSet = new Set(globalAdminGroupPks.map(String));
 
-          console.log(
-            "[/api/users/search][agency-fastpath] req=",
-            JSON.stringify({
-              page: currentPageRequested,
-              pageSize,
-              sortKey,
-              sortDir,
-              agencySuffixToDelegate,
-              agencyAbbreviationToDelegate,
-              agencyNameToDelegate,
-              allowedSuffixes,
-              qValLen: String(qVal || "").length,
-              globalAdminGroupPksCount: globalAdminGroupPks.length,
-            })
-          );
-
           // Total across the agency set (includes global admins).
           const tTotalAgencyAllStart = Date.now();
           const totalAgencyAllRes = await users.searchUsersByAgencyNamePaged({
@@ -776,16 +760,6 @@ router.get("/search", async (req, res) => {
             throw new Error("Delegated agency filter returned no results; falling back");
           }
 
-          console.log(
-            "[/api/users/search][agency-fastpath] totals=",
-            JSON.stringify({
-              totalAgencyAll,
-              delegatedTotalPageFromQuery: totalAgencyAllRes?.page,
-              delegatedHasNext: totalAgencyAllRes?.hasNext,
-              totalAgencyAllMs: tTotalAgencyAllMs,
-            })
-          );
-
           // If total differs from a username-suffix search, our `attributes.agency_abbreviation`
           // filter is likely under-matching (e.g., older users missing the attribute).
           // In that case, fall back to the legacy in-memory paging for correctness.
@@ -799,13 +773,6 @@ router.get("/search", async (req, res) => {
             );
             const totalApprox = visibleApprox.length;
 
-            console.log(
-              "[/api/users/search][agency-fastpath] undermatch-check=",
-              JSON.stringify({
-                totalAgencyAll,
-                totalApprox,
-              })
-            );
             if (totalApprox > totalAgencyAll) {
               throw new Error("Delegated agency filter under-matched; falling back");
             }
@@ -832,15 +799,6 @@ router.get("/search", async (req, res) => {
             globalAdminsCount = Number(totalGlobalAdminsRes?.total || 0);
             totalVisible = Math.max(0, totalVisible - globalAdminsCount);
 
-            console.log(
-              "[/api/users/search][agency-fastpath] globalAdminsExclusion=",
-              JSON.stringify({
-                globalAdminsCount,
-                totalVisible,
-                globalAdminGroupPks: globalAdminGroupPks.map(String),
-                globalAdminsExclusionMs: tGlobalMs,
-              })
-            );
           }
 
           const totalPages = Math.max(1, Math.ceil(totalVisible / pageSize));
@@ -915,19 +873,6 @@ router.get("/search", async (req, res) => {
             unfilteredPage += 1;
           }
 
-          console.log(
-            "[/api/users/search][agency-fastpath] result=",
-            JSON.stringify({
-              totalVisible,
-              totalPages,
-              page,
-              returnedLen: returned.length,
-              filteredIndex,
-              fillIters,
-              unfilteredPage,
-            })
-          );
-
           return res.json({
             users: returned,
             total: totalVisible,
@@ -937,10 +882,6 @@ router.get("/search", async (req, res) => {
             hasPrev: page > 1,
           });
         } catch (e) {
-          console.log(
-            "[/api/users/search][agency-fastpath] falling back due to:",
-            e?.message || String(e)
-          );
           // Fall back to the legacy in-memory implementation below.
         }
       }
