@@ -76,12 +76,14 @@ function portalAuthMiddleware(req, res, next) {
       groups: [],
       isGlobalAdmin: true,
       isAgencyAdmin: true, // optional, but helps if any code checks this too
+      allowedAgencySuffixes: [],
     };
 
     req.authentikUser = bootstrapUser;
     res.locals.authUser = bootstrapUser;
     res.locals.isGlobalAdmin = true;
     res.locals.isAgencyAdmin = true;
+    res.locals.allowedAgencySuffixes = [];
 
     return next();
   }
