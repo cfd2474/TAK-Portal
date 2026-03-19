@@ -13,7 +13,8 @@ Planned features can be accessed [here](docs/roadmap.md)
 ## Version History
 
 ### v1.2.53 - 3/19/26
-✨ `Enhancement` - Adds filters to groups and templates pages
+✨ `Enhancement` - Adds filters to groups page<br>
+✨ `Enhancement` - Adds filters and search bar to templates page<br>
 🐛 `Bug Fix` - Fixes issue with Portal Auth breaking allowed agency suffix logic
 
 ### v1.2.52 - 3/19/26
