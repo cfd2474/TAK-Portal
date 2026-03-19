@@ -520,18 +520,22 @@ router.get("/search", async (req, res) => {
 
     const authUser = req.authentikUser || null;
     const access = accessSvc.getAgencyAccess(authUser);
-    // ----- ROLE + SORT HELPERS (single groups fetch for both) -----
-    const allGroups = await groupsSvc.getAllGroups({ includeHidden: true });
-    const groupList = Array.isArray(allGroups) ? allGroups : [];
-    const groupNameByPk = new Map(
-      groupList.map(g => [String(g.pk), String(g.name || "").toLowerCase()])
-    );
-    const namesLower = parseGroupList(getString("PORTAL_AUTH_REQUIRED_GROUP", "").trim());
-    const byNameLower = new Map(
-      groupList.map((g) => [String(g?.name || "").trim().toLowerCase(), String(g?.pk)])
-    );
-    const globalAdminGroupPks = namesLower.map((nm) => byNameLower.get(nm)).filter(Boolean);
+    // ----- ROLE + SORT HELPERS -----
+    // Cache resolved Global Admin group PKs so we don't have to re-fetch all
+    // groups on every page load.
+    const globalAdminGroupPks = await getGlobalAdminGroupPks();
     const globalAdminSet = new Set(globalAdminGroupPks.map(String));
+
+    // Only needed when sorting by "role" so we can detect "*-AgencyAdmin"
+    // groups by name.
+    let groupNameByPk = new Map();
+    if (sortKey === "role") {
+      const allGroups = await groupsSvc.getAllGroups({ includeHidden: true });
+      const groupList = Array.isArray(allGroups) ? allGroups : [];
+      groupNameByPk = new Map(
+        groupList.map((g) => [String(g.pk), String(g.name || "").toLowerCase()])
+      );
+    }
 
     function computeRole(user) {
       const groups = Array.isArray(user?.groups)

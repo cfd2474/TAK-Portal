@@ -1,4 +1,4 @@
-const { getString } = require("./env");
+const { getString, getInt } = require("./env");
 const api = require("./authentik");
 const usersService = require("./users.service");
 const templatesStore = require("./templates.service");
@@ -695,11 +695,21 @@ async function massUnassignUsersFromGroup({ groupId, suffixes, sourceGroupIds, u
 }
 
 
-// ---------------- Authentik group/user helpers (no caching) ----------------
-// Always hit Authentik directly so each page load sees fresh data.
+// ---------------- Authentik group/user helpers ----------------
+// In-memory TTL cache:
+// Groups are read far more often than they change, so caching them drastically
+// speeds up endpoints used by the Users page without cutting functionality.
+const GROUPS_CACHE_TTL_MS = (getInt("GROUPS_CACHE_TTL_SECONDS", 60) || 0) * 1000;
+let GROUPS_CACHE_BY_INCLUDE_HIDDEN = {
+  true: { data: null, loadedAt: 0 },
+  false: { data: null, loadedAt: 0 },
+};
 
 function invalidateGroupsCache() {
-  // no-op – kept so existing callers still work
+  GROUPS_CACHE_BY_INCLUDE_HIDDEN = {
+    true: { data: null, loadedAt: 0 },
+    false: { data: null, loadedAt: 0 },
+  };
 }
 
 function invalidateGroupUsersCache() {
@@ -707,8 +717,28 @@ function invalidateGroupUsersCache() {
 }
 
 async function getAllGroups(options = {}) {
-  // ignore caching / forceRefresh; always reload
-  return await getAllGroupsRaw(options);
+  const { includeHidden = false, forceRefresh = false } = options || {};
+
+  // Allow explicitly disabling caching.
+  if (GROUPS_CACHE_TTL_MS <= 0) {
+    return await getAllGroupsRaw({ includeHidden });
+  }
+
+  const key = !!includeHidden;
+  const entry = GROUPS_CACHE_BY_INCLUDE_HIDDEN[key];
+  const now = Date.now();
+
+  const cacheValid =
+    entry &&
+    entry.data &&
+    entry.loadedAt &&
+    now - entry.loadedAt < GROUPS_CACHE_TTL_MS;
+
+  if (!forceRefresh && cacheValid) return entry.data;
+
+  const data = await getAllGroupsRaw({ includeHidden });
+  GROUPS_CACHE_BY_INCLUDE_HIDDEN[key] = { data, loadedAt: now };
+  return data;
 }
 
 async function getAllUsers(options = {}) {

@@ -1320,6 +1320,46 @@ function getAgencyAdminGroupNameForUser(user){
 
 // Cache agency admin group ids per abbreviation so we can show a Role column in the results table
 const agencyAdminGroupIdByAbbr = new Map();
+let agencyAdminGroupIdIndexByAbbr = null;
+
+// Build an index from <AGENCY_ABBR> -> <group pk>
+// by scanning ALL groups including hidden exactly once.
+// This avoids O(uniqueAgencies * allGroups) repeated scans.
+async function ensureAgencyAdminGroupIdIndex(){
+  if (agencyAdminGroupIdIndexByAbbr) return agencyAdminGroupIdIndexByAbbr;
+
+  const allGroups = await fetchAllGroupsIncludingHidden();
+  const index = new Map();
+
+  for (const g of allGroups){
+    const pk = g?.pk ?? g?.id ?? null;
+    const rawName = String(g?.name || "").trim();
+    const nameLower = rawName.toLowerCase();
+
+    if (!rawName) continue;
+    // Match patterns like:
+    // - authentik-<COUNTY>-<ABBR>-AgencyAdmin
+    // - authentik-<ABBR>-AgencyAdmin
+    if (!nameLower.startsWith("authentik-")) continue;
+    if (!nameLower.endsWith("-agencyadmin")) continue;
+
+    // Strip prefix + suffix, then take the last '-' segment as the abbr.
+    // Example after stripping: "<COUNTY>-<ABBR>" or "<ABBR>"
+    const inner = nameLower
+      .slice("authentik-".length, nameLower.length - "-agencyadmin".length)
+      .trim();
+    const parts = inner.split("-").map(s => String(s || "").trim()).filter(Boolean);
+    const abbrLower = parts[parts.length - 1] || "";
+    const abbrUpper = abbrLower.toUpperCase();
+
+    if (abbrUpper && pk != null && !index.has(abbrUpper)) {
+      index.set(abbrUpper, pk);
+    }
+  }
+
+  agencyAdminGroupIdIndexByAbbr = index;
+  return agencyAdminGroupIdIndexByAbbr;
+}
 
 async function ensureAgencyAdminIdsForUsers(users){
   const uniq = new Set();
@@ -1330,17 +1370,9 @@ async function ensureAgencyAdminIdsForUsers(users){
 
   for (const abbr of uniq){
     if (agencyAdminGroupIdByAbbr.has(abbr)) continue;
-    // Look for any authentik-* group whose name ends with "-<ABBR>-AgencyAdmin"
-    const suffix = `-${abbr}-AgencyAdmin`.toLowerCase();
-    let id = null;
-    const allGroups = await fetchAllGroupsIncludingHidden();
-    for (const g of allGroups) {
-      const name = String(g?.name || "").trim().toLowerCase();
-      if (name.startsWith("authentik-") && name.endsWith(suffix)) {
-        id = g.pk ?? g.id ?? null;
-        if (id != null) break;
-      }
-    }
+    // Look up from the prebuilt index (scan groups only once per page load).
+    const index = await ensureAgencyAdminGroupIdIndex();
+    const id = index.has(abbr) ? index.get(abbr) : null;
     agencyAdminGroupIdByAbbr.set(abbr, id || null);
   }
 }
