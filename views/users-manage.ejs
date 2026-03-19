@@ -98,14 +98,24 @@
       <h2 style="margin:0;">Existing Users</h2>
     </div>
 
-    <!-- Full-width search input (match Groups page styling) -->
-    <form id="searchForm" style="margin:0;">
+    <!-- Search input + (global-admin-only) agency filter -->
+    <form
+      id="searchForm"
+      style="margin:0; display:flex; align-items:center; gap:12px; flex-wrap:wrap;"
+    >
       <input
         id="q"
         placeholder="Search username, email, name, or agency..."
-        style="margin: 10px 0; width: 100%; box-sizing: border-box;"
+        style="margin: 10px 0; flex: 1; min-width: 260px; width: auto; box-sizing: border-box;"
         autocomplete="off"
       />
+      <% if (isGlobalAdmin) { %>
+        <select
+          id="filterAgencySelect"
+          aria-label="Filter by agency"
+          style="margin: 10px 0; min-width: 260px;"
+        ></select>
+      <% } %>
     </form>
 
     <div id="msg" class="msg"></div>
@@ -323,6 +333,7 @@
 <script>
 (function(){
 const agencySelect = document.getElementById("createAgencySelect");
+const filterAgencySelect = document.getElementById("filterAgencySelect");
 const templateSelect = document.getElementById("createTemplateSelect");
 
 const manualGroupsWrap = document.getElementById("createManualGroupsWrap");
@@ -389,7 +400,7 @@ async function loadAgencies() {
   const agencies = await res.json();
   if (!res.ok) throw new Error(agencies.error || "Failed to load agencies");
 
-  agencySelect.innerHTML = agencies
+  const agencyOptions = agencies
     .slice()
     .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
     .map(
@@ -397,6 +408,13 @@ async function loadAgencies() {
         `<option value="${esc(a.suffix)}">${esc(a.name)} (${esc(a.suffix)})</option>`
     )
     .join("");
+
+  agencySelect.innerHTML = agencyOptions;
+
+  // Global-admin-only: filter dropdown for the results table.
+  if (filterAgencySelect) {
+    filterAgencySelect.innerHTML = `<option value="">All Agencies</option>${agencyOptions}`;
+  }
 }
 
 // -------------------- Templates --------------------
@@ -788,6 +806,7 @@ const tbody = document.getElementById("tbody");
 const thead = document.getElementById("thead");
 const searchForm = document.getElementById("searchForm");
 const q = document.getElementById("q");
+const filterAgencySelect = document.getElementById("filterAgencySelect");
 
 // Pagination DOM
 const paginationTop = document.getElementById("paginationTop");
@@ -1982,6 +2001,10 @@ q.addEventListener("keydown", (e) => {
   }
 });
 
+if (filterAgencySelect) {
+  filterAgencySelect.addEventListener("change", applyFilterSortRender);
+}
+
 function renderCurrentPage() {
   window.__lastUsers = currentPageUsers.slice();
   renderResults(currentPageUsers);
@@ -2311,6 +2334,12 @@ if (applyTemplateBtn) applyTemplateBtn.addEventListener("click", async () => {
   // If agency admin, force their agency suffix
   if (!IS_GLOBAL_ADMIN && IS_AGENCY_ADMIN && ALLOWED_AGENCY_SUFFIXES.length === 1) {
     params.set("agencySuffix", ALLOWED_AGENCY_SUFFIXES[0]);
+  }
+
+  // If global admin, allow explicit agency filtering via dropdown.
+  if (IS_GLOBAL_ADMIN && filterAgencySelect) {
+    const sel = String(filterAgencySelect.value || "").trim();
+    if (sel) params.set("agencySuffix", sel);
   }
 
   const qVal = String(currentSearch || "").trim();

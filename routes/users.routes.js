@@ -652,6 +652,9 @@ router.get("/search", async (req, res) => {
     // Major win: let Authentik do ordering + pagination server-side
     // (instead of fetching all users into Node and sorting/paging in-memory).
     const qVal = String(q || "").trim();
+    const requestedGlobalAgencySuffix = String(req.query.agencySuffix || "")
+      .trim()
+      .toLowerCase();
     // Authentik can order by the underlying user fields, but our UI's "name"
     // sort uses a last-name-first derived value (see `lastNameForSort()` in
     // users-manage.ejs). For empty search we allow delegation (page order is
@@ -664,7 +667,9 @@ router.get("/search", async (req, res) => {
     const sortableKeysForAuthentikWithQ = new Set(["username", "name", "email", "status"]);
     const sortableKeysForAuthentik = qVal ? sortableKeysForAuthentikWithQ : sortableKeysForAuthentikEmptyQ;
 
-    if (access.isGlobalAdmin && sortableKeysForAuthentik.has(sortKey)) {
+    // If global admin is filtering by agency, we must not delegate to
+    // Authentik's pagination because it doesn't apply that attribute filter.
+    if (access.isGlobalAdmin && !requestedGlobalAgencySuffix && sortableKeysForAuthentik.has(sortKey)) {
       try {
         const delegated = await users.searchUsersPaged({
           q: qVal,
@@ -972,7 +977,27 @@ router.get("/search", async (req, res) => {
       // Get ALL matching users (not paged)
       const allMatching = await users.findUsers({ q, forceRefresh: false });
 
-      const visible = Array.isArray(allMatching) ? allMatching.slice() : [];
+      let visible = Array.isArray(allMatching) ? allMatching.slice() : [];
+
+      // Optional: filter to a single agency slice for global admins.
+      // UI sends `agencySuffix` from /api/agencies (value is suffix).
+      if (requestedGlobalAgencySuffix) {
+        const agencies = require("../services/agencies.service").load();
+        const agencyForSuffix = (Array.isArray(agencies) ? agencies : []).find(
+          (a) =>
+            String(a?.suffix || "")
+              .trim()
+              .toLowerCase() === String(requestedGlobalAgencySuffix).trim().toLowerCase()
+        );
+
+        const agencyAbbreviationToMatch = agencyForSuffix
+          ? String(agencyForSuffix.groupPrefix || "").trim().toLowerCase()
+          : "";
+
+        visible = agencyAbbreviationToMatch
+          ? visible.filter((u) => getAgencyAbbr(u) === agencyAbbreviationToMatch)
+          : [];
+      }
 
       // Sort entire dataset BEFORE pagination
       applySort(visible);
