@@ -1865,6 +1865,121 @@ async function searchUsersByAgencySuffixPaged({
   };
 }
 
+async function searchUsersByAgencyNamePaged({
+  agencyName,
+  q,
+  page = 1,
+  pageSize = 50,
+  sortKey = "username",
+  sortDir = "asc",
+  groupsByPk,
+  includeRoles = false,
+  includeGroups = true,
+} = {}) {
+  const name = String(agencyName || "").trim();
+  if (!name) {
+    return {
+      users: [],
+      total: 0,
+      page: 1,
+      pageSize,
+      hasNext: false,
+      hasPrev: false,
+    };
+  }
+
+  const hiddenPrefixes = getHiddenUserPrefixes();
+  const folderRaw = String(getString("AUTHENTIK_USER_PATH", "")).trim();
+
+  const params = {
+    page,
+    page_size: pageSize,
+    ordering: getAuthentikOrderingForUserSort({ sortKey, sortDir }),
+    // Authentik filters JSON attributes via `attributes=<json>`.
+    // The create-user flow stores the full agency name under `attributes.agency_name`.
+    attributes: JSON.stringify({ agency_name: name }),
+    include_roles: includeRoles ? "true" : "false",
+    include_groups: includeGroups ? "true" : "false",
+  };
+
+  if (hiddenPrefixes.length) {
+    params.type = ["external", "internal"];
+  }
+
+  if (folderRaw) {
+    params.path_startswith = normalizePath(folderRaw);
+  }
+
+  if (Array.isArray(groupsByPk) && groupsByPk.length) {
+    const cleaned = groupsByPk.map((x) => String(x).trim()).filter(Boolean);
+    if (cleaned.length > 1) {
+      throw new Error("Delegated global-admin exclusion requires a single group PK");
+    }
+    if (cleaned.length === 1) params.groups_by_pk = cleaned[0];
+  }
+
+  if (q && String(q).trim()) {
+    params.search = String(q).trim();
+  }
+
+  const res = await api.get("/core/users/", { params });
+  const data = res?.data || {};
+  const raw = Array.isArray(data.results) ? data.results : [];
+
+  let users = raw.slice();
+
+  if (hiddenPrefixes.length) {
+    users = users.filter((u) => {
+      const username = String(u?.username || "").trim().toLowerCase();
+      return !hiddenPrefixes.some((p) => username.startsWith(p));
+    });
+  }
+
+  if (folderRaw) {
+    const target = normalizePath(folderRaw);
+    users = users.filter((u) => {
+      const up = normalizePath(u.path);
+      return up === target || up.startsWith(target + "/");
+    });
+  }
+
+  const pagination = data.pagination || {};
+  let total = 0;
+
+  if (pagination && pagination.count != null) {
+    const t = Number(pagination.count);
+    if (!Number.isNaN(t) && t >= 0) total = t;
+  }
+
+  if (!total && data && data.count != null) {
+    const c = Number(data.count);
+    if (!Number.isNaN(c) && c >= 0) total = c;
+  }
+
+  if (!total) total = users.length;
+
+  if (hiddenPrefixes.length) {
+    const filteredOnPage = raw.length - users.length;
+    if (filteredOnPage > 0 && total >= filteredOnPage) {
+      total = total - filteredOnPage;
+    }
+  }
+
+  const currentPage =
+    typeof pagination.current === "number"
+      ? pagination.current
+      : Number(params.page) || 1;
+
+  return {
+    users,
+    total,
+    page: currentPage,
+    pageSize,
+    hasNext: Boolean(pagination.next ?? data.next),
+    hasPrev: Boolean(pagination.previous ?? data.previous),
+  };
+}
+
 async function resetPassword(userId, password) {
   await assertUserNotActionLocked(userId);
   const err = validatePassword(password);
@@ -2184,6 +2299,7 @@ module.exports = {
   searchUsersPaged,
   searchUsersByAgencyAbbreviationPaged,
   searchUsersByAgencySuffixPaged,
+  searchUsersByAgencyNamePaged,
   resetPassword,
   resendOnboardingEmail,
   updateEmail,

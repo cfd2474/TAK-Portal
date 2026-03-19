@@ -709,9 +709,12 @@ router.get("/search", async (req, res) => {
           const agencyAbbreviationToDelegate = agencyForSuffix
             ? String(agencyForSuffix.groupPrefix || "").trim()
             : "";
+          const agencyNameToDelegate = agencyForSuffix
+            ? String(agencyForSuffix.name || "").trim()
+            : "";
 
-          if (!agencyAbbreviationToDelegate) {
-            throw new Error("Could not map agency suffix to groupPrefix");
+          if (!agencyNameToDelegate) {
+            throw new Error("Could not map agency suffix to agency name");
           }
 
           const globalAdminGroupPks = await getGlobalAdminGroupPks();
@@ -726,6 +729,7 @@ router.get("/search", async (req, res) => {
               sortDir,
               agencySuffixToDelegate,
               agencyAbbreviationToDelegate,
+              agencyNameToDelegate,
               allowedSuffixes,
               qValLen: String(qVal || "").length,
               globalAdminGroupPksCount: globalAdminGroupPks.length,
@@ -734,8 +738,8 @@ router.get("/search", async (req, res) => {
 
           // Total across the agency set (includes global admins).
           const tTotalAgencyAllStart = Date.now();
-          const totalAgencyAllRes = await users.searchUsersByAgencyAbbreviationPaged({
-            agencyAbbreviation: agencyAbbreviationToDelegate,
+          const totalAgencyAllRes = await users.searchUsersByAgencyNamePaged({
+            agencyName: agencyNameToDelegate,
             q: qVal,
             page: 1,
             pageSize: 1,
@@ -769,15 +773,13 @@ router.get("/search", async (req, res) => {
           // Only run the extra check when the attribute-filtered total is
           // suspiciously small for the requested page size.
           if (!qVal && totalAgencyAll <= pageSize) {
-            const approxByUsernameSuffix = await users.searchUsersPaged({
-              q: agencyAbbreviationToDelegate,
-              page: 1,
-              pageSize: 1,
-              sortKey,
-              sortDir,
-            }).catch(() => null);
+            // Validate against exact username-suffix visibility.
+            const allMatching = await users.findUsers({ q: "", forceRefresh: false });
+            const visibleApprox = (Array.isArray(allMatching) ? allMatching : []).filter(
+              (u) => accessSvc.isUsernameInAllowedAgencies(authUser, u.username)
+            );
+            const totalApprox = visibleApprox.length;
 
-            const totalApprox = Number(approxByUsernameSuffix?.total || 0);
             console.log(
               "[/api/users/search][agency-fastpath] undermatch-check=",
               JSON.stringify({
@@ -796,8 +798,8 @@ router.get("/search", async (req, res) => {
           let globalAdminsCount = 0;
           if (globalAdminGroupPks.length) {
             const tGlobalStart = Date.now();
-            const totalGlobalAdminsRes = await users.searchUsersByAgencyAbbreviationPaged({
-              agencyAbbreviation: agencyAbbreviationToDelegate,
+            const totalGlobalAdminsRes = await users.searchUsersByAgencyNamePaged({
+              agencyName: agencyNameToDelegate,
               q: qVal,
               page: 1,
               pageSize: 1,
@@ -830,8 +832,8 @@ router.get("/search", async (req, res) => {
           // server-side page directly.
           if (globalAdminsCount === 0) {
             const tPageResStart = Date.now();
-            const pageRes = await users.searchUsersByAgencyAbbreviationPaged({
-              agencyAbbreviation: agencyAbbreviationToDelegate,
+            const pageRes = await users.searchUsersByAgencyNamePaged({
+              agencyName: agencyNameToDelegate,
               q: qVal,
               page,
               pageSize,
@@ -864,8 +866,8 @@ router.get("/search", async (req, res) => {
 
           while (returned.length < pageSize) {
             fillIters++;
-            const pageRes = await users.searchUsersByAgencyAbbreviationPaged({
-              agencyAbbreviation: agencyAbbreviationToDelegate,
+            const pageRes = await users.searchUsersByAgencyNamePaged({
+              agencyName: agencyNameToDelegate,
               q: qVal,
               page: unfilteredPage,
               pageSize: internalPageSize,
