@@ -683,6 +683,21 @@ router.get("/search", async (req, res) => {
           const globalAdminGroupPks = await getGlobalAdminGroupPks();
           const globalAdminSet = new Set(globalAdminGroupPks.map(String));
 
+          console.log(
+            "[/api/users/search][agency-fastpath] req=",
+            JSON.stringify({
+              page: currentPageRequested,
+              pageSize,
+              sortKey,
+              sortDir,
+              agencySuffixToDelegate,
+              agencyAbbreviationToDelegate,
+              allowedSuffixes,
+              qValLen: String(qVal || "").length,
+              globalAdminGroupPksCount: globalAdminGroupPks.length,
+            })
+          );
+
           // Total across the agency set (includes global admins).
           const totalAgencyAllRes = await users.searchUsersByAgencyAbbreviationPaged({
             agencyAbbreviation: agencyAbbreviationToDelegate,
@@ -702,6 +717,15 @@ router.get("/search", async (req, res) => {
             throw new Error("Delegated agency filter returned no results; falling back");
           }
 
+          console.log(
+            "[/api/users/search][agency-fastpath] totals=",
+            JSON.stringify({
+              totalAgencyAll,
+              delegatedTotalPageFromQuery: totalAgencyAllRes?.page,
+              delegatedHasNext: totalAgencyAllRes?.hasNext,
+            })
+          );
+
           // If total differs from a username-suffix search, our `attributes.agency_abbreviation`
           // filter is likely under-matching (e.g., older users missing the attribute).
           // In that case, fall back to the legacy in-memory paging for correctness.
@@ -717,6 +741,13 @@ router.get("/search", async (req, res) => {
             }).catch(() => null);
 
             const totalApprox = Number(approxByUsernameSuffix?.total || 0);
+            console.log(
+              "[/api/users/search][agency-fastpath] undermatch-check=",
+              JSON.stringify({
+                totalAgencyAll,
+                totalApprox,
+              })
+            );
             if (totalApprox > totalAgencyAll) {
               throw new Error("Delegated agency filter under-matched; falling back");
             }
@@ -739,6 +770,14 @@ router.get("/search", async (req, res) => {
 
             const globalAdminsCount = Number(totalGlobalAdminsRes?.total || 0);
             totalVisible = Math.max(0, totalVisible - globalAdminsCount);
+
+            console.log(
+              "[/api/users/search][agency-fastpath] globalAdminsExclusion=",
+              JSON.stringify({
+                globalAdminsCount,
+                totalVisible,
+              })
+            );
           }
 
           const totalPages = Math.max(1, Math.ceil(totalVisible / pageSize));
@@ -752,8 +791,10 @@ router.get("/search", async (req, res) => {
           let unfilteredPage = 1;
           let filteredIndex = 0; // counts non-global-admin users only
           const returned = [];
+          let fillIters = 0;
 
           while (returned.length < pageSize) {
+            fillIters++;
             const pageRes = await users.searchUsersByAgencyAbbreviationPaged({
               agencyAbbreviation: agencyAbbreviationToDelegate,
               q: "",
@@ -784,6 +825,19 @@ router.get("/search", async (req, res) => {
             unfilteredPage += 1;
           }
 
+          console.log(
+            "[/api/users/search][agency-fastpath] result=",
+            JSON.stringify({
+              totalVisible,
+              totalPages,
+              page,
+              returnedLen: returned.length,
+              filteredIndex,
+              fillIters,
+              unfilteredPage,
+            })
+          );
+
           return res.json({
             users: returned,
             total: totalVisible,
@@ -793,6 +847,10 @@ router.get("/search", async (req, res) => {
             hasPrev: page > 1,
           });
         } catch (e) {
+          console.log(
+            "[/api/users/search][agency-fastpath] falling back due to:",
+            e?.message || String(e)
+          );
           // Fall back to the legacy in-memory implementation below.
         }
       }
