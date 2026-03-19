@@ -93,8 +93,7 @@
     <div class="row" style="align-items:center; gap:12px; flex-wrap:wrap;">
       <% if (isGlobalAdmin) { %>
         <label style="min-width: 220px;">
-          Scope
-          <select id="groupScopeSelect">
+          <select id="groupScopeSelect" aria-label="Group scope filter">
             <option value="all" selected>All Groups</option>
             <option value="global">Global Groups</option>
             <option value="state">State Groups</option>
@@ -104,8 +103,7 @@
         </label>
 
         <label id="groupScopeDetailWrap" style="display:none; min-width: 220px;">
-          Select Detail
-          <select id="groupScopeDetailSelect"></select>
+          <select id="groupScopeDetailSelect" aria-label="Group scope detail filter"></select>
         </label>
       <% } %>
 
