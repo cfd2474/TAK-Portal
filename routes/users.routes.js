@@ -20,6 +20,42 @@ let _globalAdminGroupPkCache = {
   pks: [],
 };
 
+// Cache group-name lookup for agency admin group-role labeling.
+// This endpoint can be hit at page load; caching the "includeHidden groups"
+// name->pk mapping avoids re-downloading/parsing all groups repeatedly.
+const AGENCY_ADMIN_GROUP_NAME_PK_CACHE_TTL_MS = (parseInt(process.env.AGENCY_ADMIN_GROUP_NAME_PK_CACHE_TTL_MS, 10) || (5 * 60 * 1000));
+let _agencyAdminGroupsNameLowerToPkCache = {
+  loadedAt: 0,
+  map: new Map(), // nameLower -> pk
+};
+
+async function getAllHiddenGroupsNameLowerToPk() {
+  const now = Date.now();
+  const cacheValid =
+    _agencyAdminGroupsNameLowerToPkCache &&
+    _agencyAdminGroupsNameLowerToPkCache.loadedAt &&
+    now - _agencyAdminGroupsNameLowerToPkCache.loadedAt < AGENCY_ADMIN_GROUP_NAME_PK_CACHE_TTL_MS &&
+    _agencyAdminGroupsNameLowerToPkCache.map &&
+    _agencyAdminGroupsNameLowerToPkCache.map.size > 0;
+
+  if (cacheValid) return _agencyAdminGroupsNameLowerToPkCache.map;
+
+  const allGroups = await groupsSvc.getAllGroups({ includeHidden: true });
+  const nameLowerToPk = new Map(
+    (Array.isArray(allGroups) ? allGroups : []).map((g) => [
+      String(g?.name || "").trim().toLowerCase(),
+      String(g?.pk ?? g?.id ?? "").trim() || null,
+    ])
+  );
+
+  _agencyAdminGroupsNameLowerToPkCache = {
+    loadedAt: now,
+    map: nameLowerToPk,
+  };
+
+  return nameLowerToPk;
+}
+
 function parseGroupList(raw) {
   if (!raw) return [];
   return String(raw)
@@ -301,13 +337,7 @@ router.get("/agency-admin-group-ids", async (req, res) => {
       addExpected(`authentik-${abbrUpper}-AgencyAdmin`, abbrUpper);
     }
 
-    const allGroups = await groupsSvc.getAllGroups({ includeHidden: true });
-    const nameLowerToPk = new Map(
-      (Array.isArray(allGroups) ? allGroups : []).map(g => [
-        String(g?.name || "").trim().toLowerCase(),
-        String(g?.pk ?? g?.id ?? "").trim() || null,
-      ])
-    );
+    const nameLowerToPk = await getAllHiddenGroupsNameLowerToPk();
 
     const out = {};
     for (const abbr of abbreviations) out[abbr] = [];
@@ -627,10 +657,10 @@ router.get("/search", async (req, res) => {
     const qVal = String(q || "").trim();
     const sortableKeysForAuthentik = new Set(["username", "name", "email", "status"]);
 
-    if (access.isGlobalAdmin && !qVal && sortableKeysForAuthentik.has(sortKey)) {
+    if (access.isGlobalAdmin && sortableKeysForAuthentik.has(sortKey)) {
       try {
         const delegated = await users.searchUsersPaged({
-          q: "",
+          q: qVal,
           page: requestedPage,
           pageSize,
           sortKey,
@@ -647,7 +677,7 @@ router.get("/search", async (req, res) => {
     // - Supported sorts (to safely delegate ordering)
     // - Filter by Authentik user attribute `attributes.agency_abbreviation`
     //   (set on user creation and generally present on older users too)
-    if (!access.isGlobalAdmin && access.isAgencyAdmin && sortableKeysForAuthentik.has(sortKey) && !qVal) {
+    if (!access.isGlobalAdmin && access.isAgencyAdmin && sortableKeysForAuthentik.has(sortKey)) {
       const allowedSuffixes = Array.isArray(access.allowedAgencySuffixes)
         ? access.allowedAgencySuffixes.map((s) => String(s || "").trim().toLowerCase()).filter(Boolean)
         : [];
@@ -702,7 +732,7 @@ router.get("/search", async (req, res) => {
           const tTotalAgencyAllStart = Date.now();
           const totalAgencyAllRes = await users.searchUsersByAgencyAbbreviationPaged({
             agencyAbbreviation: agencyAbbreviationToDelegate,
-            q: "",
+            q: qVal,
             page: 1,
             pageSize: 1,
             sortKey,
@@ -734,7 +764,7 @@ router.get("/search", async (req, res) => {
           // In that case, fall back to the legacy in-memory paging for correctness.
           // Only run the extra check when the attribute-filtered total is
           // suspiciously small for the requested page size.
-          if (totalAgencyAll <= pageSize) {
+          if (!qVal && totalAgencyAll <= pageSize) {
             const approxByUsernameSuffix = await users.searchUsersPaged({
               q: agencyAbbreviationToDelegate,
               page: 1,
@@ -764,7 +794,7 @@ router.get("/search", async (req, res) => {
             const tGlobalStart = Date.now();
             const totalGlobalAdminsRes = await users.searchUsersByAgencyAbbreviationPaged({
               agencyAbbreviation: agencyAbbreviationToDelegate,
-              q: "",
+              q: qVal,
               page: 1,
               pageSize: 1,
               sortKey,
@@ -798,7 +828,7 @@ router.get("/search", async (req, res) => {
             const tPageResStart = Date.now();
             const pageRes = await users.searchUsersByAgencyAbbreviationPaged({
               agencyAbbreviation: agencyAbbreviationToDelegate,
-              q: "",
+              q: qVal,
               page,
               pageSize,
               sortKey,
@@ -832,7 +862,7 @@ router.get("/search", async (req, res) => {
             fillIters++;
             const pageRes = await users.searchUsersByAgencyAbbreviationPaged({
               agencyAbbreviation: agencyAbbreviationToDelegate,
-              q: "",
+              q: qVal,
               page: unfilteredPage,
               pageSize: internalPageSize,
               sortKey,
