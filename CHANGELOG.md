@@ -12,6 +12,9 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
+### v1.2.51 - 3/18/26
+🐛 `Bug Fix` - Attempts to improve load times on the users page by moving more queries to Authentik.
+
 ### v1.2.50 - 3/17/26
 🐛 `Bug Fix` - Fixes issue with sidebar not allowing for scroll on small / mobile devices
 
