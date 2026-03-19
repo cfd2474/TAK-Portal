@@ -75,6 +75,23 @@
 
   <div class="card">
     <h2>Existing Templates</h2>
+    <div class="row" style="align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
+      <% if (isGlobalAdmin) { %>
+        <label style="min-width: 220px;">
+          Agency
+          <select id="templateAgencyFilterSelect">
+            <option value="">All Agencies</option>
+          </select>
+        </label>
+      <% } %>
+
+      <input
+        id="templateNameSearch"
+        placeholder="Search template names..."
+        style="flex: 1; min-width: 260px;"
+      />
+    </div>
+
     <div class="tableWrap">
       <table class="table templatesTable">
         <thead>
@@ -97,6 +114,9 @@
 const msg = document.getElementById("msg");
 const tbody = document.getElementById("tbody");
 const form = document.getElementById("form");
+const IS_GLOBAL_ADMIN = <%= isGlobalAdmin ? 'true' : 'false' %>;
+const templateNameSearch = document.getElementById("templateNameSearch");
+const templateAgencyFilterSelect = document.getElementById("templateAgencyFilterSelect");
 
 // ---- sortable Existing Templates table ----
 let viewTemplates = []; // [{ t, idx }] where idx is the original index in the stored templates array
@@ -180,8 +200,9 @@ function updateSortIndicators(){
 }
 
 function applySortAndRender(){
-  viewTemplates = stableSort(viewTemplates || [], sortState.key, sortState.dir);
-  renderTemplates(viewTemplates);
+  const filtered = getFilteredTemplatePairs();
+  const sorted = stableSort(filtered, sortState.key, sortState.dir);
+  renderTemplates(sorted);
   updateSortIndicators();
 }
 
@@ -302,6 +323,8 @@ async function loadAgencies(){
         ${esc(name)}${abbr ? ` (${esc(abbr)})` : ""}
       </option>`;
     }).join("");
+
+  updateTemplateAgencyFilterOptions();
 }
 
 async function loadGroups(){
@@ -320,6 +343,50 @@ function agencyAbbrFromSuffix(suffix){
   const s = String(suffix || "").trim().toLowerCase();
   const a = allAgencies.find(x => String(x.suffix || "").trim().toLowerCase() === s);
   return String(a?.groupPrefix || "").trim();
+}
+
+function updateTemplateAgencyFilterOptions(){
+  if (!templateAgencyFilterSelect || !IS_GLOBAL_ADMIN) return;
+
+  const prevVal = String(templateAgencyFilterSelect.value || "").trim().toLowerCase();
+  const agencies = allAgencies
+    .slice()
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+    .filter(a => String(a.suffix || "").trim());
+
+  templateAgencyFilterSelect.innerHTML =
+    `<option value="">All Agencies</option>` +
+    agencies.map(a => {
+      const suffix = String(a.suffix || "").trim().toLowerCase();
+      const abbr = String(a.groupPrefix || "").trim().toUpperCase();
+      const name = String(a.name || "").trim();
+      const label = abbr ? `${name} (${abbr})` : name;
+      return `<option value="${esc(suffix)}">${esc(label)}</option>`;
+    }).join("");
+
+  if (prevVal) templateAgencyFilterSelect.value = prevVal;
+}
+
+function getFilteredTemplatePairs(){
+  const base = Array.isArray(viewTemplates) ? viewTemplates.slice() : [];
+  const needle = String(templateNameSearch?.value || "").trim().toLowerCase();
+  const agencyFilter = String(templateAgencyFilterSelect?.value || "").trim().toLowerCase();
+
+  return base.filter(({ t }) => {
+    const tpl = t || {};
+    const name = String(tpl.name || "").toLowerCase();
+    const sfx = String(tpl.agencySuffix || "").trim().toLowerCase();
+
+    // Name search
+    if (needle && !name.includes(needle)) return false;
+
+    // Agency filter (global-admin only)
+    if (IS_GLOBAL_ADMIN && templateAgencyFilterSelect && agencyFilter) {
+      return sfx === agencyFilter;
+    }
+
+    return true;
+  });
 }
 
 async function loadTemplates(){
@@ -400,6 +467,14 @@ window.deleteTemplate = async (idx) => {
 groupSearch.oninput = () => {
   renderGroups(groupSearch.value);
 };
+
+if (templateNameSearch) {
+  templateNameSearch.addEventListener("input", applySortAndRender);
+}
+
+if (templateAgencyFilterSelect) {
+  templateAgencyFilterSelect.addEventListener("change", applySortAndRender);
+}
 
 selectAllBtn.onclick = () => {
   Array.from(groupsBox.querySelectorAll('input[type="checkbox"]')).forEach(cb => {

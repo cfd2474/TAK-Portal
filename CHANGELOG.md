@@ -12,6 +12,10 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
+### v1.2.53 - 3/19/26
+✨ `Enhancement` - Adds filters to groups and templates pages
+🐛 `Bug Fix` - Fixes issue with Portal Auth breaking allowed agency suffix logic
+
 ### v1.2.52 - 3/19/26
 ✨ `Enhancement` - Added the ability for global admins to filter the users page by agency.<br>
 🐛 `Bug Fix` - Fixes issue with Global Admins seeing user pages with less than 25 users.
