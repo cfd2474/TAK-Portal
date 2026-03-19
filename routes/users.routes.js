@@ -658,7 +658,10 @@ router.get("/search", async (req, res) => {
     // less confusing); for non-empty search we restrict delegation to avoid
     // "looks wrong" paging/sorting issues.
     const sortableKeysForAuthentikEmptyQ = new Set(["username", "name", "email", "status"]);
-    const sortableKeysForAuthentikWithQ = new Set(["username", "email", "status"]);
+    // When q is non-empty, we still delegate to Authentik to avoid loading + sorting
+    // large user sets in Node. Ordering for "name" uses Authentik's `name`
+    // field, which is close to the UI's last-name derived sorting.
+    const sortableKeysForAuthentikWithQ = new Set(["username", "name", "email", "status"]);
     const sortableKeysForAuthentik = qVal ? sortableKeysForAuthentikWithQ : sortableKeysForAuthentikEmptyQ;
 
     if (access.isGlobalAdmin && sortableKeysForAuthentik.has(sortKey)) {
@@ -717,6 +720,22 @@ router.get("/search", async (req, res) => {
             throw new Error("Could not map agency suffix to agency name");
           }
 
+          // Search semantics in the legacy path include matching the user's
+          // agency abbreviation. Authentik's `search` does not search user
+          // attributes, so typing an exact agency token (suffix/groupPrefix/name)
+          // would otherwise return 0 even though the legacy path would match.
+          //
+          // If the search string equals an agency token exactly, treat it as
+          // "empty field search" so attribute filtering still returns the full
+          // agency slice.
+          const qLower = String(qVal || "").trim().toLowerCase();
+          const agencyTokensLower = [
+            String(agencySuffixToDelegate || "").trim().toLowerCase(),
+            String(agencyAbbreviationToDelegate || "").trim().toLowerCase(),
+            String(agencyNameToDelegate || "").trim().toLowerCase(),
+          ].filter(Boolean);
+          const qForAuthentik = (qLower && agencyTokensLower.includes(qLower)) ? "" : qVal;
+
           const globalAdminGroupPks = await getGlobalAdminGroupPks();
           const globalAdminSet = new Set(globalAdminGroupPks.map(String));
 
@@ -740,7 +759,7 @@ router.get("/search", async (req, res) => {
           const tTotalAgencyAllStart = Date.now();
           const totalAgencyAllRes = await users.searchUsersByAgencyNamePaged({
             agencyName: agencyNameToDelegate,
-            q: qVal,
+            q: qForAuthentik,
             page: 1,
             pageSize: 1,
             sortKey,
@@ -800,7 +819,7 @@ router.get("/search", async (req, res) => {
             const tGlobalStart = Date.now();
             const totalGlobalAdminsRes = await users.searchUsersByAgencyNamePaged({
               agencyName: agencyNameToDelegate,
-              q: qVal,
+              q: qForAuthentik,
               page: 1,
               pageSize: 1,
               sortKey,
@@ -834,7 +853,7 @@ router.get("/search", async (req, res) => {
             const tPageResStart = Date.now();
             const pageRes = await users.searchUsersByAgencyNamePaged({
               agencyName: agencyNameToDelegate,
-              q: qVal,
+              q: qForAuthentik,
               page,
               pageSize,
               sortKey,
@@ -868,7 +887,7 @@ router.get("/search", async (req, res) => {
             fillIters++;
             const pageRes = await users.searchUsersByAgencyNamePaged({
               agencyName: agencyNameToDelegate,
-              q: qVal,
+              q: qForAuthentik,
               page: unfilteredPage,
               pageSize: internalPageSize,
               sortKey,
