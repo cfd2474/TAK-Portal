@@ -1642,9 +1642,9 @@ async function searchUsersByAgencyAbbreviationPaged({
     page,
     page_size: pageSize,
     ordering: "username",
-    // Authentik uses Django filter-style query params for custom fields.
-    // User attributes live under `attributes`, so we can filter by attribute key.
-    "attributes__agency_abbreviation": abbr,
+    // Authentik filters JSON attributes via `attributes=<json>`.
+    // See authentik/core/api/users.py UsersFilter.filter_attributes().
+    attributes: JSON.stringify({ agency_abbreviation: abbr }),
   };
 
   if (q && String(q).trim()) {
@@ -1722,6 +1722,7 @@ async function searchUsersByAgencySuffixPaged({
   sortDir = "asc",
   groupsByPk,
   includeRoles = false,
+  includeGroups = true,
 } = {}) {
   const sfx = String(agencySuffix || "").trim();
   if (!sfx) {
@@ -1742,9 +1743,11 @@ async function searchUsersByAgencySuffixPaged({
     page,
     page_size: pageSize,
     ordering: getAuthentikOrderingForUserSort({ sortKey, sortDir }),
-    // Authentik stores the `agency` suffix in user.attributes.agency (set at create-user time)
-    [`attributes__agency`]: sfx,
+    // Authentik filters JSON attributes via `attributes=<json>`.
+    // See authentik/core/api/users.py UsersFilter.filter_attributes().
+    attributes: JSON.stringify({ agency: sfx }),
     include_roles: includeRoles ? "true" : "false",
+    include_groups: includeGroups ? "true" : "false",
   };
 
   // Reduce payload + align pagination totals with what the UI is allowed to see.
