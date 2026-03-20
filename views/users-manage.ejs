@@ -1299,6 +1299,7 @@ window.addEventListener("keydown", (e) => { if (e.key === "Escape" && modalOverl
 
 // Load templates & default groups for a specific agency suffix
 let agencyTemplatesCache = [];
+const agencyTemplatesBySuffixCache = new Map();
 
 async function loadTemplatesForAgency(agencySuffix){
   agencyTemplatesCache = [];
@@ -1314,11 +1315,14 @@ async function loadTemplatesForAgency(agencySuffix){
   }
 
   try {
-    const res = await fetch('/api/users/meta?agencySuffix=' + encodeURIComponent(sfx));
-    const meta = await res.json();
-    if (!res.ok) throw new Error(meta.error || 'Failed to load templates');
-
-    const all = Array.isArray(meta.templates) ? meta.templates : [];
+    let all = agencyTemplatesBySuffixCache.get(sfx);
+    if (!Array.isArray(all)) {
+      const res = await fetch('/api/users/meta?agencySuffix=' + encodeURIComponent(sfx));
+      const meta = await res.json();
+      if (!res.ok) throw new Error(meta.error || 'Failed to load templates');
+      all = Array.isArray(meta.templates) ? meta.templates : [];
+      agencyTemplatesBySuffixCache.set(sfx, all);
+    }
     const rest = all.slice(1);
     const manual = all[0];
 
@@ -1734,13 +1738,6 @@ window.editUser = async (userPk) => {
   // so it works for both legacy and county-prefixed group names.
   const abbrForSelected = String(getUserAgencyAbbreviation(selectedUser) || "").trim().toUpperCase();
   const adminGroupId = abbrForSelected ? agencyAdminGroupIdByAbbr.get(abbrForSelected) : null;
-
-    // Also resolve configured Global Admin group names so chips display correctly
-  if (IS_GLOBAL_ADMIN && PORTAL_GLOBAL_ADMIN_GROUP_NAMES.length) {
-    for (const gName of PORTAL_GLOBAL_ADMIN_GROUP_NAMES) {
-      await resolveGroupIdByName(gName);
-    }
-  }
   if (userTitle) userTitle.textContent = `User ${selectedUser.username}`;
 
   if (usernameSpan) {
@@ -1763,19 +1760,6 @@ window.editUser = async (userPk) => {
 
   // Default permissions = User; if user is in their agency admin group, reflect that.
   if (permissionsSelect) {
-    // If the viewer is a global admin and the dropdown includes it, reflect global-admin status.
-    // (Global admin groups are configured by PORTAL_AUTH_REQUIRED_GROUP in the server.)
-    const globalOptionExists = !!permissionsSelect.querySelector('option[value="global_admin"]');
-    if (IS_GLOBAL_ADMIN && globalOptionExists) {
-      const globalIds = await getGlobalAdminGroupIds();
-      const hasGlobal = userHasAnyGroupId(selectedUser, globalIds);
-      if (hasGlobal) {
-        permissionsSelect.value = "global_admin";
-        permissionsSelect.disabled = false;
-        if (applyPermissionsBtn) applyPermissionsBtn.disabled = false;
-      }
-    }
-
     if (abbrForSelected) {
       const adminIds = adminGroupId;
       const hasAdmin = Array.isArray(adminIds)
@@ -1805,11 +1789,31 @@ window.editUser = async (userPk) => {
     toggleBtn.textContent = selectedUser.is_active ? "Disable User" : "Enable User";
   }
 
-  await loadTemplatesForAgency(
-    (selectedUser && selectedUser.attributes && selectedUser.attributes.agency) || ""
-  );
-
   openModal();
+
+  // Load templates after modal is open so UI appears immediately.
+  loadTemplatesForAgency(
+    (selectedUser && selectedUser.attributes && selectedUser.attributes.agency) || ""
+  ).catch(() => {});
+
+  // Resolve global-admin permission state in the background for faster modal open.
+  if (permissionsSelect) {
+    const globalOptionExists = !!permissionsSelect.querySelector('option[value="global_admin"]');
+    if (IS_GLOBAL_ADMIN && globalOptionExists) {
+      getGlobalAdminGroupIds()
+        .then((globalIds) => {
+          // User may have changed while request was in flight.
+          if (!selectedUser || String(selectedUser.pk) !== pkStr) return;
+          const hasGlobal = userHasAnyGroupId(selectedUser, globalIds);
+          if (hasGlobal) {
+            permissionsSelect.value = "global_admin";
+            permissionsSelect.disabled = false;
+            if (applyPermissionsBtn) applyPermissionsBtn.disabled = false;
+          }
+        })
+        .catch(() => {});
+    }
+  }
 };
 
 // ---------- Permissions apply ----------
