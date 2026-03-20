@@ -143,9 +143,6 @@
           <th class="sortable" data-key="email">
             Email <span class="sortIndicator" aria-hidden="true"></span>
           </th>
-          <th class="sortable" data-key="role">
-            Role<span class="sortIndicator" aria-hidden="true"></span>
-          </th>
           <th class="sortable" data-key="status">
             Status <span class="sortIndicator" aria-hidden="true"></span>
           </th>
@@ -1231,7 +1228,6 @@ function renderResults(users){
         <td>${escapeHtml(getUserAgencyAbbreviation(u) || "—")}</td>
         <td>${escapeHtml(u.name || "")}</td>
         <td>${escapeHtml(u.email || "")}</td>
-        <td>${escapeHtml(u.__role || "User")}</td>
         <td>${u.is_active ? "Enabled" : "Disabled"}</td>
         <td>
           ${locked ? `<span class="muted">Actions Hidden</span>` : `
@@ -2418,14 +2414,6 @@ if (applyTemplateBtn) applyTemplateBtn.addEventListener("click", async () => {
   currentPageUsers = users.slice();
   allUsers = users.slice();
 
-  // Preload role-related group IDs
-  await ensureAgencyAdminIdsForUsers(users);
-  await getGlobalAdminGroupIds(); // <-- ADD THIS LINE
-
-  // Compute per-row role (User/Admin/Global Admin) for the results table
-  currentPageUsers = currentPageUsers.map(u => ({ ...u, __role: roleForUser(u) }));
-  allUsers = allUsers.map(u => ({ ...u, __role: roleForUser(u) }));
-
   renderCurrentPage();
   updateSortIndicators();
 
@@ -2706,8 +2694,8 @@ th.sortable:hover{
   .table td:nth-child(4){
     display: none;
   }
-  .table th:nth-child(6),
-  .table td:nth-child(6){
+  .table th:nth-child(5),
+  .table td:nth-child(5){
     display: none;
   }
 }
