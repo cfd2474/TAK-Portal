@@ -12,6 +12,10 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
+### v1.2.54 - 3/20/26
+✨ `Enhancement` - Adds eyeball/visibility icon to password reset edit modal<br>
+🐛 `Bug Fix` - Fixes issue with Agencies not displaying as a dropdown on the users page
+
 ### v1.2.53 - 3/19/26
 ✨ `Enhancement` - Adds filters to groups page<br>
 ✨ `Enhancement` - Adds filters and search bar to templates page<br>
