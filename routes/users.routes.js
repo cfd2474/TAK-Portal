@@ -9,6 +9,7 @@ const qrSvc = require("../services/qr.service");
 const tokensSvc = require("../services/authentikTokens.service");
 const { getString } = require("../services/env");
 const auditSvc = require("../services/auditLog.service");
+const adminRoleIndexSvc = require("../services/adminRoleIndex.service");
 
 // Cache resolved Global Admin group PKs (from PORTAL_AUTH_REQUIRED_GROUP)
 // so we can cheaply hide global-admin users from agency-admin views.
@@ -190,6 +191,7 @@ router.get("/group-lookup", async (req, res) => {
   try {
     const authUser = req.authentikUser || null;
     const access = accessSvc.getAgencyAccess(authUser);
+    const attachRoles = (list) => adminRoleIndexSvc.attachRoles(list);
 
     const name = String(req.query.name || "").trim();
     if (!name) {
@@ -382,6 +384,7 @@ router.post("/", async (req, res) => {
       createdBy,
       creationMethod: "manual",
     });
+    adminRoleIndexSvc.refreshNow().catch(() => {});
 
     auditSvc.logEvent({
       actor: authUser,
@@ -678,7 +681,10 @@ router.get("/search", async (req, res) => {
           sortKey,
           sortDir,
         });
-        return res.json(delegated);
+        return res.json({
+          ...delegated,
+          users: attachRoles(delegated?.users),
+        });
       } catch (e) {
         // Fall back to the legacy in-memory implementation below.
       }
@@ -710,7 +716,10 @@ router.get("/search", async (req, res) => {
             includeRoles: false,
             includeGroups: true,
           });
-          return res.json(delegatedByAgency);
+          return res.json({
+            ...delegatedByAgency,
+            users: attachRoles(delegatedByAgency?.users),
+          });
         }
       } catch (e) {
         // Fall back to the legacy in-memory implementation below.
@@ -860,7 +869,7 @@ router.get("/search", async (req, res) => {
             const tPageResMs = Date.now() - tPageResStart;
 
             return res.json({
-              users: Array.isArray(pageRes?.users) ? pageRes.users : [],
+              users: attachRoles(pageRes?.users),
               total: totalVisible,
               page: Number(pageRes?.page || page),
               pageSize,
@@ -912,7 +921,7 @@ router.get("/search", async (req, res) => {
           }
 
           return res.json({
-            users: returned,
+            users: attachRoles(returned),
             total: totalVisible,
             page,
             pageSize,
@@ -1056,7 +1065,7 @@ router.get("/search", async (req, res) => {
       const pageItems = visible.slice(start, end);
 
       return res.json({
-        users: pageItems,
+        users: attachRoles(pageItems),
         total,
         page,
         pageSize,
@@ -1105,7 +1114,7 @@ router.get("/search", async (req, res) => {
     const pageItems = visible.slice(start, end);
 
     return res.json({
-      users: pageItems,
+      users: attachRoles(pageItems),
       total,
       page,
       pageSize,
@@ -1208,6 +1217,7 @@ router.put("/:userId/groups", async (req, res) => {
     const groupIds = Array.isArray(req.body?.groupIds) ? req.body.groupIds : [];
     const authUser = req.authentikUser || null;
     await users.setUserGroups(req.params.userId, groupIds);
+    adminRoleIndexSvc.refreshNow().catch(() => {});
     const user = await users.getUserById(req.params.userId).catch(() => null);
 
     auditSvc.logEvent({
@@ -1232,6 +1242,7 @@ router.post("/:userId/groups", async (req, res) => {
     const groupIds = Array.isArray(req.body?.groupIds) ? req.body.groupIds : [];
     const authUser = req.authentikUser || null;
     await users.setUserGroups(req.params.userId, groupIds);
+    adminRoleIndexSvc.refreshNow().catch(() => {});
     const user = await users.getUserById(req.params.userId).catch(() => null);
     auditSvc.logEvent({
       actor: authUser,
@@ -1256,6 +1267,7 @@ router.post("/:userId/groups/add", async (req, res) => {
     const groupIds = Array.isArray(req.body?.groupIds) ? req.body.groupIds : [];
     const authUser = req.authentikUser || null;
     const out = await users.addUserGroups(req.params.userId, groupIds);
+    adminRoleIndexSvc.refreshNow().catch(() => {});
     const user = await users.getUserById(req.params.userId).catch(() => null);
 
     auditSvc.logEvent({
@@ -1281,6 +1293,7 @@ router.post("/:userId/groups/remove", async (req, res) => {
     const groupIds = Array.isArray(req.body?.groupIds) ? req.body.groupIds : [];
     const authUser = req.authentikUser || null;
     const out = await users.removeUserGroups(req.params.userId, groupIds);
+    adminRoleIndexSvc.refreshNow().catch(() => {});
     const user = await users.getUserById(req.params.userId).catch(() => null);
 
     auditSvc.logEvent({
