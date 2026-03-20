@@ -430,15 +430,9 @@ async function loadAgencies() {
     // Restore selection if still present.
     if (prevVal) filterAgencySelect.value = prevVal;
 
-    // If there are many agencies, make the dropdown scrollable via
-    // a listbox-style select (`size` + constrained height).
-    if (sortedByName.length > 10) {
-      filterAgencySelect.size = 10;
-      filterAgencySelect.style.maxHeight = "220px";
-    } else {
-      filterAgencySelect.size = 1;
-      filterAgencySelect.style.maxHeight = "";
-    }
+    // Keep this as a standard dropdown control (not a listbox).
+    filterAgencySelect.size = 1;
+    filterAgencySelect.style.maxHeight = "";
   }
 }
 
