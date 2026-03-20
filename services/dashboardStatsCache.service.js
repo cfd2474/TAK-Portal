@@ -5,6 +5,7 @@ const agenciesStore = require("./agencies.service");
 
 const DEFAULT_REFRESH_SECONDS = 300;
 const MIN_REFRESH_SECONDS = 30;
+const DEFAULT_INITIAL_DELAY_SECONDS = 8;
 
 const _state = {
   timer: null,
@@ -38,6 +39,18 @@ function parseRefreshSeconds() {
   if (!Number.isFinite(seconds) || seconds <= 0) seconds = DEFAULT_REFRESH_SECONDS;
   if (seconds < MIN_REFRESH_SECONDS) seconds = MIN_REFRESH_SECONDS;
 
+  return Math.floor(seconds);
+}
+
+function parseInitialDelaySeconds() {
+  const settings = settingsSvc.getSettings() || {};
+
+  const raw =
+    settings.DASHBOARD_AUTHENTIK_STATS_INITIAL_DELAY_SECONDS ??
+    process.env.DASHBOARD_AUTHENTIK_STATS_INITIAL_DELAY_SECONDS;
+
+  let seconds = Number(raw);
+  if (!Number.isFinite(seconds) || seconds < 0) seconds = DEFAULT_INITIAL_DELAY_SECONDS;
   return Math.floor(seconds);
 }
 
@@ -165,16 +178,19 @@ function startDashboardStatsRefresher() {
   if (_state.timer) return;
 
   const seconds = parseRefreshSeconds();
+  const initialDelaySeconds = parseInitialDelaySeconds();
 
-  // Prime immediately (best-effort)
-  refreshNow().catch(() => null);
+  // Prime shortly after startup so Authentik/network has a moment to settle.
+  setTimeout(() => {
+    refreshNow().catch(() => null);
+  }, initialDelaySeconds * 1000).unref?.();
 
   _state.timer = setInterval(() => {
     refreshNow().catch(() => null);
   }, seconds * 1000);
 
   console.log(
-    `[DASHBOARD] Authentik stats cache enabled: refresh every ${seconds}s`
+    `[DASHBOARD] Authentik stats cache enabled: first refresh in ${initialDelaySeconds}s, then every ${seconds}s`
   );
 }
 
