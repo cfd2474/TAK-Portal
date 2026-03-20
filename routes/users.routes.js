@@ -684,6 +684,39 @@ router.get("/search", async (req, res) => {
       }
     }
 
+    // Global-admin delegated fast path when filtering by a specific agency.
+    // This avoids loading/sorting all users in-memory for large datasets.
+    if (access.isGlobalAdmin && requestedGlobalAgencySuffix && sortableKeysForAuthentik.has(sortKey)) {
+      try {
+        const agencies = require("../services/agencies.service").load();
+        const agencyForSuffix = (Array.isArray(agencies) ? agencies : []).find(
+          (a) =>
+            String(a?.suffix || "")
+              .trim()
+              .toLowerCase() === String(requestedGlobalAgencySuffix).trim().toLowerCase()
+        );
+        const agencyNameToDelegate = agencyForSuffix
+          ? String(agencyForSuffix.name || "").trim()
+          : "";
+
+        if (agencyNameToDelegate) {
+          const delegatedByAgency = await users.searchUsersByAgencyNamePaged({
+            agencyName: agencyNameToDelegate,
+            q: qVal,
+            page: requestedPage,
+            pageSize,
+            sortKey,
+            sortDir,
+            includeRoles: false,
+            includeGroups: true,
+          });
+          return res.json(delegatedByAgency);
+        }
+      } catch (e) {
+        // Fall back to the legacy in-memory implementation below.
+      }
+    }
+
     // Agency-admin delegated fast path:
     // - Empty search box (to preserve semantics)
     // - Supported sorts (to safely delegate ordering)
