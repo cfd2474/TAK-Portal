@@ -336,6 +336,14 @@ router.post("/mass-assign/start", async (req, res) => {
   try {
     const authUser = req.authentikUser || null;
     const payload = req.body || {};
+    const sourceMode =
+      payload.sourceMode === "group" || payload.sourceMode === "users" || payload.sourceMode === "agency"
+        ? payload.sourceMode
+        : (Array.isArray(payload.userIds) && payload.userIds.length)
+          ? "users"
+          : (Array.isArray(payload.sourceGroupIds) && payload.sourceGroupIds.length)
+            ? "group"
+            : "agency";
     const jobId = newJobId();
     const startedAt = Date.now();
 
@@ -361,6 +369,7 @@ router.post("/mass-assign/start", async (req, res) => {
       finishedAt: null,
       durationMs: null,
       durationSeconds: null,
+      sourceMode,
     });
 
     (async () => {
@@ -456,6 +465,14 @@ router.post("/mass-unassign/start", async (req, res) => {
   try {
     const authUser = req.authentikUser || null;
     const payload = req.body || {};
+    const sourceMode =
+      payload.sourceMode === "group" || payload.sourceMode === "users" || payload.sourceMode === "agency"
+        ? payload.sourceMode
+        : (Array.isArray(payload.userIds) && payload.userIds.length)
+          ? "users"
+          : (Array.isArray(payload.sourceGroupIds) && payload.sourceGroupIds.length)
+            ? "group"
+            : "agency";
     const jobId = newJobId();
     const startedAt = Date.now();
 
@@ -481,6 +498,7 @@ router.post("/mass-unassign/start", async (req, res) => {
       finishedAt: null,
       durationMs: null,
       durationSeconds: null,
+      sourceMode,
     });
 
     (async () => {

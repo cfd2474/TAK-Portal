@@ -1865,7 +1865,7 @@ massApplyBtn.onclick = async () => {
   }
 
   const mode = selectedMassMode();
-  let payload = { groupId: activeMassGroupId };
+  let payload = { groupId: activeMassGroupId, sourceMode: mode };
 
   if (mode === "agency") {
     const suffixes = Array.from(agencyList.querySelectorAll('input.agencyChk:checked'))
@@ -1927,11 +1927,16 @@ massApplyBtn.onclick = async () => {
       const processed = Number(statusOut.processed || 0);
       const elapsedMs = Date.now() - startedAt;
       const phase = String(statusOut.phase || "");
+      const sourceMode = String(statusOut.sourceMode || mode || "agency");
 
       if (statusOut.status === "running") {
+        const loadingLabel =
+          sourceMode === "group" ? "Loading groups" :
+          sourceMode === "users" ? "Loading users" :
+          "Loading agencies";
         const phaseLabel =
           phase === "queued" ? "Preparing" :
-          phase === "loading_users" ? "Loading users" :
+          phase === "loading_users" ? loadingLabel :
           phase === "matching" ? "Matching users" :
           phase === "applying" ? "Applying changes" :
           "In Progress";
