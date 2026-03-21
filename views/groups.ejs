@@ -57,7 +57,7 @@
     </label>
 
     <% if (isGlobalAdmin) { %>
-    <label style="min-width: 140px;">Private
+    <label id="privateWrap" style="min-width: 220px;">Hide From Agency Admins
       <select id="privateSelect" style="min-width: 120px;">
         <option value="no" selected>No</option>
         <option value="yes">Yes</option>
@@ -193,7 +193,7 @@
           </label>
 
           <% if (isGlobalAdmin) { %>
-          <label style="min-width: 140px;">Private
+          <label id="editPrivateWrap" style="min-width: 220px;">Hide From Agency Admins
             <select id="editPrivateSelect" style="min-width: 120px;">
               <option value="no">No</option>
               <option value="yes">Yes</option>
@@ -365,6 +365,7 @@ const editStateWrap = document.getElementById("editStateWrap");
 
 // Private dropdown (Global Admins only)
 const privateSelect = document.getElementById("privateSelect");
+const privateWrap = document.getElementById("privateWrap");
 
 // Behavior dropdown
 const behaviorSelect = document.getElementById("behaviorSelect");
@@ -480,6 +481,7 @@ const editBehaviorSelect = document.getElementById("editBehaviorSelect");
 
 // Private dropdown (Global Admins only)
 const editPrivateSelect = document.getElementById("editPrivateSelect");
+const editPrivateWrap = document.getElementById("editPrivateWrap");
 
 // Global admin flag for JS logic
 const IS_GLOBAL_ADMIN = <%= isGlobalAdmin ? 'true' : 'false' %>;
@@ -850,6 +852,7 @@ createType.onchange = () => {
   if (agencyPrefixWrap) agencyPrefixWrap.style.display = isAgency ? "flex" : "none";
   if (countyWrap) countyWrap.style.display = isCounty ? "flex" : "none";
   if (stateWrap) stateWrap.style.display = isState ? "flex" : "none";
+  if (privateWrap) privateWrap.style.display = isAgency ? "flex" : "none";
 };
 
 // Show/hide edit agency / county selects based on type
@@ -863,6 +866,7 @@ if (editType) {
     if (editAgencyPrefixWrap) editAgencyPrefixWrap.style.display = isAgency ? "flex" : "none";
     if (editCountyWrap) editCountyWrap.style.display = isCounty ? "flex" : "none";
     if (editStateWrap) editStateWrap.style.display = isState ? "flex" : "none";
+    if (editPrivateWrap) editPrivateWrap.style.display = isAgency ? "flex" : "none";
   };
 }
 
@@ -1135,7 +1139,7 @@ createBtn.onclick = async () => {
     body: JSON.stringify({
       name,
       description: String(groupDescription.value || "").trim() || null,
-      private: (IS_GLOBAL_ADMIN && privateSelect)
+      private: (IS_GLOBAL_ADMIN && privateSelect && type === "agency")
         ? String(privateSelect.value || "no").trim().toLowerCase()
         : undefined,
       groupType,
@@ -1598,7 +1602,7 @@ editGroupSaveBtn.onclick = async () => {
   });
 
   const newDescription = String(editGroupDescriptionInput.value || "").trim();
-  const newPrivate = (IS_GLOBAL_ADMIN && editPrivateSelect)
+  const newPrivate = (IS_GLOBAL_ADMIN && editPrivateSelect && type === "agency")
     ? String(editPrivateSelect.value || "no").trim().toLowerCase()
     : null;
 
@@ -1622,7 +1626,7 @@ editGroupSaveBtn.onclick = async () => {
     body: JSON.stringify({
       name: newName,
       description: newDescription || null,
-      private: (IS_GLOBAL_ADMIN && editPrivateSelect)
+      private: (IS_GLOBAL_ADMIN && editPrivateSelect && type === "agency")
         ? String(editPrivateSelect.value || "no").trim().toLowerCase()
         : undefined,
     }),
