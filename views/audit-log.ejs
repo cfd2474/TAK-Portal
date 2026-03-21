@@ -657,8 +657,7 @@
 <script>
 (function() {
   const exportBtn = document.getElementById("exportAuditCsvBtn");
-  const tbody = document.getElementById("auditTbody");
-  if (!exportBtn || !tbody) return;
+  if (!exportBtn) return;
 
   function csvEscape(val) {
     const s = String(val == null ? "" : val);
@@ -668,33 +667,84 @@
     return s;
   }
 
-  function collectRows() {
-    const rows = Array.from(tbody.querySelectorAll("tr"));
-    return rows
-      .map((tr) => {
-        const tds = tr.querySelectorAll("td");
-        if (!tds || tds.length < 6) return null;
-
-        const time = String(tds[0].textContent || "").trim();
-        const actor = String(tds[1].textContent || "").replace(/\s+/g, " ").trim();
-        const action = String(tds[2].textContent || "").replace(/\s+/g, " ").trim();
-        const target = String(tds[3].textContent || "").replace(/\s+/g, " ").trim();
-        const agency = String(tds[4].textContent || "").replace(/\s+/g, " ").trim();
-        const detailsRaw = String(tr.getAttribute("data-details") || "{}").trim();
-
-        // Skip "No audit events found." placeholder row.
-        const isEmptyRow = !time && !actor && !action && !target && !agency;
-        if (isEmptyRow) return null;
-
-        return [time, actor, action, target, agency, detailsRaw];
-      })
-      .filter(Boolean);
+  function actorLabel(actor) {
+    const displayName = String(actor?.displayName || "").trim();
+    const username = String(actor?.username || "").trim();
+    if (displayName && username) return `${displayName} - ${username}`;
+    return displayName || username || "—";
   }
 
-  exportBtn.addEventListener("click", function() {
-    const rows = collectRows();
-    if (!rows.length) {
-      alert("No audit rows to export on this page.");
+  function targetLabel(item) {
+    const type = String(item?.targetType || "").trim();
+    const display = String(item?.targetDisplay || "").trim();
+    const targetId = String(item?.targetId || "").trim();
+    const typeLabel = type || "—";
+    const value = display || targetId || "—";
+    return `${typeLabel} ${value}`.trim();
+  }
+
+  function formatTimestamp(ts) {
+    try {
+      return new Date(ts).toLocaleString(undefined, {
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      });
+    } catch (_) {
+      return String(ts || "");
+    }
+  }
+
+  async function fetchAllFilteredRows() {
+    const params = new URLSearchParams(window.location.search || "");
+    params.delete("page");
+    params.delete("pageSize");
+
+    const rows = [];
+    let page = 1;
+    let pageCount = 1;
+    const pageSize = 500;
+
+    while (page <= pageCount) {
+      params.set("page", String(page));
+      params.set("pageSize", String(pageSize));
+
+      const res = await fetch(`/api/audit-log?${params.toString()}`);
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(out?.error || "Failed to fetch audit logs for export");
+      }
+
+      const items = Array.isArray(out?.items) ? out.items : [];
+      pageCount = Math.max(1, Number(out?.pageCount || 1));
+
+      items.forEach((item) => {
+        rows.push([
+          formatTimestamp(item?.timestamp || ""),
+          actorLabel(item?.actor),
+          String(item?.action || "—"),
+          targetLabel(item),
+          String(item?.agencySuffix || "—"),
+          JSON.stringify(item?.details || {}),
+        ]);
+      });
+
+      page += 1;
+    }
+
+    return rows;
+  }
+
+  exportBtn.addEventListener("click", async function() {
+    const originalLabel = exportBtn.textContent;
+    exportBtn.disabled = true;
+    exportBtn.textContent = "Exporting...";
+
+    let rows = [];
+    try {
+      rows = await fetchAllFilteredRows();
+    } catch (err) {
+      alert(err?.message || "Failed to export audit logs.");
+      exportBtn.disabled = false;
+      exportBtn.textContent = originalLabel;
       return;
     }
 
@@ -707,11 +757,14 @@
     const ts = new Date().toISOString().replace(/[:.]/g, "-");
     const a = document.createElement("a");
     a.href = url;
-    a.download = `audit-log-page-${ts}.csv`;
+    a.download = `audit-log-filtered-${ts}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+
+    exportBtn.disabled = false;
+    exportBtn.textContent = originalLabel;
   });
 })();
 </script>
