@@ -544,34 +544,57 @@ async function massAssignUsersToGroup({ groupId, suffixes, sourceGroupIds, userI
   await assertGroupNotActionLocked(gid);
 
   const access = accessSvc.getAgencyAccess(authUser || null);
-  const users = await getAllUsers();
-
   function restrictToAllowedAgencies(userList) {
     if (access.isGlobalAdmin) return userList;
-    return userList.filter((u) => accessSvc.isUsernameInAllowedAgencies(authUser, u?.username));
+    return userList.filter((u) =>
+      accessSvc.isUsernameInAllowedAgencies(authUser, u?.username)
+    );
+  }
+  function dedupeUsersByPk(userList) {
+    const seen = new Set();
+    const out = [];
+    for (const u of userList || []) {
+      const pk = String(u?.pk ?? u?.id ?? "").trim();
+      if (!pk || seen.has(pk)) continue;
+      seen.add(pk);
+      out.push(u);
+    }
+    return out;
   }
 
   // Strategy 1: explicit users
   const explicitUsers = normalizeIdList(userIds);
   if (explicitUsers.length) {
-    let matchedUsers = users.filter(u => explicitUsers.includes(String(u.pk)));
-    matchedUsers = restrictToAllowedAgencies(matchedUsers);
-    const targetUserPks = matchedUsers.map(u => u.pk);
+    let targetUserPks = explicitUsers.slice();
+    if (!access.isGlobalAdmin) {
+      // Agency admins must be restricted to allowed-agency users.
+      const hydrated = await Promise.all(
+        explicitUsers.map((id) => usersService.getUserById(id).catch(() => null))
+      );
+      const allowedUsers = restrictToAllowedAgencies(
+        hydrated.filter(Boolean)
+      );
+      targetUserPks = allowedUsers
+        .map((u) => String(u?.pk ?? u?.id ?? "").trim())
+        .filter(Boolean);
+    }
 
     const { changed } = await bulkAddUsersToGroup(gid, targetUserPks);
 
-    return { matched: matchedUsers.length, updated: changed };
+    return { matched: targetUserPks.length, updated: changed };
   }
 
   // Strategy 2: users with an existing group (allow multiple)
   const srcGids = normalizeIdList(sourceGroupIds);
   if (srcGids.length) {
-    let matchedUsers = users.filter(u => {
-      const gs = Array.isArray(u.groups) ? u.groups.map(x => String(x)) : [];
-      return srcGids.some(id => gs.includes(id));
-    });
+    const memberLists = await Promise.all(
+      srcGids.map((id) => getUsersByGroupIdRaw({ groupId: id }).catch(() => []))
+    );
+    let matchedUsers = dedupeUsersByPk(memberLists.flat());
     matchedUsers = restrictToAllowedAgencies(matchedUsers);
-    const targetUserPks = matchedUsers.map(u => u.pk);
+    const targetUserPks = matchedUsers
+      .map((u) => String(u?.pk ?? u?.id ?? "").trim())
+      .filter(Boolean);
     const { changed } = await bulkAddUsersToGroup(gid, targetUserPks);
 
     return { matched: matchedUsers.length, updated: changed };
@@ -585,12 +608,19 @@ async function massAssignUsersToGroup({ groupId, suffixes, sourceGroupIds, userI
     throw new Error("Provide suffixes, sourceGroupIds, or userIds to mass-assign.");
   }
 
+  const users = await usersService.getAllUsersLightweight();
+  const suffixSet = new Set(suffixList.map((s) => String(s).toLowerCase()));
   let matchedUsers = users.filter(u => {
     const un = String(u.username || "").toLowerCase();
-    return suffixList.some(sfx => un.endsWith(sfx));
+    for (const sfx of suffixSet) {
+      if (un.endsWith(sfx)) return true;
+    }
+    return false;
   });
   matchedUsers = restrictToAllowedAgencies(matchedUsers);
-  const targetUserPks = matchedUsers.map(u => u.pk);
+  const targetUserPks = matchedUsers
+    .map((u) => String(u?.pk ?? u?.id ?? "").trim())
+    .filter(Boolean);
   const { changed } = await bulkAddUsersToGroup(gid, targetUserPks);
 
   invalidateGroupUsersCache();
@@ -638,36 +668,57 @@ async function massUnassignUsersFromGroup({ groupId, suffixes, sourceGroupIds, u
   await assertGroupNotActionLocked(gid);
 
   const access = accessSvc.getAgencyAccess(authUser || null);
-  const users = await getAllUsers();
 
   function restrictToAllowedAgencies(userList) {
     if (access.isGlobalAdmin) return userList;
     return userList.filter((u) => accessSvc.isUsernameInAllowedAgencies(authUser, u?.username));
   }
+  function dedupeUsersByPk(userList) {
+    const seen = new Set();
+    const out = [];
+    for (const u of userList || []) {
+      const pk = String(u?.pk ?? u?.id ?? "").trim();
+      if (!pk || seen.has(pk)) continue;
+      seen.add(pk);
+      out.push(u);
+    }
+    return out;
+  }
 
   // Strategy 1: explicit users
   const explicitUsers = normalizeIdList(userIds);
   if (explicitUsers.length) {
-    let matchedUsers = users.filter((u) => explicitUsers.includes(String(u.pk)));
-    matchedUsers = restrictToAllowedAgencies(matchedUsers);
-    const targetUserPks = matchedUsers.map(u => u.pk);
+    let targetUserPks = explicitUsers.slice();
+    if (!access.isGlobalAdmin) {
+      const hydrated = await Promise.all(
+        explicitUsers.map((id) => usersService.getUserById(id).catch(() => null))
+      );
+      const allowedUsers = restrictToAllowedAgencies(
+        hydrated.filter(Boolean)
+      );
+      targetUserPks = allowedUsers
+        .map((u) => String(u?.pk ?? u?.id ?? "").trim())
+        .filter(Boolean);
+    }
 
     const { changed } = await bulkRemoveUsersFromGroup(gid, targetUserPks);
 
     invalidateGroupUsersCache();
 
-    return { matched: matchedUsers.length, updated: changed };
+    return { matched: targetUserPks.length, updated: changed };
   }
 
   // Strategy 2: users with an existing group (allow multiple)
   const srcGids = normalizeIdList(sourceGroupIds);
   if (srcGids.length) {
-    let matchedUsers = users.filter((u) => {
-      const gs = Array.isArray(u.groups) ? u.groups.map((x) => String(x)) : [];
-      return srcGids.some((id) => gs.includes(id));
-    });
+    const memberLists = await Promise.all(
+      srcGids.map((id) => getUsersByGroupIdRaw({ groupId: id }).catch(() => []))
+    );
+    let matchedUsers = dedupeUsersByPk(memberLists.flat());
     matchedUsers = restrictToAllowedAgencies(matchedUsers);
-    const targetUserPks = matchedUsers.map(u => u.pk);
+    const targetUserPks = matchedUsers
+      .map((u) => String(u?.pk ?? u?.id ?? "").trim())
+      .filter(Boolean);
     const { changed } = await bulkRemoveUsersFromGroup(gid, targetUserPks);
 
     invalidateGroupUsersCache();
@@ -683,12 +734,19 @@ async function massUnassignUsersFromGroup({ groupId, suffixes, sourceGroupIds, u
     throw new Error("Provide suffixes, sourceGroupIds, or userIds to mass-unassign.");
   }
 
+  const users = await usersService.getAllUsersLightweight();
+  const suffixSet = new Set(suffixList.map((s) => String(s).toLowerCase()));
   let matchedUsers = users.filter((u) => {
     const un = String(u.username || "").toLowerCase();
-    return suffixList.some((sfx) => un.endsWith(sfx));
+    for (const sfx of suffixSet) {
+      if (un.endsWith(sfx)) return true;
+    }
+    return false;
   });
   matchedUsers = restrictToAllowedAgencies(matchedUsers);
-  const targetUserPks = matchedUsers.map(u => u.pk);
+  const targetUserPks = matchedUsers
+    .map((u) => String(u?.pk ?? u?.id ?? "").trim())
+    .filter(Boolean);
   const { changed } = await bulkRemoveUsersFromGroup(gid, targetUserPks);
 
   return { matched: matchedUsers.length, updated: changed };
@@ -700,7 +758,7 @@ async function massUnassignUsersFromGroup({ groupId, suffixes, sourceGroupIds, u
 // Groups are read far more often than they change, so caching them drastically
 // speeds up endpoints used by the Users page without cutting functionality.
 // Default: disabled. Enable by setting GROUPS_CACHE_TTL_SECONDS>0 in env.
-const GROUPS_CACHE_TTL_MS = (getInt("GROUPS_CACHE_TTL_SECONDS", 0) || 0) * 1000;
+const GROUPS_CACHE_TTL_MS = (getInt("GROUPS_CACHE_TTL_SECONDS", 60) || 0) * 1000;
 let GROUPS_CACHE_BY_INCLUDE_HIDDEN = {
   true: { data: null, loadedAt: 0 },
   false: { data: null, loadedAt: 0 },

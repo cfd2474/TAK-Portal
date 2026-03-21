@@ -374,11 +374,15 @@ router.get("/:groupId/members", async (req, res) => {
         // single-agency admin; otherwise fall back to legacy suffix gate.
         const allowed = access.allowedAgencySuffixes || [];
         if (allowed.length === 1) {
-          const me = await usersService.getUserById(authUser.uid);
-          const attrs = me?.attributes || {};
+          const attrs = authUser?.attributes || {};
+          const fallbackMe = (!attrs || !Object.keys(attrs).length)
+            ? await usersService.getUserById(authUser.uid).catch(() => null)
+            : null;
+          const attrsResolved = (fallbackMe && fallbackMe.attributes) ? fallbackMe.attributes : attrs;
           const abbr = String(attrs.agency_abbreviation || "").trim();
-          if (abbr) {
-            agencyAbbreviation = abbr;
+          const resolvedAbbr = String(attrsResolved?.agency_abbreviation || "").trim();
+          if (resolvedAbbr || abbr) {
+            agencyAbbreviation = resolvedAbbr || abbr;
           }
         }
       } catch (e) {
