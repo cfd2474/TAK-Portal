@@ -279,6 +279,47 @@ async function getUsersByGroupIdRaw({ groupId, agencyAbbreviation } = {}) {
   return filtered;
 }
 
+// Fetch one page of users in a group via Authentik filtering.
+async function getUsersByGroupIdPagedRaw({ groupId, agencyAbbreviation, page = 1, pageSize = 100 } = {}) {
+  const gid = normalizeId(groupId);
+  if (!gid) throw new Error("Group id is required");
+
+  const safePage = Math.max(1, Number(page) || 1);
+  const safePageSize = Math.min(500, Math.max(1, Number(pageSize) || 100));
+
+  const abbr = String(agencyAbbreviation || "").trim();
+  const params = {
+    page: safePage,
+    page_size: safePageSize,
+    groups_by_pk: gid,
+    include_groups: "false",
+    include_roles: "false",
+  };
+  if (abbr) params.attributes__agency_abbreviation = abbr;
+
+  const res = await api.get("/core/users/", { params });
+  const data = res?.data || {};
+  const rows = Array.isArray(data.results) ? data.results : [];
+  const filteredRows = applyUserVisibilityFilters(rows);
+  const pagination = data.pagination || {};
+
+  const total =
+    Number(
+      pagination.count != null
+        ? pagination.count
+        : (data.count != null ? data.count : filteredRows.length)
+    ) || 0;
+
+  return {
+    users: filteredRows,
+    total,
+    page: typeof pagination.current === "number" ? pagination.current : safePage,
+    pageSize: safePageSize,
+    hasNext: !!(pagination.next ?? data.next),
+    hasPrev: !!(pagination.previous ?? data.previous),
+  };
+}
+
 // ---------------- Group CRUD ----------------
 async function createGroup(name, opts = {}) {
   const raw = String(name || "").trim();
@@ -568,7 +609,11 @@ async function bulkRemoveUsersFromGroup(groupId, userPks) {
 }
 
 // ---------- Mass assign / unassign ----------
-async function massAssignUsersToGroup({ groupId, suffixes, sourceGroupIds, userIds, authUser } = {}) {
+async function massAssignUsersToGroup({ groupId, suffixes, sourceGroupIds, userIds, authUser, onProgress } = {}) {
+  const emitProgress = (p) => {
+    if (typeof onProgress === "function") onProgress(p);
+  };
+
   const gid = normalizeId(groupId);
   if (!gid) throw new Error("Target group is required");
 
@@ -597,6 +642,7 @@ async function massAssignUsersToGroup({ groupId, suffixes, sourceGroupIds, userI
   // Strategy 1: explicit users
   const explicitUsers = normalizeIdList(userIds);
   if (explicitUsers.length) {
+    emitProgress({ phase: "matching", total: explicitUsers.length, processed: 0, matched: 0 });
     let targetUserPks = explicitUsers.slice();
     if (!access.isGlobalAdmin) {
       // Agency admins must be restricted to allowed-agency users.
@@ -612,25 +658,43 @@ async function massAssignUsersToGroup({ groupId, suffixes, sourceGroupIds, userI
         .map((u) => String(u?.pk ?? u?.id ?? "").trim())
         .filter(Boolean);
     }
+    emitProgress({
+      phase: "matching",
+      total: explicitUsers.length,
+      processed: explicitUsers.length,
+      matched: targetUserPks.length,
+    });
 
+    emitProgress({ phase: "applying", total: targetUserPks.length, processed: targetUserPks.length, matched: targetUserPks.length });
     const { changed } = await bulkAddUsersToGroup(gid, targetUserPks);
 
+    emitProgress({ phase: "done", total: targetUserPks.length, processed: targetUserPks.length, matched: targetUserPks.length, updated: changed });
     return { matched: targetUserPks.length, updated: changed };
   }
 
   // Strategy 2: users with an existing group (allow multiple)
   const srcGids = normalizeIdList(sourceGroupIds);
   if (srcGids.length) {
+    emitProgress({ phase: "matching", total: srcGids.length, processed: 0, matched: 0 });
     const memberLists = await Promise.all(
       srcGids.map((id) => getUsersByGroupIdRaw({ groupId: id }).catch(() => []))
     );
+    emitProgress({ phase: "matching", total: srcGids.length, processed: srcGids.length, matched: 0 });
     let matchedUsers = dedupeUsersByPk(memberLists.flat());
     matchedUsers = restrictToAllowedAgencies(matchedUsers);
     const targetUserPks = matchedUsers
       .map((u) => String(u?.pk ?? u?.id ?? "").trim())
       .filter(Boolean);
+    emitProgress({
+      phase: "matching",
+      total: targetUserPks.length,
+      processed: targetUserPks.length,
+      matched: targetUserPks.length,
+    });
+    emitProgress({ phase: "applying", total: targetUserPks.length, processed: targetUserPks.length, matched: targetUserPks.length });
     const { changed } = await bulkAddUsersToGroup(gid, targetUserPks);
 
+    emitProgress({ phase: "done", total: targetUserPks.length, processed: targetUserPks.length, matched: targetUserPks.length, updated: changed });
     return { matched: matchedUsers.length, updated: changed };
   }
 
@@ -643,22 +707,38 @@ async function massAssignUsersToGroup({ groupId, suffixes, sourceGroupIds, userI
   }
 
   const users = await usersService.getAllUsersLightweight();
+  emitProgress({ phase: "matching", total: users.length, processed: 0, matched: 0 });
   const suffixSet = new Set(suffixList.map((s) => String(s).toLowerCase()));
+  let processed = 0;
+  let matchedCount = 0;
   let matchedUsers = users.filter(u => {
     const un = String(u.username || "").toLowerCase();
+    processed++;
     for (const sfx of suffixSet) {
-      if (un.endsWith(sfx)) return true;
+      if (un.endsWith(sfx)) {
+        matchedCount++;
+        if (processed % 200 === 0) {
+          emitProgress({ phase: "matching", total: users.length, processed, matched: matchedCount });
+        }
+        return true;
+      }
+    }
+    if (processed % 200 === 0) {
+      emitProgress({ phase: "matching", total: users.length, processed, matched: matchedCount });
     }
     return false;
   });
+  emitProgress({ phase: "matching", total: users.length, processed: users.length, matched: matchedCount });
   matchedUsers = restrictToAllowedAgencies(matchedUsers);
   const targetUserPks = matchedUsers
     .map((u) => String(u?.pk ?? u?.id ?? "").trim())
     .filter(Boolean);
+  emitProgress({ phase: "applying", total: targetUserPks.length, processed: targetUserPks.length, matched: targetUserPks.length });
   const { changed } = await bulkAddUsersToGroup(gid, targetUserPks);
 
   invalidateGroupUsersCache();
 
+  emitProgress({ phase: "done", total: targetUserPks.length, processed: targetUserPks.length, matched: targetUserPks.length, updated: changed });
   return { matched: matchedUsers.length, updated: changed };
 }
 
@@ -694,7 +774,50 @@ async function getGroupMembers(groupId, { authUser, agencyAbbreviation } = {}) {
   }));
 }
 
-async function massUnassignUsersFromGroup({ groupId, suffixes, sourceGroupIds, userIds, authUser } = {}) {
+async function getGroupMembersPaged(groupId, { authUser, agencyAbbreviation, page = 1, pageSize = 100 } = {}) {
+  const gid = normalizeId(groupId);
+  if (!gid) throw new Error("Group id is required");
+
+  const result = await getUsersByGroupIdPagedRaw({
+    groupId: gid,
+    agencyAbbreviation,
+    page,
+    pageSize,
+  });
+
+  let members = Array.isArray(result.users) ? result.users : [];
+  const access = accessSvc.getAgencyAccess(authUser || null);
+  if (!access.isGlobalAdmin) {
+    members = members.filter((u) =>
+      accessSvc.isUsernameInAllowedAgencies(authUser || null, u?.username)
+    );
+  }
+
+  const projected = members.map((u) => ({
+    pk: u.pk,
+    username: u.username,
+    name: u.name,
+    email: u.email,
+    is_active: u.is_active,
+    path: u.path,
+    attributes: u.attributes || {},
+  }));
+
+  return {
+    users: projected,
+    total: result.total,
+    page: result.page,
+    pageSize: result.pageSize,
+    hasNext: !!result.hasNext,
+    hasPrev: !!result.hasPrev,
+  };
+}
+
+async function massUnassignUsersFromGroup({ groupId, suffixes, sourceGroupIds, userIds, authUser, onProgress } = {}) {
+  const emitProgress = (p) => {
+    if (typeof onProgress === "function") onProgress(p);
+  };
+
   const gid = normalizeId(groupId);
   if (!gid) throw new Error("Target group is required");
 
@@ -722,6 +845,7 @@ async function massUnassignUsersFromGroup({ groupId, suffixes, sourceGroupIds, u
   // Strategy 1: explicit users
   const explicitUsers = normalizeIdList(userIds);
   if (explicitUsers.length) {
+    emitProgress({ phase: "matching", total: explicitUsers.length, processed: 0, matched: 0 });
     let targetUserPks = explicitUsers.slice();
     if (!access.isGlobalAdmin) {
       const allUsers = await usersService.getAllUsersLightweight();
@@ -735,29 +859,47 @@ async function massUnassignUsersFromGroup({ groupId, suffixes, sourceGroupIds, u
         .map((u) => String(u?.pk ?? u?.id ?? "").trim())
         .filter(Boolean);
     }
+    emitProgress({
+      phase: "matching",
+      total: explicitUsers.length,
+      processed: explicitUsers.length,
+      matched: targetUserPks.length,
+    });
 
+    emitProgress({ phase: "applying", total: targetUserPks.length, processed: targetUserPks.length, matched: targetUserPks.length });
     const { changed } = await bulkRemoveUsersFromGroup(gid, targetUserPks);
 
     invalidateGroupUsersCache();
 
+    emitProgress({ phase: "done", total: targetUserPks.length, processed: targetUserPks.length, matched: targetUserPks.length, updated: changed });
     return { matched: targetUserPks.length, updated: changed };
   }
 
   // Strategy 2: users with an existing group (allow multiple)
   const srcGids = normalizeIdList(sourceGroupIds);
   if (srcGids.length) {
+    emitProgress({ phase: "matching", total: srcGids.length, processed: 0, matched: 0 });
     const memberLists = await Promise.all(
       srcGids.map((id) => getUsersByGroupIdRaw({ groupId: id }).catch(() => []))
     );
+    emitProgress({ phase: "matching", total: srcGids.length, processed: srcGids.length, matched: 0 });
     let matchedUsers = dedupeUsersByPk(memberLists.flat());
     matchedUsers = restrictToAllowedAgencies(matchedUsers);
     const targetUserPks = matchedUsers
       .map((u) => String(u?.pk ?? u?.id ?? "").trim())
       .filter(Boolean);
+    emitProgress({
+      phase: "matching",
+      total: targetUserPks.length,
+      processed: targetUserPks.length,
+      matched: targetUserPks.length,
+    });
+    emitProgress({ phase: "applying", total: targetUserPks.length, processed: targetUserPks.length, matched: targetUserPks.length });
     const { changed } = await bulkRemoveUsersFromGroup(gid, targetUserPks);
 
     invalidateGroupUsersCache();
 
+    emitProgress({ phase: "done", total: targetUserPks.length, processed: targetUserPks.length, matched: targetUserPks.length, updated: changed });
     return { matched: matchedUsers.length, updated: changed };
   }
 
@@ -770,20 +912,36 @@ async function massUnassignUsersFromGroup({ groupId, suffixes, sourceGroupIds, u
   }
 
   const users = await usersService.getAllUsersLightweight();
+  emitProgress({ phase: "matching", total: users.length, processed: 0, matched: 0 });
   const suffixSet = new Set(suffixList.map((s) => String(s).toLowerCase()));
+  let processed = 0;
+  let matchedCount = 0;
   let matchedUsers = users.filter((u) => {
     const un = String(u.username || "").toLowerCase();
+    processed++;
     for (const sfx of suffixSet) {
-      if (un.endsWith(sfx)) return true;
+      if (un.endsWith(sfx)) {
+        matchedCount++;
+        if (processed % 200 === 0) {
+          emitProgress({ phase: "matching", total: users.length, processed, matched: matchedCount });
+        }
+        return true;
+      }
+    }
+    if (processed % 200 === 0) {
+      emitProgress({ phase: "matching", total: users.length, processed, matched: matchedCount });
     }
     return false;
   });
+  emitProgress({ phase: "matching", total: users.length, processed: users.length, matched: matchedCount });
   matchedUsers = restrictToAllowedAgencies(matchedUsers);
   const targetUserPks = matchedUsers
     .map((u) => String(u?.pk ?? u?.id ?? "").trim())
     .filter(Boolean);
+  emitProgress({ phase: "applying", total: targetUserPks.length, processed: targetUserPks.length, matched: targetUserPks.length });
   const { changed } = await bulkRemoveUsersFromGroup(gid, targetUserPks);
 
+  emitProgress({ phase: "done", total: targetUserPks.length, processed: targetUserPks.length, matched: targetUserPks.length, updated: changed });
   return { matched: matchedUsers.length, updated: changed };
 }
 
@@ -855,6 +1013,7 @@ module.exports = {
   deleteGroupWithCleanup,
   massAssignUsersToGroup,
   getGroupMembers,
+  getGroupMembersPaged,
   massUnassignUsersFromGroup,
 
   // shared for other services if needed

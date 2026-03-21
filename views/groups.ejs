@@ -314,6 +314,12 @@
         />
       </div>
 
+      <div class="pagination" style="margin-top:10px;">
+        <button class="btn" id="membersPrevBtn" type="button">Previous</button>
+        <span id="membersPageInfo"></span>
+        <button class="btn" id="membersNextBtn" type="button">Next</button>
+      </div>
+
       <div
         id="membersList"
         class="groupsBox"
@@ -332,6 +338,9 @@ const membersSummary = document.getElementById("membersSummary");
 const membersFilter = document.getElementById("membersFilter");
 const membersList = document.getElementById("membersList");
 const membersHint = document.getElementById("membersHint");
+const membersPrevBtn = document.getElementById("membersPrevBtn");
+const membersNextBtn = document.getElementById("membersNextBtn");
+const membersPageInfo = document.getElementById("membersPageInfo");
 
 const createType = document.getElementById("createType");
 const agencyPrefixSelect = document.getElementById("agencyPrefixSelect");
@@ -1329,6 +1338,11 @@ let activeMembersGroupName = "";
 let activeMembersGroupId = "";
 let membersSortKey = "name";
 let membersSortDir = "asc";
+let membersCurrentPage = 1;
+let membersPageSize = 100;
+let membersTotalCount = 0;
+let membersHasNext = false;
+let membersHasPrev = false;
 
 window.setMembersSort = function(key){
   key = String(key || "").toLowerCase();
@@ -1401,6 +1415,45 @@ function renderMembersList(){
   `;
 }
 
+function renderMembersPagination() {
+  const total = Number(membersTotalCount || 0);
+  const size = Math.max(1, Number(membersPageSize || 100));
+  const totalPages = total > 0 ? Math.max(1, Math.ceil(total / size)) : 1;
+  if (membersPageInfo) membersPageInfo.textContent = `Page ${membersCurrentPage} of ${totalPages}`;
+  if (membersPrevBtn) membersPrevBtn.disabled = !membersHasPrev;
+  if (membersNextBtn) membersNextBtn.disabled = !membersHasNext;
+}
+
+async function loadMembersPage(page) {
+  if (!activeMembersGroupId) return;
+  const targetPage = Math.max(1, Number(page || 1));
+  membersSummary.textContent = "Loading members...";
+  membersSummary.className = "msg";
+
+  const res = await fetch(
+    `/api/groups/${encodeURIComponent(activeMembersGroupId)}/members?page=${targetPage}&pageSize=${membersPageSize}`
+  );
+  const out = await res.json();
+  if (!res.ok) throw new Error(out.error || "Failed to load members");
+
+  activeMembers = Array.isArray(out.users) ? out.users : [];
+  membersCurrentPage = Number(out.page || targetPage || 1);
+  membersPageSize = Number(out.pageSize || membersPageSize || 100);
+  membersTotalCount = Number(out.memberCount || activeMembers.length || 0);
+  membersHasNext = !!out.hasNext;
+  membersHasPrev = !!out.hasPrev;
+
+  const groupLabel = activeMembersGroupName || out.group?.name || activeMembersGroupId;
+  membersSummary.textContent = `${membersTotalCount} member${membersTotalCount === 1 ? "" : "s"} in group "${groupLabel}".`;
+  membersSummary.className = "msg ok";
+  membersHint.textContent = membersTotalCount
+    ? "Showing current members of this group. Use Remove to strip this group from individual users."
+    : "No users are currently assigned to this group.";
+
+  renderMembersList();
+  renderMembersPagination();
+}
+
 window.openGroupMembers = async (groupId) => {
   setMsg(listMsg, "");
 
@@ -1413,38 +1466,26 @@ window.openGroupMembers = async (groupId) => {
   membersList.innerHTML = "";
   membersHint.textContent = "";
   membersFilter.value = "";
+  membersCurrentPage = 1;
+  membersTotalCount = 0;
+  membersHasNext = false;
+  membersHasPrev = false;
+  renderMembersPagination();
 
   showMembersModal(true);
 
   try {
-    const res = await fetch(`/api/groups/${encodeURIComponent(groupId)}/members`);
-    const out = await res.json();
-
-    if (!res.ok) {
-      throw new Error(out.error || "Failed to load members");
-    }
-
-    activeMembers = Array.isArray(out.users) ? out.users : [];
-
-    const memberCount = typeof out.memberCount === "number"
-      ? out.memberCount
-      : activeMembers.length;
-
-    const groupLabel = activeMembersGroupName || out.group?.name || groupId;
-
-    membersSummary.textContent = `${memberCount} member${memberCount === 1 ? "" : "s"} in group "${groupLabel}".`;
-    membersSummary.className = "msg ok";
-    membersHint.textContent = memberCount
-      ? "Showing current members of this group. Use Remove to strip this group from individual users."
-      : "No users are currently assigned to this group.";
-
-    renderMembersList();
+    await loadMembersPage(1);
   } catch (e) {
     membersSummary.textContent = "Failed to load members.";
     membersSummary.className = "msg bad";
     membersList.innerHTML = "";
     membersHint.textContent = "";
     activeMembers = [];
+    membersTotalCount = 0;
+    membersHasNext = false;
+    membersHasPrev = false;
+    renderMembersPagination();
   }
 };
 
@@ -1470,7 +1511,8 @@ window.removeUserFromGroup = async (userPk) => {
     }
 
     activeMembers = activeMembers.filter(u => String(u.pk) !== String(userPk));
-    const memberCount = activeMembers.length;
+    const memberCount = Math.max(0, Number(membersTotalCount || 0) - 1);
+    membersTotalCount = memberCount;
     const groupLabel = label;
 
     membersSummary.textContent =
@@ -1482,6 +1524,7 @@ window.removeUserFromGroup = async (userPk) => {
       : "No users are currently assigned to this group.";
 
     renderMembersList();
+    renderMembersPagination();
   } catch (e) {
     alert("Failed to remove user from group.");
   }
@@ -1608,6 +1651,20 @@ membersOverlay.addEventListener("click", (e) => {
   if (e.target === membersOverlay) showMembersModal(false);
 });
 membersFilter.oninput = renderMembersList;
+if (membersPrevBtn) {
+  membersPrevBtn.onclick = () => {
+    if (membersHasPrev && membersCurrentPage > 1) {
+      loadMembersPage(membersCurrentPage - 1).catch(() => {});
+    }
+  };
+}
+if (membersNextBtn) {
+  membersNextBtn.onclick = () => {
+    if (membersHasNext) {
+      loadMembersPage(membersCurrentPage + 1).catch(() => {});
+    }
+  };
+}
 
 window.openMassAssign = async (groupId) => {
   const g = (groupsCache || []).find(x => String(x.pk) === String(groupId));
@@ -1827,17 +1884,60 @@ massApplyBtn.onclick = async () => {
     payload.userIds = userIds;
   }
 
-  const endpoint = massAction === "unassign" ? "/api/groups/mass-unassign" : "/api/groups/mass-assign";
+  const startEndpoint = massAction === "unassign" ? "/api/groups/mass-unassign/start" : "/api/groups/mass-assign/start";
+  const fmtElapsed = (ms) => {
+    const sec = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
+  };
 
   try {
-    const res = await fetch(endpoint, {
+    const startRes = await fetch(startEndpoint, {
       method: "POST",
       headers: {"Content-Type":"application/json"},
       body: JSON.stringify(payload)
     });
-    const out = await res.json();
-    if(!res.ok) return setMsg(massMsg, out.error || `Mass ${massAction} failed`, false);
-    setMsg(massMsg, `Matched ${out.matched} user(s). Updated ${out.updated}.`, true);
+    const startOut = await startRes.json();
+    if (!startRes.ok || !startOut?.jobId) {
+      return setMsg(massMsg, startOut.error || `Mass ${massAction} failed`, false);
+    }
+
+    const startedAt = Date.now();
+    setMsg(massMsg, `In Progress... 0 of 0 • 0:00`, true);
+
+    let done = false;
+    while (!done) {
+      const statusRes = await fetch(`/api/groups/mass-jobs/${encodeURIComponent(startOut.jobId)}`);
+      const statusOut = await statusRes.json();
+      if (!statusRes.ok || !statusOut.success) {
+        throw new Error(statusOut.error || "Failed to read mass action status");
+      }
+
+      const total = Number(statusOut.total || 0);
+      const processed = Number(statusOut.processed || 0);
+      const elapsedMs = Date.now() - startedAt;
+
+      if (statusOut.status === "running") {
+        setMsg(massMsg, `In Progress... ${processed} of ${total || "?"} • ${fmtElapsed(elapsedMs)}`, true);
+        await new Promise(r => setTimeout(r, 800));
+        continue;
+      }
+
+      if (statusOut.status === "failed") {
+        setMsg(massMsg, statusOut.error || `Mass ${massAction} failed`, false);
+        done = true;
+        continue;
+      }
+
+      const result = statusOut.result || {};
+      setMsg(
+        massMsg,
+        `Completed. Matched ${Number(result.matched || 0)} user(s). Updated ${Number(result.updated || 0)}. • ${fmtElapsed(elapsedMs)}`,
+        true
+      );
+      done = true;
+    }
   } catch (e) {
     setMsg(massMsg, `Mass ${massAction} failed`, false);
   }

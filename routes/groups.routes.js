@@ -26,6 +26,12 @@ function toErrorPayload(err) {
   return err?.message || "Unknown error";
 }
 
+// -------------------- Mass assign/unassign progress jobs (in-memory) --------------------
+const massJobs = new Map();
+function newJobId() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 router.get("/", async (req, res) => {
   try {
     const forceRefresh = req.query.forceRefresh === "true";
@@ -326,6 +332,87 @@ router.post("/mass-assign", async (req, res) => {
   }
 });
 
+router.post("/mass-assign/start", async (req, res) => {
+  try {
+    const authUser = req.authentikUser || null;
+    const payload = req.body || {};
+    const jobId = newJobId();
+    const startedAt = Date.now();
+
+    massJobs.set(jobId, {
+      jobId,
+      status: "running",
+      phase: "queued",
+      total: 0,
+      processed: 0,
+      matched: 0,
+      updated: 0,
+      error: null,
+      result: null,
+      startedAt,
+      finishedAt: null,
+      durationMs: null,
+      durationSeconds: null,
+    });
+
+    (async () => {
+      try {
+        const out = await groups.massAssignUsersToGroup({
+          groupId: payload.groupId,
+          suffixes: payload.suffixes,
+          sourceGroupIds: payload.sourceGroupIds ?? payload.sourceGroupId,
+          userIds: payload.userIds,
+          authUser,
+          onProgress: (p) => {
+            const job = massJobs.get(jobId);
+            if (!job || job.status !== "running") return;
+            if (p && typeof p === "object") {
+              if (p.phase) job.phase = String(p.phase);
+              if (Number.isFinite(Number(p.total))) job.total = Number(p.total);
+              if (Number.isFinite(Number(p.processed))) job.processed = Number(p.processed);
+              if (Number.isFinite(Number(p.matched))) job.matched = Number(p.matched);
+              if (Number.isFinite(Number(p.updated))) job.updated = Number(p.updated);
+            }
+          },
+        });
+
+        const finishedAt = Date.now();
+        const durationMs = finishedAt - startedAt;
+        const job = massJobs.get(jobId);
+        if (job) {
+          job.status = "done";
+          job.phase = "done";
+          job.result = out;
+          job.matched = Number(out?.matched || job.matched || 0);
+          job.updated = Number(out?.updated || job.updated || 0);
+          job.total = job.total || job.matched;
+          job.processed = Math.max(job.processed || 0, job.total || 0);
+          job.finishedAt = finishedAt;
+          job.durationMs = durationMs;
+          job.durationSeconds = Math.round((durationMs / 1000) * 10) / 10;
+        }
+      } catch (err) {
+        const finishedAt = Date.now();
+        const durationMs = finishedAt - startedAt;
+        const job = massJobs.get(jobId);
+        if (job) {
+          job.status = "failed";
+          job.phase = "failed";
+          job.error = toErrorPayload(err);
+          job.finishedAt = finishedAt;
+          job.durationMs = durationMs;
+          job.durationSeconds = Math.round((durationMs / 1000) * 10) / 10;
+        }
+      }
+    })();
+
+    setTimeout(() => massJobs.delete(jobId), 60 * 60 * 1000).unref?.();
+    return res.json({ success: true, jobId });
+  } catch (err) {
+    res.status(400).json({ error: toErrorPayload(err) });
+  }
+});
+
 // Mass unassign users from a group
 router.post("/mass-unassign", async (req, res) => {
   try {
@@ -357,10 +444,103 @@ router.post("/mass-unassign", async (req, res) => {
   }
 });
 
+router.post("/mass-unassign/start", async (req, res) => {
+  try {
+    const authUser = req.authentikUser || null;
+    const payload = req.body || {};
+    const jobId = newJobId();
+    const startedAt = Date.now();
+
+    massJobs.set(jobId, {
+      jobId,
+      status: "running",
+      phase: "queued",
+      total: 0,
+      processed: 0,
+      matched: 0,
+      updated: 0,
+      error: null,
+      result: null,
+      startedAt,
+      finishedAt: null,
+      durationMs: null,
+      durationSeconds: null,
+    });
+
+    (async () => {
+      try {
+        const out = await groups.massUnassignUsersFromGroup({
+          groupId: payload.groupId,
+          suffixes: payload.suffixes,
+          sourceGroupIds: payload.sourceGroupIds ?? payload.sourceGroupId,
+          userIds: payload.userIds,
+          authUser,
+          onProgress: (p) => {
+            const job = massJobs.get(jobId);
+            if (!job || job.status !== "running") return;
+            if (p && typeof p === "object") {
+              if (p.phase) job.phase = String(p.phase);
+              if (Number.isFinite(Number(p.total))) job.total = Number(p.total);
+              if (Number.isFinite(Number(p.processed))) job.processed = Number(p.processed);
+              if (Number.isFinite(Number(p.matched))) job.matched = Number(p.matched);
+              if (Number.isFinite(Number(p.updated))) job.updated = Number(p.updated);
+            }
+          },
+        });
+
+        const finishedAt = Date.now();
+        const durationMs = finishedAt - startedAt;
+        const job = massJobs.get(jobId);
+        if (job) {
+          job.status = "done";
+          job.phase = "done";
+          job.result = out;
+          job.matched = Number(out?.matched || job.matched || 0);
+          job.updated = Number(out?.updated || job.updated || 0);
+          job.total = job.total || job.matched;
+          job.processed = Math.max(job.processed || 0, job.total || 0);
+          job.finishedAt = finishedAt;
+          job.durationMs = durationMs;
+          job.durationSeconds = Math.round((durationMs / 1000) * 10) / 10;
+        }
+      } catch (err) {
+        const finishedAt = Date.now();
+        const durationMs = finishedAt - startedAt;
+        const job = massJobs.get(jobId);
+        if (job) {
+          job.status = "failed";
+          job.phase = "failed";
+          job.error = toErrorPayload(err);
+          job.finishedAt = finishedAt;
+          job.durationMs = durationMs;
+          job.durationSeconds = Math.round((durationMs / 1000) * 10) / 10;
+        }
+      }
+    })();
+
+    setTimeout(() => massJobs.delete(jobId), 60 * 60 * 1000).unref?.();
+    return res.json({ success: true, jobId });
+  } catch (err) {
+    res.status(400).json({ error: toErrorPayload(err) });
+  }
+});
+
+router.get("/mass-jobs/:jobId", (req, res) => {
+  const jobId = String(req.params.jobId || "");
+  const job = massJobs.get(jobId);
+  if (!job) return res.status(404).json({ error: "Mass action job not found" });
+  res.json({
+    success: true,
+    ...job,
+  });
+});
+
 // Fetch members of a single group, plus related mutual-aid entries
 router.get("/:groupId/members", async (req, res) => {
   try {
     const groupId = req.params.groupId;
+    const page = parseInt(req.query.page, 10) || 1;
+    const pageSize = parseInt(req.query.pageSize, 10) || 100;
     const group = await groups.getGroupById(groupId);
     const authUser = req.authentikUser || null;
     const access = accessSvc.getAgencyAccess(authUser);
@@ -390,10 +570,13 @@ router.get("/:groupId/members", async (req, res) => {
       }
     }
 
-    const users = await groups.getGroupMembers(groupId, {
+    const members = await groups.getGroupMembersPaged(groupId, {
       authUser,
       agencyAbbreviation,
+      page,
+      pageSize,
     });
+    const users = Array.isArray(members?.users) ? members.users : [];
 
     let mutual = [];
     try {
@@ -413,7 +596,11 @@ router.get("/:groupId/members", async (req, res) => {
       group,
       users,
       mutualAid: mutual,
-      memberCount: Array.isArray(users) ? users.length : 0,
+      memberCount: Number(members?.total || users.length || 0),
+      page: Number(members?.page || page),
+      pageSize: Number(members?.pageSize || pageSize),
+      hasNext: !!members?.hasNext,
+      hasPrev: !!members?.hasPrev,
     });
   } catch (err) {
     res.status(400).json({ error: toErrorPayload(err) });
