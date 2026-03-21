@@ -608,6 +608,73 @@ async function bulkRemoveUsersFromGroup(groupId, userPks) {
   };
 }
 
+async function loadUsersByAgencySuffixes({
+  selectedSuffixes,
+  emitProgress,
+  concurrency = 3,
+} = {}) {
+  const suffixes = Array.isArray(selectedSuffixes) ? selectedSuffixes : [];
+  const maxConcurrency = Math.max(1, Number(concurrency) || 3);
+  const seenPk = new Set();
+  const matchedUsers = [];
+  let processedAgencies = 0;
+  let idx = 0;
+
+  emitProgress({
+    phase: "loading_users",
+    total: suffixes.length,
+    processed: 0,
+    matched: 0,
+  });
+
+  async function worker() {
+    while (idx < suffixes.length) {
+      const current = idx;
+      idx += 1;
+      const sfx = suffixes[current];
+
+      let page = 1;
+      let hasNext = true;
+      while (hasNext) {
+        const out = await usersService.searchUsersByAgencySuffixPaged({
+          agencySuffix: sfx,
+          q: "",
+          page,
+          pageSize: 500,
+          sortKey: "username",
+          sortDir: "asc",
+          includeRoles: false,
+          includeGroups: false,
+        });
+        const rows = Array.isArray(out?.users) ? out.users : [];
+        for (const u of rows) {
+          const pk = String(u?.pk ?? u?.id ?? "").trim();
+          if (!pk || seenPk.has(pk)) continue;
+          seenPk.add(pk);
+          matchedUsers.push(u);
+        }
+        hasNext = !!out?.hasNext;
+        page += 1;
+      }
+
+      processedAgencies += 1;
+      emitProgress({
+        phase: "loading_users",
+        total: suffixes.length,
+        processed: processedAgencies,
+        matched: matchedUsers.length,
+      });
+    }
+  }
+
+  const workers = Array.from(
+    { length: Math.min(maxConcurrency, suffixes.length || 1) },
+    () => worker()
+  );
+  await Promise.all(workers);
+  return matchedUsers;
+}
+
 // ---------- Mass assign / unassign ----------
 async function massAssignUsersToGroup({ groupId, suffixes, sourceGroupIds, userIds, authUser, onProgress } = {}) {
   const emitProgress = (p) => {
@@ -707,46 +774,11 @@ async function massAssignUsersToGroup({ groupId, suffixes, sourceGroupIds, userI
   }
 
   const selectedSuffixes = Array.from(new Set(suffixList));
-  const seenPk = new Set();
-  let matchedUsers = [];
-  let processedAgencies = 0;
-
-  emitProgress({ phase: "loading_users", total: selectedSuffixes.length, processed: 0, matched: 0 });
-
-  // Primary path: per-agency suffix filtering (fast, server-side).
-  for (const sfx of selectedSuffixes) {
-    let page = 1;
-    let hasNext = true;
-    while (hasNext) {
-      const out = await usersService.searchUsersByAgencySuffixPaged({
-        agencySuffix: sfx,
-        q: "",
-        page,
-        pageSize: 500,
-        sortKey: "username",
-        sortDir: "asc",
-        includeRoles: false,
-        includeGroups: false,
-      });
-      const rows = Array.isArray(out?.users) ? out.users : [];
-      for (const u of rows) {
-        const pk = String(u?.pk ?? u?.id ?? "").trim();
-        if (!pk || seenPk.has(pk)) continue;
-        seenPk.add(pk);
-        matchedUsers.push(u);
-      }
-      hasNext = !!out?.hasNext;
-      page += 1;
-    }
-
-    processedAgencies += 1;
-    emitProgress({
-      phase: "loading_users",
-      total: selectedSuffixes.length,
-      processed: processedAgencies,
-      matched: matchedUsers.length,
-    });
-  }
+  let matchedUsers = await loadUsersByAgencySuffixes({
+    selectedSuffixes,
+    emitProgress,
+    concurrency: 3,
+  });
 
   emitProgress({
     phase: "matching",
@@ -937,45 +969,11 @@ async function massUnassignUsersFromGroup({ groupId, suffixes, sourceGroupIds, u
   }
 
   const selectedSuffixes = Array.from(new Set(suffixList));
-  const seenPk = new Set();
-  let matchedUsers = [];
-  let processedAgencies = 0;
-
-  emitProgress({ phase: "loading_users", total: selectedSuffixes.length, processed: 0, matched: 0 });
-
-  for (const sfx of selectedSuffixes) {
-    let page = 1;
-    let hasNext = true;
-    while (hasNext) {
-      const out = await usersService.searchUsersByAgencySuffixPaged({
-        agencySuffix: sfx,
-        q: "",
-        page,
-        pageSize: 500,
-        sortKey: "username",
-        sortDir: "asc",
-        includeRoles: false,
-        includeGroups: false,
-      });
-      const rows = Array.isArray(out?.users) ? out.users : [];
-      for (const u of rows) {
-        const pk = String(u?.pk ?? u?.id ?? "").trim();
-        if (!pk || seenPk.has(pk)) continue;
-        seenPk.add(pk);
-        matchedUsers.push(u);
-      }
-      hasNext = !!out?.hasNext;
-      page += 1;
-    }
-
-    processedAgencies += 1;
-    emitProgress({
-      phase: "loading_users",
-      total: selectedSuffixes.length,
-      processed: processedAgencies,
-      matched: matchedUsers.length,
-    });
-  }
+  let matchedUsers = await loadUsersByAgencySuffixes({
+    selectedSuffixes,
+    emitProgress,
+    concurrency: 3,
+  });
 
   emitProgress({
     phase: "matching",
