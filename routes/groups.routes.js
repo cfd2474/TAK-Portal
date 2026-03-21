@@ -339,11 +339,19 @@ router.post("/mass-assign/start", async (req, res) => {
     const jobId = newJobId();
     const startedAt = Date.now();
 
+    const initialTotal = Array.isArray(payload.userIds)
+      ? payload.userIds.length
+      : Array.isArray(payload.sourceGroupIds)
+        ? payload.sourceGroupIds.length
+        : Array.isArray(payload.suffixes)
+          ? payload.suffixes.length
+          : 0;
+
     massJobs.set(jobId, {
       jobId,
       status: "running",
       phase: "queued",
-      total: 0,
+      total: Number(initialTotal || 0),
       processed: 0,
       matched: 0,
       updated: 0,
@@ -451,11 +459,19 @@ router.post("/mass-unassign/start", async (req, res) => {
     const jobId = newJobId();
     const startedAt = Date.now();
 
+    const initialTotal = Array.isArray(payload.userIds)
+      ? payload.userIds.length
+      : Array.isArray(payload.sourceGroupIds)
+        ? payload.sourceGroupIds.length
+        : Array.isArray(payload.suffixes)
+          ? payload.suffixes.length
+          : 0;
+
     massJobs.set(jobId, {
       jobId,
       status: "running",
       phase: "queued",
-      total: 0,
+      total: Number(initialTotal || 0),
       processed: 0,
       matched: 0,
       updated: 0,

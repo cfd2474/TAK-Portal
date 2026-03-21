@@ -314,10 +314,18 @@
         />
       </div>
 
-      <div class="pagination" style="margin-top:10px;">
-        <button class="btn" id="membersPrevBtn" type="button">Previous</button>
-        <span id="membersPageInfo"></span>
-        <button class="btn" id="membersNextBtn" type="button">Next</button>
+      <div class="pagination" style="margin-top:10px; display:flex; align-items:center; justify-content:center; gap:8px; font-size:14px;">
+        <button class="btn" id="membersPrevBtn" type="button"
+          style="padding: 4px 14px; border-radius:999px; background:#2f3241; border:1px solid #3a3d4d; color:#e4e4e4; font-size:13px; line-height:1.2;">
+          Previous
+        </button>
+        <span id="membersPageInfo"
+          style="padding:3px 10px; border-radius:999px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06); opacity:.9; font-size:12px;">
+        </span>
+        <button class="btn" id="membersNextBtn" type="button"
+          style="padding: 4px 14px; border-radius:999px; background:#2f3241; border:1px solid #3a3d4d; color:#e4e4e4; font-size:13px; line-height:1.2;">
+          Next
+        </button>
       </div>
 
       <div
@@ -1904,7 +1912,7 @@ massApplyBtn.onclick = async () => {
     }
 
     const startedAt = Date.now();
-    setMsg(massMsg, `In Progress... 0 of 0 • 0:00`, true);
+    setMsg(massMsg, `In Progress... 0 of ${Number(startOut.total || 0)} • 0:00`, true);
 
     let done = false;
     while (!done) {
@@ -1917,9 +1925,15 @@ massApplyBtn.onclick = async () => {
       const total = Number(statusOut.total || 0);
       const processed = Number(statusOut.processed || 0);
       const elapsedMs = Date.now() - startedAt;
+      const phase = String(statusOut.phase || "");
 
       if (statusOut.status === "running") {
-        setMsg(massMsg, `In Progress... ${processed} of ${total || "?"} • ${fmtElapsed(elapsedMs)}`, true);
+        const phaseLabel =
+          phase === "loading_users" ? "Loading users" :
+          phase === "matching" ? "Matching users" :
+          phase === "applying" ? "Applying changes" :
+          "In Progress";
+        setMsg(massMsg, `${phaseLabel}... ${processed} of ${Math.max(0, total)} • ${fmtElapsed(elapsedMs)}`, true);
         await new Promise(r => setTimeout(r, 800));
         continue;
       }

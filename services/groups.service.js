@@ -706,6 +706,7 @@ async function massAssignUsersToGroup({ groupId, suffixes, sourceGroupIds, userI
     throw new Error("Provide suffixes, sourceGroupIds, or userIds to mass-assign.");
   }
 
+  emitProgress({ phase: "loading_users", total: 0, processed: 0, matched: 0 });
   const users = await usersService.getAllUsersLightweight();
   emitProgress({ phase: "matching", total: users.length, processed: 0, matched: 0 });
   const suffixSet = new Set(suffixList.map((s) => String(s).toLowerCase()));
@@ -911,6 +912,7 @@ async function massUnassignUsersFromGroup({ groupId, suffixes, sourceGroupIds, u
     throw new Error("Provide suffixes, sourceGroupIds, or userIds to mass-unassign.");
   }
 
+  emitProgress({ phase: "loading_users", total: 0, processed: 0, matched: 0 });
   const users = await usersService.getAllUsersLightweight();
   emitProgress({ phase: "matching", total: users.length, processed: 0, matched: 0 });
   const suffixSet = new Set(suffixList.map((s) => String(s).toLowerCase()));
