@@ -3,6 +3,7 @@ const api = require("./authentik");
 const usersService = require("./users.service");
 const templatesStore = require("./templates.service");
 const accessSvc = require("./access.service");
+const agenciesSvc = require("./agencies.service");
 
 // ---------------- Action-lock helpers ----------------
 // If a group name starts with any prefix in GROUPS_ACTIONS_HIDDEN_PREFIXES,
@@ -706,30 +707,90 @@ async function massAssignUsersToGroup({ groupId, suffixes, sourceGroupIds, userI
     throw new Error("Provide suffixes, sourceGroupIds, or userIds to mass-assign.");
   }
 
-  emitProgress({ phase: "loading_users", total: 0, processed: 0, matched: 0 });
-  const users = await usersService.getAllUsersLightweight();
-  emitProgress({ phase: "matching", total: users.length, processed: 0, matched: 0 });
-  const suffixSet = new Set(suffixList.map((s) => String(s).toLowerCase()));
-  let processed = 0;
-  let matchedCount = 0;
-  let matchedUsers = users.filter(u => {
-    const un = String(u.username || "").toLowerCase();
-    processed++;
-    for (const sfx of suffixSet) {
-      if (un.endsWith(sfx)) {
-        matchedCount++;
-        if (processed % 200 === 0) {
-          emitProgress({ phase: "matching", total: users.length, processed, matched: matchedCount });
+  const agencies = agenciesSvc.load();
+  const bySuffix = new Map(
+    (Array.isArray(agencies) ? agencies : []).map((a) => [
+      String(a?.suffix || "").trim().toLowerCase(),
+      a,
+    ])
+  );
+  const selectedSuffixes = Array.from(new Set(suffixList));
+  const seenPk = new Set();
+  let matchedUsers = [];
+  let processedAgencies = 0;
+
+  emitProgress({ phase: "loading_users", total: selectedSuffixes.length, processed: 0, matched: 0 });
+
+  // Primary path: per-agency Authentik attribute filtering (fast, server-side).
+  for (const sfx of selectedSuffixes) {
+    const agency = bySuffix.get(sfx);
+    const agencyName = String(agency?.name || "").trim();
+
+    if (agencyName) {
+      let page = 1;
+      let hasNext = true;
+      while (hasNext) {
+        const out = await usersService.searchUsersByAgencyNamePaged({
+          agencyName,
+          q: "",
+          page,
+          pageSize: 500,
+          sortKey: "username",
+          sortDir: "asc",
+          includeRoles: false,
+          includeGroups: false,
+        });
+        const rows = Array.isArray(out?.users) ? out.users : [];
+        for (const u of rows) {
+          const pk = String(u?.pk ?? u?.id ?? "").trim();
+          if (!pk || seenPk.has(pk)) continue;
+          seenPk.add(pk);
+          matchedUsers.push(u);
         }
-        return true;
+        hasNext = !!out?.hasNext;
+        page += 1;
       }
+    } else {
+      // Fallback for unknown suffix mapping: skip here and let fallback scanner handle it.
     }
-    if (processed % 200 === 0) {
-      emitProgress({ phase: "matching", total: users.length, processed, matched: matchedCount });
+
+    processedAgencies += 1;
+    emitProgress({
+      phase: "loading_users",
+      total: selectedSuffixes.length,
+      processed: processedAgencies,
+      matched: matchedUsers.length,
+    });
+  }
+
+  // Safety fallback for any selected suffixes that could not be mapped by agency name.
+  const missingMapped = selectedSuffixes.filter((sfx) => !String(bySuffix.get(sfx)?.name || "").trim());
+  if (missingMapped.length) {
+    const users = await usersService.getAllUsersLightweight();
+    const missingSet = new Set(missingMapped.map((s) => String(s).toLowerCase()));
+    for (const u of users) {
+      const un = String(u?.username || "").toLowerCase();
+      let hit = false;
+      for (const sfx of missingSet) {
+        if (un.endsWith(sfx)) {
+          hit = true;
+          break;
+        }
+      }
+      if (!hit) continue;
+      const pk = String(u?.pk ?? u?.id ?? "").trim();
+      if (!pk || seenPk.has(pk)) continue;
+      seenPk.add(pk);
+      matchedUsers.push(u);
     }
-    return false;
+  }
+
+  emitProgress({
+    phase: "matching",
+    total: matchedUsers.length,
+    processed: matchedUsers.length,
+    matched: matchedUsers.length,
   });
-  emitProgress({ phase: "matching", total: users.length, processed: users.length, matched: matchedCount });
   matchedUsers = restrictToAllowedAgencies(matchedUsers);
   const targetUserPks = matchedUsers
     .map((u) => String(u?.pk ?? u?.id ?? "").trim())
@@ -912,30 +973,86 @@ async function massUnassignUsersFromGroup({ groupId, suffixes, sourceGroupIds, u
     throw new Error("Provide suffixes, sourceGroupIds, or userIds to mass-unassign.");
   }
 
-  emitProgress({ phase: "loading_users", total: 0, processed: 0, matched: 0 });
-  const users = await usersService.getAllUsersLightweight();
-  emitProgress({ phase: "matching", total: users.length, processed: 0, matched: 0 });
-  const suffixSet = new Set(suffixList.map((s) => String(s).toLowerCase()));
-  let processed = 0;
-  let matchedCount = 0;
-  let matchedUsers = users.filter((u) => {
-    const un = String(u.username || "").toLowerCase();
-    processed++;
-    for (const sfx of suffixSet) {
-      if (un.endsWith(sfx)) {
-        matchedCount++;
-        if (processed % 200 === 0) {
-          emitProgress({ phase: "matching", total: users.length, processed, matched: matchedCount });
+  const agencies = agenciesSvc.load();
+  const bySuffix = new Map(
+    (Array.isArray(agencies) ? agencies : []).map((a) => [
+      String(a?.suffix || "").trim().toLowerCase(),
+      a,
+    ])
+  );
+  const selectedSuffixes = Array.from(new Set(suffixList));
+  const seenPk = new Set();
+  let matchedUsers = [];
+  let processedAgencies = 0;
+
+  emitProgress({ phase: "loading_users", total: selectedSuffixes.length, processed: 0, matched: 0 });
+
+  for (const sfx of selectedSuffixes) {
+    const agency = bySuffix.get(sfx);
+    const agencyName = String(agency?.name || "").trim();
+
+    if (agencyName) {
+      let page = 1;
+      let hasNext = true;
+      while (hasNext) {
+        const out = await usersService.searchUsersByAgencyNamePaged({
+          agencyName,
+          q: "",
+          page,
+          pageSize: 500,
+          sortKey: "username",
+          sortDir: "asc",
+          includeRoles: false,
+          includeGroups: false,
+        });
+        const rows = Array.isArray(out?.users) ? out.users : [];
+        for (const u of rows) {
+          const pk = String(u?.pk ?? u?.id ?? "").trim();
+          if (!pk || seenPk.has(pk)) continue;
+          seenPk.add(pk);
+          matchedUsers.push(u);
         }
-        return true;
+        hasNext = !!out?.hasNext;
+        page += 1;
       }
     }
-    if (processed % 200 === 0) {
-      emitProgress({ phase: "matching", total: users.length, processed, matched: matchedCount });
+
+    processedAgencies += 1;
+    emitProgress({
+      phase: "loading_users",
+      total: selectedSuffixes.length,
+      processed: processedAgencies,
+      matched: matchedUsers.length,
+    });
+  }
+
+  const missingMapped = selectedSuffixes.filter((sfx) => !String(bySuffix.get(sfx)?.name || "").trim());
+  if (missingMapped.length) {
+    const users = await usersService.getAllUsersLightweight();
+    const missingSet = new Set(missingMapped.map((s) => String(s).toLowerCase()));
+    for (const u of users) {
+      const un = String(u?.username || "").toLowerCase();
+      let hit = false;
+      for (const sfx of missingSet) {
+        if (un.endsWith(sfx)) {
+          hit = true;
+          break;
+        }
+      }
+      if (!hit) continue;
+      const pk = String(u?.pk ?? u?.id ?? "").trim();
+      if (!pk || seenPk.has(pk)) continue;
+      seenPk.add(pk);
+      matchedUsers.push(u);
     }
-    return false;
+  }
+
+  emitProgress({
+    phase: "matching",
+    total: matchedUsers.length,
+    processed: matchedUsers.length,
+    matched: matchedUsers.length,
   });
-  emitProgress({ phase: "matching", total: users.length, processed: users.length, matched: matchedCount });
   matchedUsers = restrictToAllowedAgencies(matchedUsers);
   const targetUserPks = matchedUsers
     .map((u) => String(u?.pk ?? u?.id ?? "").trim())

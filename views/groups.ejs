@@ -1913,7 +1913,7 @@ massApplyBtn.onclick = async () => {
     }
 
     const startedAt = Date.now();
-    setMsg(massMsg, `Preparing... • 0:00`, true);
+    setMsg(massMsg, `Preparing... 0 of ? • 0:00`, true);
 
     let done = false;
     while (!done) {
@@ -1936,7 +1936,7 @@ massApplyBtn.onclick = async () => {
           phase === "applying" ? "Applying changes" :
           "In Progress";
         if (phase === "queued" || phase === "loading_users") {
-          setMsg(massMsg, `${phaseLabel}... • ${fmtElapsed(elapsedMs)}`, true);
+          setMsg(massMsg, `${phaseLabel}... ${processed} of ? • ${fmtElapsed(elapsedMs)}`, true);
         } else {
           const totalLabel = total > 0 ? String(total) : "?";
           setMsg(massMsg, `${phaseLabel}... ${processed} of ${totalLabel} • ${fmtElapsed(elapsedMs)}`, true);
