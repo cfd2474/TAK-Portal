@@ -83,6 +83,7 @@
         </div>
 
         <button class="btn" type="submit">Filter</button>
+        <button class="btn" id="exportAuditCsvBtn" type="button">Export CSV</button>
       </form>
     </div>
 
@@ -650,6 +651,67 @@
     } catch (e) {
       el.textContent = raw;
     }
+  });
+})();
+</script>
+<script>
+(function() {
+  const exportBtn = document.getElementById("exportAuditCsvBtn");
+  const tbody = document.getElementById("auditTbody");
+  if (!exportBtn || !tbody) return;
+
+  function csvEscape(val) {
+    const s = String(val == null ? "" : val);
+    if (/[",\r\n]/.test(s)) {
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  }
+
+  function collectRows() {
+    const rows = Array.from(tbody.querySelectorAll("tr"));
+    return rows
+      .map((tr) => {
+        const tds = tr.querySelectorAll("td");
+        if (!tds || tds.length < 6) return null;
+
+        const time = String(tds[0].textContent || "").trim();
+        const actor = String(tds[1].textContent || "").replace(/\s+/g, " ").trim();
+        const action = String(tds[2].textContent || "").replace(/\s+/g, " ").trim();
+        const target = String(tds[3].textContent || "").replace(/\s+/g, " ").trim();
+        const agency = String(tds[4].textContent || "").replace(/\s+/g, " ").trim();
+        const detailsRaw = String(tr.getAttribute("data-details") || "{}").trim();
+
+        // Skip "No audit events found." placeholder row.
+        const isEmptyRow = !time && !actor && !action && !target && !agency;
+        if (isEmptyRow) return null;
+
+        return [time, actor, action, target, agency, detailsRaw];
+      })
+      .filter(Boolean);
+  }
+
+  exportBtn.addEventListener("click", function() {
+    const rows = collectRows();
+    if (!rows.length) {
+      alert("No audit rows to export on this page.");
+      return;
+    }
+
+    const header = ["Time", "Actor", "Action", "Target", "Agency", "Details JSON"];
+    const lines = [header, ...rows].map((cols) => cols.map(csvEscape).join(","));
+    const csv = lines.join("\r\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const ts = new Date().toISOString().replace(/[:.]/g, "-");
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `audit-log-page-${ts}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   });
 })();
 </script>
