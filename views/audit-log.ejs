@@ -235,6 +235,7 @@
 <script>
   window.AUDIT_USER_MAP = <%- JSON.stringify(typeof userMap !== 'undefined' ? userMap : {}) %>;
   window.AUDIT_GROUP_MAP = <%- JSON.stringify(typeof groupMap !== 'undefined' ? groupMap : {}) %>;
+  window.AUDIT_AGENCY_MAP = <%- JSON.stringify(typeof agencyMap !== 'undefined' ? agencyMap : {}) %>;
 </script>
 
 <style>
@@ -675,12 +676,37 @@
   }
 
   function targetLabel(item) {
-    const type = String(item?.targetType || "").trim();
-    const display = String(item?.targetDisplay || "").trim();
+    const type = String(item?.targetType || "").trim().toLowerCase();
+    const targetTypeOut = String(item?.targetType || "").trim() || "—";
+    const details = item?.details || {};
+    const userMap = window.AUDIT_USER_MAP || {};
+    const groupMap = window.AUDIT_GROUP_MAP || {};
     const targetId = String(item?.targetId || "").trim();
-    const typeLabel = type || "—";
-    const value = display || targetId || "—";
-    return `${typeLabel} ${value}`.trim();
+
+    let display = String(item?.targetDisplay || "").trim();
+
+    if (!display && (type === "user" || type === "authentik_user")) {
+      const username = String(details?.username || details?.userUsername || "").trim();
+      const name = String(details?.name || details?.displayName || "").trim();
+      if (username && name) display = `${username} - ${name}`;
+      else display = username || name;
+      if (!display && targetId && userMap[targetId]) {
+        const u = userMap[targetId] || {};
+        const un = String(u.username || "").trim();
+        const dn = String(u.name || "").trim();
+        display = (un && dn) ? `${un} - ${dn}` : (un || dn);
+      }
+    }
+
+    if (!display && (type === "group" || type === "authentik_group")) {
+      display = String(details?.name || details?.groupName || "").trim();
+      if (!display && targetId && groupMap[targetId]) {
+        display = String(groupMap[targetId] || "").trim();
+      }
+    }
+
+    if (!display) display = targetId || "—";
+    return `${targetTypeOut} ${display}`.trim();
   }
 
   function formatTimestamp(ts) {
@@ -691,6 +717,14 @@
     } catch (_) {
       return String(ts || "");
     }
+  }
+
+  function agencyLabel(item) {
+    const agencyMap = window.AUDIT_AGENCY_MAP || {};
+    const sfx = String(item?.agencySuffix || "").trim().toLowerCase();
+    if (!sfx) return "—";
+    const agencyObj = agencyMap[sfx];
+    return String(agencyObj?.name || agencyObj?.groupPrefix || sfx);
   }
 
   async function fetchAllFilteredRows() {
@@ -722,7 +756,7 @@
           actorLabel(item?.actor),
           String(item?.action || "—"),
           targetLabel(item),
-          String(item?.agencySuffix || "—"),
+          agencyLabel(item),
           JSON.stringify(item?.details || {}),
         ]);
       });
