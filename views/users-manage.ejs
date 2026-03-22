@@ -628,6 +628,9 @@ form.onsubmit = async (e) => {
   const fd = new FormData(form);
   const payload = Object.fromEntries(fd.entries());
 
+  const permVal = String(payload.permissions || "user").trim().toLowerCase();
+  payload.permissions = permVal || "user";
+
   // password client-side check
   const pwd = String(payload.password || "");
   if (!isValidPassword(pwd)) {

@@ -925,10 +925,16 @@ async function createUser(
 
   const name = `${last}, ${first}`;
 
-  // Fetch all groups once (or reuse caller-provided cache)
+  const perm = String(permissions || "user").trim().toLowerCase() || "user";
+  const includeHiddenForGroups =
+    perm === "agency_admin" || perm === "global_admin";
+
+  // Fetch all groups once (or reuse caller-provided cache).
+  // Agency/global admin groups use names starting with "authentik" and are only
+  // present when includeHidden is true — use one fetch for template + admin.
   const allGroupsLocal = Array.isArray(allGroups) && allGroups.length
     ? allGroups
-    : await getAllGroups();
+    : await getAllGroups({ includeHidden: includeHiddenForGroups });
 
   // Build fast lookup maps
   const byPk = new Map(allGroupsLocal.map(g => [String(g.pk), g]));
@@ -989,13 +995,7 @@ async function createUser(
     ...new Map(selectedGroups.map(g => [g.pk, g])).values(),
   ];
 
-  const perm = String(permissions || "user").trim().toLowerCase();
   if (perm === "agency_admin" || perm === "global_admin") {
-    const allHidden = await getAllGroups({ includeHidden: true });
-    const byNameLower = new Map(
-      allHidden.map(g => [String(g.name || "").trim().toLowerCase(), g])
-    );
-
     const extra = [];
     if (perm === "agency_admin") {
       const names = accessSvc.getAllAgencyAdminGroupNames(agency);
@@ -1025,11 +1025,11 @@ async function createUser(
       }
     }
 
-    const byPk = new Map(groupsToApply.map(g => [String(g.pk), g]));
+    const mergedByPk = new Map(groupsToApply.map(g => [String(g.pk), g]));
     for (const g of extra) {
-      byPk.set(String(g.pk), g);
+      mergedByPk.set(String(g.pk), g);
     }
-    groupsToApply = [...byPk.values()];
+    groupsToApply = [...mergedByPk.values()];
   }
 
   // Build payload
@@ -1087,10 +1087,10 @@ async function createUser(
     await api.post(`/core/users/${user.pk}/set_password/`, { password: pwd });
   }
 
-  // Apply groups
+  // Apply groups (string PKs match setUserGroups / Authentik expectations)
   if (groupsToApply.length) {
     await api.patch(`/core/users/${user.pk}/`, {
-      groups: groupsToApply.map(g => g.pk),
+      groups: groupsToApply.map(g => String(g.pk)),
     });
   }
 

@@ -371,7 +371,11 @@ router.post("/", async (req, res) => {
       return res.status(403).json({ error: "You do not have access to that agency." });
     }
 
-    const permRaw = String(payload.permissions ?? "user").trim().toLowerCase();
+    // FormData/JSON may send "" or omit the field; ?? only replaces null/undefined, not "".
+    let permRaw = payload.permissions;
+    if (Array.isArray(permRaw)) permRaw = permRaw[0];
+    permRaw = String(permRaw ?? "user").trim().toLowerCase();
+    if (!permRaw) permRaw = "user";
     const allowedPerm = ["user", "agency_admin", "global_admin"];
     if (!allowedPerm.includes(permRaw)) {
       return res.status(400).json({ error: "Invalid permissions value." });
