@@ -12,6 +12,10 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
+### v1.2.58 - 3/22/26
+✨ `Enhancement` - Added the ability to set a new user as an Agency Admin or Global admin during creation<br>
+✨ `Enhancement` - Added the ability to add additional agency types in settings.
+
 ### v1.2.57 - 3/21/26
 ✨ `Enhancement` - Added the ability to lock the request access page to only submit if the user's email domain matches the selected agency. (Configured on the agencies page for global admins)
 
