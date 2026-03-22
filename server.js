@@ -529,15 +529,11 @@ app.post("/lookup", async (req, res) => {
 
     // Domain-to-agency validation:
     // - Agency must explicitly allow lookup (lookupEnabled === true)
-    // - Agency must contain a matching domain in its allowed domains list
-    const agency = agencies.find(a => {
+    // - Email domain must match one of the comma-separated domains in lookupDomain
+    const agency = agencies.find((a) => {
       if (!a) return false;
-
       if (a.lookupEnabled !== true) return false;
-
-      if (!a.lookupDomain) return false;
-
-      return String(a.lookupDomain).toLowerCase() === domain;
+      return agenciesStore.emailDomainInAgencyList(email, a.lookupDomain);
     });
 
     if (!agency) {

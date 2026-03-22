@@ -224,6 +224,9 @@ router.put("/:index", async (req, res) => {
   if (!Array.isArray(req.body?.allowedAdminGroupIds)) {
     a.allowedAdminGroupIds = Array.isArray(existing.allowedAdminGroupIds) ? existing.allowedAdminGroupIds : [];
   }
+  const body = req.body || {};
+  if (!("lookupEnabled" in body)) a.lookupEnabled = existing.lookupEnabled;
+  if (!("lookupDomain" in body)) a.lookupDomain = existing.lookupDomain;
   const err = validateAgency(a);
   if (err) return res.status(400).json({ error: err });
 
@@ -422,17 +425,50 @@ router.delete("/:index", async (req, res) => {
 });
 
 
-// Enable Lookup (by index)
+// Save approved email domains only (same JSON field lookupDomain; comma-separated). Does not change lookupEnabled.
+router.post("/:index/lookup/domain", (req, res) => {
+  const idx = Number(req.params.index);
+  if (!Number.isInteger(idx)) {
+    return res.status(400).json({ error: "Invalid agency index" });
+  }
+
+  const agencies = store.load();
+  if (!agencies[idx]) {
+    return res.status(404).json({ error: "Agency not found" });
+  }
+
+  let normalized;
+  try {
+    normalized = store.normalizeLookupDomainString(req.body?.lookupDomain ?? "");
+  } catch (e) {
+    return res.status(400).json({ error: e?.message || "Invalid domain list" });
+  }
+
+  agencies[idx].lookupDomain = normalized;
+
+  store.save(agencies);
+
+  return res.json({ success: true, lookupDomain: normalized });
+});
+
+// Enable Lookup (by index). Domains from body.lookupDomain or legacy body.domain (comma-separated).
 router.post("/:index/lookup/enable", (req, res) => {
   const idx = Number(req.params.index);
-  const { domain } = req.body;
+  const raw = req.body?.lookupDomain ?? req.body?.domain;
 
   if (!Number.isInteger(idx)) {
     return res.status(400).json({ error: "Invalid agency index" });
   }
 
-  if (!domain || domain.includes("@") || !/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(domain)) {
-    return res.status(400).json({ error: "Invalid domain" });
+  let normalized;
+  try {
+    normalized = store.normalizeLookupDomainString(raw ?? "");
+  } catch (e) {
+    return res.status(400).json({ error: e?.message || "Invalid domain list" });
+  }
+
+  if (!normalized) {
+    return res.status(400).json({ error: "At least one valid domain is required to enable lookup" });
   }
 
   const agencies = store.load();
@@ -442,7 +478,7 @@ router.post("/:index/lookup/enable", (req, res) => {
   }
 
   agencies[idx].lookupEnabled = true;
-  agencies[idx].lookupDomain = domain;
+  agencies[idx].lookupDomain = normalized;
 
   store.save(agencies);
 
@@ -450,7 +486,7 @@ router.post("/:index/lookup/enable", (req, res) => {
 });
 
 
-// Disable Lookup (by index)
+// Disable Lookup (by index). Keeps lookupDomain for request-access restrictions and future re-enable.
 router.post("/:index/lookup/disable", (req, res) => {
   const idx = Number(req.params.index);
 
@@ -465,7 +501,6 @@ router.post("/:index/lookup/disable", (req, res) => {
   }
 
   agencies[idx].lookupEnabled = false;
-  agencies[idx].lookupDomain = null;
 
   store.save(agencies);
 

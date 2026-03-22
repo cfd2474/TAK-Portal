@@ -231,34 +231,40 @@
   </div>
 </div>
 
-<!-- Lookup Modal -->
+<!-- Configure domain + account lookup (same agency JSON field: lookupDomain, comma-separated) -->
   <div class="modalOverlay" id="lookupModal" style="display:none;">
-    <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="domainModalTitle">
       <div class="modalHeader">
-        <h2 style="margin:0;">Enable Account Lookup</h2>
+        <h2 id="domainModalTitle" style="margin:0;">Configure Domain</h2>
         <button class="btn" type="button" onclick="showLookupModal(false)">Close</button>
       </div>
       <div class="modalBody">
-        <p>Account Lookup allows users to request an enrollment QR code by entering their email address and username.
-        <br><br>This feature is intended for shared or apparatus accounts that do not have an email address assigned. When enabled, eligible users can have a temporary QR code emailed to them without administrator involvement.
-        <br><br>To use this feature securely, you must configure an approved email domain below. The domain entered must match the requestor’s email address (the portion after the “@”). Only email addresses from the configured domain will be permitted to receive a QR code.
-        <br><br>Enable this option if your agency uses shared or apparatus accounts and you want users to retrieve their QR codes independently while restricting access to your organization’s approved email domain.
+        <p>Configure approved email domains for this agency (comma-separated, no @ symbol). This is stored in the agency record as <code>lookupDomain</code>.
+        <br><br>If you list one or more domains, the public <strong>Request Access</strong> form will only accept email addresses ending in those domains for this agency—even when Account Lookup is turned off. Leave the field empty to allow any email domain for requests.
+        <br><br><strong>Account Lookup</strong> (when enabled) lets users request an enrollment QR code by email and username, for shared or apparatus accounts. Lookup still requires a matching approved domain and only works while lookup is enabled.
 
         <div style="margin-top:14px;">
-          <label>Agency Email Domain</label>
-          <input type="text" id="lookupDomain" placeholder="agency.gov"
+          <label>Agency email domains</label>
+          <input type="text" id="lookupDomain" placeholder="agency.gov, county.org"
                 style="width:100%; box-sizing:border-box;" />
+          <small class="muted" style="display:block; margin-top:4px;">Separate multiple domains with commas.</small>
           <small id="domainError" class="msg bad" style="display:none;">
-            Please enter a valid email domain (e.g., agency.gov) with no @ symbol.
+            Enter valid domains (e.g., agency.gov) with no @ symbol. Use commas between multiple domains.
           </small>
         </div>
 
-        <div style="margin-top:16px; text-align:right;">
+        <div style="margin-top:16px; display:flex; flex-wrap:wrap; gap:10px; justify-content:flex-end;">
           <button class="btn" type="button" onclick="showLookupModal(false)">
             Cancel
           </button>
-          <button class="btn success" type="button" id="confirmEnableLookup">
-            Enable Lookup
+          <button class="btn" type="button" id="saveLookupDomainsBtn">
+            Save domains
+          </button>
+          <button class="btn danger" type="button" id="disableLookupInModalBtn" style="display:none;">
+            Disable lookup
+          </button>
+          <button class="btn success" type="button" id="confirmEnableLookup" style="display:none;">
+            Enable lookup
           </button>
         </div>
       </div>
@@ -473,10 +479,9 @@ function renderAgencies(){
             Manage Access
           </button>
           <% } %>
-          <button class="btn ${a.lookupEnabled ? "btn-grey" : ""}"
-            type="button"
-            onclick="toggleLookup('${esc(a._id ?? a.id ?? "")}', ${a.lookupEnabled ? "true" : "false"}, '${esc(a.name)}')">
-            ${a.lookupEnabled ? "Disable Lookup" : "Enable Lookup"}
+          <button class="btn" type="button"
+            onclick="openDomainModal('${esc(a._id ?? a.id ?? "")}')">
+            Configure Domain
           </button>
           <button class="btn danger" type="button"
             onclick="delAgency('${esc(a._id ?? a.id ?? "")}')">
@@ -646,25 +651,34 @@ function normalizeCountyName(raw) {
   }
 }
 
-// === Remember last-used county between form submissions ===
+// === Configure domain / account lookup (agency index id from API) ===
 let currentLookupAgencyId = null;
+let currentLookupModalEnabled = false;
 
-window.toggleLookup = (id, enabled, agencyName) => {
-  if (!id) return;
-
-  if (enabled) {
-    if (!confirm(`Are you sure you want to disable Lookup for ${agencyName}?`)) return;
-
-    fetch(`/api/agencies/${encodeURIComponent(id)}/lookup/disable`, {
-      method: "POST"
-    }).then(() => loadAgenciesWithCounts());
-
+function syncLookupModalActionButtons() {
+  const enableBtn = document.getElementById("confirmEnableLookup");
+  const disableBtn = document.getElementById("disableLookupInModalBtn");
+  if (!enableBtn || !disableBtn) return;
+  if (currentLookupModalEnabled) {
+    enableBtn.style.display = "none";
+    disableBtn.style.display = "";
   } else {
-    currentLookupAgencyId = id;
-    document.getElementById("lookupDomain").value = "";
-    document.getElementById("domainError").style.display = "none";
-    showLookupModal(true);
+    enableBtn.style.display = "";
+    disableBtn.style.display = "none";
   }
+}
+
+window.openDomainModal = (id) => {
+  if (!id) return;
+  const a = (agencies || []).find((x) => String(x._id ?? x.id) === String(id));
+  currentLookupAgencyId = id;
+  currentLookupModalEnabled = !!(a && a.lookupEnabled);
+  const domainInput = document.getElementById("lookupDomain");
+  const err = document.getElementById("domainError");
+  if (domainInput) domainInput.value = a && a.lookupDomain != null ? String(a.lookupDomain) : "";
+  if (err) err.style.display = "none";
+  syncLookupModalActionButtons();
+  showLookupModal(true);
 };
 
 // Close lookup modal helper
@@ -687,30 +701,131 @@ if (lookupOverlay) {
   });
 }
 
-// Enable button handler
-document.getElementById("confirmEnableLookup").onclick = function () {
-  const domainInput = document.getElementById("lookupDomain");
-  const error = document.getElementById("domainError");
-  const domain = domainInput.value.trim();
+function parseDomainListClient(raw) {
+  return String(raw || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
-  const domainRegex = /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+const domainPartRegex = /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
-  if (!domainRegex.test(domain) || domain.includes("@")) {
-    error.style.display = "block";
-    return;
+function validateDomainFieldForSave(domainInput, errorEl) {
+  const parts = parseDomainListClient(domainInput.value);
+  for (const p of parts) {
+    if (p.includes("@") || !domainPartRegex.test(p)) {
+      errorEl.style.display = "block";
+      return false;
+    }
   }
+  errorEl.style.display = "none";
+  return true;
+}
 
-  error.style.display = "none";
+const saveLookupDomainsBtn = document.getElementById("saveLookupDomainsBtn");
+if (saveLookupDomainsBtn) {
+  saveLookupDomainsBtn.onclick = function () {
+    const domainInput = document.getElementById("lookupDomain");
+    const error = document.getElementById("domainError");
+    if (!currentLookupAgencyId || !domainInput || !error) return;
+    if (!validateDomainFieldForSave(domainInput, error)) return;
 
-  fetch(`/api/agencies/${encodeURIComponent(currentLookupAgencyId)}/lookup/enable`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ domain })
-  }).then(() => {
-    showLookupModal(false);
-    loadAgenciesWithCounts();
-  });
-};
+    fetch(`/api/agencies/${encodeURIComponent(currentLookupAgencyId)}/lookup/domain`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lookupDomain: domainInput.value.trim() })
+    })
+      .then(async (res) => {
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          error.textContent = out.error || "Could not save domains.";
+          error.style.display = "block";
+          return;
+        }
+        await loadAgenciesWithCounts();
+        const a = (agencies || []).find((x) => String(x._id ?? x.id) === String(currentLookupAgencyId));
+        if (domainInput && a) domainInput.value = a.lookupDomain != null ? String(a.lookupDomain) : "";
+        setMsg("Domains saved.", true);
+      })
+      .catch(() => {
+        error.textContent = "Could not save domains.";
+        error.style.display = "block";
+      });
+  };
+}
+
+const confirmEnableLookupBtn = document.getElementById("confirmEnableLookup");
+if (confirmEnableLookupBtn) {
+  confirmEnableLookupBtn.onclick = function () {
+    const domainInput = document.getElementById("lookupDomain");
+    const error = document.getElementById("domainError");
+    if (!currentLookupAgencyId || !domainInput || !error) return;
+    if (!validateDomainFieldForSave(domainInput, error)) return;
+    const parts = parseDomainListClient(domainInput.value);
+    if (parts.length === 0) {
+      error.textContent = "Enter at least one domain to enable lookup.";
+      error.style.display = "block";
+      return;
+    }
+
+    fetch(`/api/agencies/${encodeURIComponent(currentLookupAgencyId)}/lookup/enable`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lookupDomain: domainInput.value.trim() })
+    })
+      .then(async (res) => {
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          error.textContent = out.error || "Could not enable lookup.";
+          error.style.display = "block";
+          return;
+        }
+        currentLookupModalEnabled = true;
+        syncLookupModalActionButtons();
+        showLookupModal(false);
+        await loadAgenciesWithCounts();
+        setMsg("Account lookup enabled.", true);
+      })
+      .catch(() => {
+        error.textContent = "Could not enable lookup.";
+        error.style.display = "block";
+      });
+  };
+}
+
+const disableLookupInModalBtn = document.getElementById("disableLookupInModalBtn");
+if (disableLookupInModalBtn) {
+  disableLookupInModalBtn.onclick = function () {
+    if (!currentLookupAgencyId) return;
+    if (!confirm("Disable account lookup for this agency? Approved domains stay saved for Request Access and you can turn lookup on again later.")) return;
+
+    fetch(`/api/agencies/${encodeURIComponent(currentLookupAgencyId)}/lookup/disable`, {
+      method: "POST"
+    })
+      .then(async (res) => {
+        const out = await res.json().catch(() => ({}));
+        const error = document.getElementById("domainError");
+        if (!res.ok) {
+          if (error) {
+            error.textContent = out.error || "Could not disable lookup.";
+            error.style.display = "block";
+          }
+          return;
+        }
+        currentLookupModalEnabled = false;
+        syncLookupModalActionButtons();
+        await loadAgenciesWithCounts();
+        setMsg("Account lookup disabled.", true);
+      })
+      .catch(() => {
+        const error = document.getElementById("domainError");
+        if (error) {
+          error.textContent = "Could not disable lookup.";
+          error.style.display = "block";
+        }
+      });
+  };
+}
 
 const COUNTY_KEY = "lastCountyUsed";
 

@@ -45,10 +45,17 @@ function validateCreate(input) {
 
   if (!isOther) {
     const agencies = agenciesStore.load();
-    const ok = agencies.some(
+    const agency = agencies.find(
       (a) => String(a?.suffix || "").toLowerCase() === agencySuffix.toLowerCase()
     );
-    if (!ok) throw new Error("Selected agency is not valid");
+    if (!agency) throw new Error("Selected agency is not valid");
+
+    const list = agenciesStore.domainsListFromStored(agency.lookupDomain);
+    if (list.length > 0 && !agenciesStore.emailDomainInAgencyList(email, agency.lookupDomain)) {
+      throw new Error(
+        "Your email domain is not approved for the agency you selected. Use an address from one of the domains configured for that agency, or contact an administrator."
+      );
+    }
   }
 
   return { firstName, lastName, email, badgeNumber, agencySuffix, otherAgency, otherReason };
