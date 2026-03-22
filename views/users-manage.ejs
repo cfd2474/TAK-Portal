@@ -1424,8 +1424,9 @@ function getAgencyAdminGroupNameForUser(user){
 const agencyAdminGroupIdByAbbr = new Map();
 let agencyAdminGroupIdIndexByAbbr = null;
 
-// Build an index from <AGENCY_ABBR> -> <group pk>
+// Build an index from <AGENCY_ABBR> -> <group pk[]>
 // by scanning ALL groups including hidden exactly once.
+// (County-prefixed and legacy *-AgencyAdmin groups may both exist — keep all PKs.)
 // This avoids O(uniqueAgencies * allGroups) repeated scans.
 async function ensureAgencyAdminGroupIdIndex(){
   if (agencyAdminGroupIdIndexByAbbr) return agencyAdminGroupIdIndexByAbbr;
@@ -1454,8 +1455,11 @@ async function ensureAgencyAdminGroupIdIndex(){
     const abbrLower = parts[parts.length - 1] || "";
     const abbrUpper = abbrLower.toUpperCase();
 
-    if (abbrUpper && pk != null && !index.has(abbrUpper)) {
-      index.set(abbrUpper, pk);
+    if (abbrUpper && pk != null) {
+      if (!index.has(abbrUpper)) index.set(abbrUpper, []);
+      const list = index.get(abbrUpper);
+      const sid = String(pk);
+      if (!list.includes(sid)) list.push(sid);
     }
   }
 
@@ -1477,8 +1481,11 @@ async function ensureAgencyAdminIdsForUsers(users){
     // viewer's allowed agencies.
     if (IS_GLOBAL_ADMIN) {
       const index = await ensureAgencyAdminGroupIdIndex();
-      const id = index.has(abbr) ? index.get(abbr) : null;
-      agencyAdminGroupIdByAbbr.set(abbr, id ? [id] : []);
+      const ids = index.has(abbr) ? index.get(abbr) : [];
+      agencyAdminGroupIdByAbbr.set(
+        abbr,
+        Array.isArray(ids) ? ids.map(String) : []
+      );
       continue;
     }
 
@@ -1745,7 +1752,20 @@ window.editUser = async (userPk) => {
     return;
   }
 
-  selectedUser = { ...u };
+  let merged = { ...u };
+  try {
+    const res = await fetch(`/api/users/${encodeURIComponent(pkStr)}`);
+    const fresh = await res.json();
+    if (res.ok && fresh && fresh.pk != null) {
+      merged = { ...u, ...fresh };
+    }
+  } catch (e) {
+    console.warn("editUser: failed to refresh user from API", e);
+  }
+
+  await ensureAgencyAdminIdsForUsers([merged]);
+
+  selectedUser = merged;
 
   // Resolve agency-admin group id from our cached mapping (suffix-only lookup),
   // so it works for both legacy and county-prefixed group names.

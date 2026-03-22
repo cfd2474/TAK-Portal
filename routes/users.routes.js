@@ -1132,6 +1132,32 @@ router.get("/search", async (req, res) => {
   }
 });
 
+/**
+ * Full user record (including group memberships) for the edit modal.
+ * List/search endpoints often omit or strip groups; this avoids stale UI.
+ */
+router.get("/:userId", async (req, res) => {
+  try {
+    const authUser = req.authentikUser || null;
+    if (!authUser) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const user = await users.getUserById(req.params.userId).catch(() => null);
+    if (!user || user.pk == null) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (!accessSvc.isUsernameInAllowedAgencies(authUser, user.username)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: toErrorPayload(err) });
+  }
+});
+
 router.post("/:userId/reset-password", async (req, res) => {
   try {
     const authUser = req.authentikUser || null;

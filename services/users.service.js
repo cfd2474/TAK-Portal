@@ -1630,6 +1630,11 @@ async function searchUsersPaged({
     params.search = String(q).trim();
   }
 
+  // Needed so the Manage Users UI can show roles and the edit modal can
+  // initialize the Permissions dropdown (matches other paged search helpers).
+  params.include_groups = "true";
+  params.include_roles = "false";
+
   const res = await api.get("/core/users/", { params });
   const data = res?.data || {};
   const raw = Array.isArray(data.results) ? data.results : [];
