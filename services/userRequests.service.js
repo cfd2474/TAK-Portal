@@ -53,7 +53,7 @@ function validateCreate(input) {
     const list = agenciesStore.domainsListFromStored(agency.lookupDomain);
     if (list.length > 0 && !agenciesStore.emailDomainInAgencyList(email, agency.lookupDomain)) {
       throw new Error(
-        "Your email domain is not approved for the agency you selected. Use an address from one of the domains configured for that agency, or contact an administrator."
+        "The email provided does not match the selected agency's email domain"
       );
     }
   }
