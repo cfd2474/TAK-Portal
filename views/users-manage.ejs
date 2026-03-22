@@ -463,7 +463,7 @@ async function loadAgencies() {
   }
 }
 
-// -------------------- Templates --------------------
+// -------------------- Templates + manual group list (single /api/users/meta call) --------------------
 async function loadMeta() {
   const sfx = agencySelect.value || "";
   const res = await fetch(
@@ -471,6 +471,9 @@ async function loadMeta() {
   );
   const meta = await res.json();
   if (!res.ok) throw new Error(meta.error || "Failed to load templates");
+
+  groupsCache = Array.isArray(meta.groups) ? meta.groups : [];
+  renderGroupsBox();
 
   // Router now returns: { groups, templates: [ { key, label, isDefault?, groups? }, ... ] }
   const raw = Array.isArray(meta.templates) ? meta.templates : [];
@@ -601,18 +604,6 @@ function getPickedManualGroupIds() {
   return Array.from(pickedManualGroupIds);
 }
 
-async function loadGroups() {
-  const sfx = agencySelect.value || "";
-  const res = await fetch(
-    "/api/users/meta?agencySuffix=" + encodeURIComponent(sfx)
-  );
-  const meta = await res.json();
-  if (!res.ok) throw new Error(meta.error || "Failed to load groups");
-
-  groupsCache = Array.isArray(meta.groups) ? meta.groups : [];
-  renderGroupsBox();
-}
-
 // -------------------- Template selection behavior --------------------
 templateSelect.onchange = () => {
   const isManual =
@@ -690,7 +681,6 @@ form.onsubmit = async (e) => {
 (async () => {
   try {
     await loadAgencies();
-    await loadGroups();
     await loadMeta();
   } catch (err) {
     setMsg(err.message || "Failed to load page", false);
@@ -946,6 +936,10 @@ let sortState = {
 // ------- Users state (server-side pagination) -------
 let allUsers = [];
 let filterTimer = null;
+/** Cancels an in-flight users search so older queries cannot overwrite newer results */
+let usersSearchAbort = null;
+/** Monotonic id; ignore responses from stale requests if abort is unsupported */
+let usersSearchRequestId = 0;
 
 const PAGE_SIZE = 25;
 let currentPage = 1;
@@ -2079,7 +2073,7 @@ function applyFilterSortRender(){
 
 function scheduleFilter(){
   clearTimeout(filterTimer);
-  filterTimer = setTimeout(applyFilterSortRender, 120);
+  filterTimer = setTimeout(applyFilterSortRender, 280);
 }
 
 q.addEventListener("input", scheduleFilter);
@@ -2412,6 +2406,13 @@ if (applyTemplateBtn) applyTemplateBtn.addEventListener("click", async () => {
 });
 
   async function loadAllUsers(){
+    if (usersSearchAbort) {
+      usersSearchAbort.abort();
+    }
+    usersSearchAbort = new AbortController();
+    const { signal } = usersSearchAbort;
+    const myRequestId = ++usersSearchRequestId;
+
     setMsgEl(msg, "Loading users...", true);
 
   const params = new URLSearchParams({
@@ -2435,8 +2436,19 @@ if (applyTemplateBtn) applyTemplateBtn.addEventListener("click", async () => {
   const qVal = String(currentSearch || "").trim();
   if (qVal) params.set("q", qVal);
 
-  const res = await fetch(`/api/users/search?${params.toString()}`);
-  const out = await res.json();
+  let res;
+  let out;
+  try {
+    res = await fetch(`/api/users/search?${params.toString()}`, { signal });
+    if (myRequestId !== usersSearchRequestId) return;
+    out = await res.json();
+    if (myRequestId !== usersSearchRequestId) return;
+  } catch (err) {
+    if (err && err.name === "AbortError") return;
+    if (myRequestId !== usersSearchRequestId) return;
+    setMsgEl(msg, err?.message || "Failed to load users", false);
+    return;
+  }
 
   if (!res.ok) {
     setMsgEl(msg, out.error || "Failed to load users", false);
@@ -2468,6 +2480,7 @@ if (applyTemplateBtn) applyTemplateBtn.addEventListener("click", async () => {
 // Allow other parts of the page (Create User + CSV import) to request a refresh
 window.addEventListener("users:refresh", () => {
   loadAllUsers().catch((err) => {
+    if (err && err.name === "AbortError") return;
     setMsgEl(msg, err?.message || "Failed to refresh users", false);
   });
 });
