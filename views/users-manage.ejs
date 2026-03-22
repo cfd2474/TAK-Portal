@@ -1746,90 +1746,90 @@ window.editUser = async (userPk) => {
     return;
   }
 
-  let merged = { ...u };
-  try {
-    const res = await fetch(`/api/users/${encodeURIComponent(pkStr)}`);
-    const fresh = await res.json();
-    if (res.ok && fresh && fresh.pk != null) {
-      merged = { ...u, ...fresh };
+  function paintEditModalFromSelectedUser() {
+    const abbrForSelected = String(getUserAgencyAbbreviation(selectedUser) || "").trim().toUpperCase();
+    const adminGroupId = abbrForSelected ? agencyAdminGroupIdByAbbr.get(abbrForSelected) : null;
+    if (userTitle) userTitle.textContent = `User ${selectedUser.username}`;
+
+    if (usernameSpan) {
+      usernameSpan.textContent = `${selectedUser.username} — ${selectedUser.name || ""}`;
     }
-  } catch (e) {
-    console.warn("editUser: failed to refresh user from API", e);
-  }
 
-  await ensureAgencyAdminIdsForUsers([merged]);
+    if (emailInput) emailInput.value = selectedUser.email || "";
 
-  selectedUser = merged;
+    const { first, last } = splitName(selectedUser.name || "");
+    if (firstNameInput) firstNameInput.value = first;
+    if (lastNameInput) lastNameInput.value = last;
 
-  // Resolve agency-admin group id from our cached mapping (suffix-only lookup),
-  // so it works for both legacy and county-prefixed group names.
-  const abbrForSelected = String(getUserAgencyAbbreviation(selectedUser) || "").trim().toUpperCase();
-  const adminGroupId = abbrForSelected ? agencyAdminGroupIdByAbbr.get(abbrForSelected) : null;
-  if (userTitle) userTitle.textContent = `User ${selectedUser.username}`;
+    setMsgEl(nameMsg, "");
+    setMsgEl(actionMsg, "");
 
-  if (usernameSpan) {
-    usernameSpan.textContent = `${selectedUser.username} — ${selectedUser.name || ""}`;
-  }
+    renderGroupChips(selectedUser);
 
-  if (emailInput) emailInput.value = selectedUser.email || "";
+    pickedGroupIds = new Set((selectedUser.groups || []).map(x => String(x)));
+    renderGroupsBox();
 
-  const { first, last } = splitName(selectedUser.name || "");
-  if (firstNameInput) firstNameInput.value = first;
-  if (lastNameInput) lastNameInput.value = last;
-
-  setMsgEl(nameMsg, "");
-  setMsgEl(actionMsg, "");
-
-  renderGroupChips(selectedUser);
-
-  pickedGroupIds = new Set((selectedUser.groups || []).map(x => String(x)));
-  renderGroupsBox();
-
-  // Default permissions = User; if user is in their agency admin group, reflect that.
-  if (permissionsSelect) {
-    if (abbrForSelected) {
-      const adminIds = adminGroupId;
-      const hasAdmin = Array.isArray(adminIds)
-        ? adminIds.some(id => (selectedUser.groups || []).some(gid => String(gid) === String(id)))
-        : (adminIds
-            ? (selectedUser.groups || []).some(gid => String(gid) === String(adminIds))
-            : false);
-      // Only overwrite selection if not already set to global_admin above.
-      if (permissionsSelect.value !== "global_admin") {
-        permissionsSelect.value = hasAdmin ? "agency_admin" : "user";
+    if (permissionsSelect) {
+      if (abbrForSelected) {
+        const adminIds = adminGroupId;
+        const hasAdmin = Array.isArray(adminIds)
+          ? adminIds.some(id => (selectedUser.groups || []).some(gid => String(gid) === String(id)))
+          : (adminIds
+              ? (selectedUser.groups || []).some(gid => String(gid) === String(adminIds))
+              : false);
+        if (permissionsSelect.value !== "global_admin") {
+          permissionsSelect.value = hasAdmin ? "agency_admin" : "user";
+        }
+        permissionsSelect.disabled = false;
+        if (applyPermissionsBtn) applyPermissionsBtn.disabled = false;
+      } else {
+        if (permissionsSelect.value !== "global_admin") {
+          permissionsSelect.value = "user";
+        }
+        const canUse = IS_GLOBAL_ADMIN && !!permissionsSelect.querySelector('option[value="global_admin"]');
+        permissionsSelect.disabled = !canUse;
+        if (applyPermissionsBtn) applyPermissionsBtn.disabled = !canUse;
       }
-      permissionsSelect.disabled = false;
-      if (applyPermissionsBtn) applyPermissionsBtn.disabled = false;
-    } else {
-      // If no agency abbreviation, only global admins can still manage global-admin status.
-      if (permissionsSelect.value !== "global_admin") {
-        permissionsSelect.value = "user";
-      }
-      const canUse = IS_GLOBAL_ADMIN && !!permissionsSelect.querySelector('option[value="global_admin"]');
-      permissionsSelect.disabled = !canUse;
-      if (applyPermissionsBtn) applyPermissionsBtn.disabled = !canUse;
+    }
+
+    if (toggleBtn) {
+      toggleBtn.textContent = selectedUser.is_active ? "Disable User" : "Enable User";
     }
   }
 
-  // modal-only action buttons are not present; guard if you ever add them back
-  if (toggleBtn) {
-    toggleBtn.textContent = selectedUser.is_active ? "Disable User" : "Enable User";
-  }
-
+  // Show the modal immediately from table row data (do not wait on network).
+  selectedUser = { ...u };
+  paintEditModalFromSelectedUser();
   openModal();
 
-  // Load templates after modal is open so UI appears immediately.
   loadTemplatesForAgency(
     (selectedUser && selectedUser.attributes && selectedUser.attributes.agency) || ""
   ).catch(() => {});
 
-  // Resolve global-admin permission state in the background for faster modal open.
+  let merged = { ...u };
+  try {
+    await Promise.all([
+      (async () => {
+        const res = await fetch(`/api/users/${encodeURIComponent(pkStr)}`);
+        const fresh = await res.json();
+        if (res.ok && fresh && fresh.pk != null) {
+          merged = { ...u, ...fresh };
+        }
+      })(),
+      ensureAgencyAdminIdsForUsers([u]),
+    ]);
+  } catch (e) {
+    console.warn("editUser: failed to refresh user or resolve admin groups", e);
+  }
+
+  selectedUser = merged;
+  paintEditModalFromSelectedUser();
+
   if (permissionsSelect) {
     const globalOptionExists = !!permissionsSelect.querySelector('option[value="global_admin"]');
     if (IS_GLOBAL_ADMIN && globalOptionExists) {
       getGlobalAdminGroupIds()
         .then((globalIds) => {
-          // User may have changed while request was in flight.
           if (!selectedUser || String(selectedUser.pk) !== pkStr) return;
           const hasGlobal = userHasAnyGroupId(selectedUser, globalIds);
           if (hasGlobal) {
@@ -2495,6 +2495,10 @@ searchForm.onsubmit = (e) => {
     updateSortIndicators();
     // Load groups (for Create/Edit modals) and users table in parallel so the table appears faster
     await Promise.all([loadGroups(), loadAllUsers()]);
+    // Warm agency-admin group index for global admins so first "Edit" does not wait on a full hidden-groups fetch.
+    if (IS_GLOBAL_ADMIN) {
+      ensureAgencyAdminGroupIdIndex().catch(() => {});
+    }
   } catch (err) {
     setMsgEl(msg, err.message || "Failed to load page", false);
   }
