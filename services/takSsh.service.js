@@ -172,7 +172,7 @@ function ensureLocalSshKeyPair() {
     modulusLength: 4096,
     publicExponent: 0x10001,
   });
-  const privatePem = privateKey.export({ format: "pem", type: "pkcs8" });
+  const privatePem = privateKey.export({ format: "pem", type: "pkcs1" });
   fs.writeFileSync(DEFAULT_PRIVATE_KEY_PATH, String(privatePem), { mode: 0o600 });
 
   const jwk = publicKey.export({ format: "jwk" });
