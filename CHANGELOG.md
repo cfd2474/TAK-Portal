@@ -12,6 +12,10 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
+### v1.2.59 - 3/23/26
+🎉 `New Feature` - Integrations page now creates and revokes .pem and .key certificates in TAK Server and allows for easy downloading. (Dependent upon configuring SSH Key in settings)<br>
+✨ `Enhancement` - TAK Server Settings now include a place to generate an SSH key to the TAK Server
+
 ### v1.2.58 - 3/22/26
 ✨ `Enhancement` - Added the ability to set a new user as an Agency Admin or Global admin during creation<br>
 ✨ `Enhancement` - Added the ability to add additional agency types in settings.
