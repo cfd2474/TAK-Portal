@@ -198,6 +198,32 @@ async function revokeIntegrationCertViaSshScript(username) {
     throw new Error(result.message || "Failed to revoke integration cert via SSH script.");
   }
 
+  // Cleanup integration certificate artifacts after revoke.
+  // We intentionally ignore "file not found" outcomes so cleanup is idempotent.
+  const cleanupCommand =
+    "sudo -u tak bash -lc 'set -e; cd /opt/tak/certs; " +
+    `name='${safeName}'; ` +
+    "for ext in csr jks key p12 pem; do " +
+    "rm -f \"./files/${name}.${ext}\" \"./${name}.${ext}\"; " +
+    "done; " +
+    "rm -f \"./files/${name}-trusted.pem\" \"./${name}-trusted.pem\"'";
+
+  const cleanupResult = await execOverSsh(
+    {
+      host: cfg.host,
+      port: cfg.port,
+      username: cfg.username,
+      privateKey: cfg.privateKey,
+      passphrase: cfg.passphrase,
+      readyTimeout: 15000,
+    },
+    cleanupCommand,
+    30000
+  );
+  if (!cleanupResult.ok) {
+    throw new Error(cleanupResult.message || "Certificate revoke succeeded, but cleanup failed.");
+  }
+
   deleteStoredIntegrationCertFiles(un);
   return { ok: true, username: un };
 }
