@@ -1,8 +1,11 @@
 const router = require("express").Router();
+const fs = require("fs");
 const users = require("../services/users.service");
 const groupsSvc = require("../services/groups.service");
 const auditSvc = require("../services/auditLog.service");
+const takSshSvc = require("../services/takSsh.service");
 const { toSafeApiError } = require("../services/apiErrorPayload.service");
+const archiver = require("archiver");
 
 function toErrorPayload(err) {
   return toSafeApiError(err);
@@ -43,6 +46,7 @@ router.get("/", async (req, res) => {
         is_active: !!u.is_active,
         groups: groupPks,
         groupNames,
+        certBundleReady: takSshSvc.hasStoredIntegrationCertFiles(u.username),
       };
     });
 
@@ -80,6 +84,15 @@ router.post("/", async (req, res) => {
       { createdBy }
     );
 
+    let certBundleReady = false;
+    let certError = "";
+    try {
+      await takSshSvc.provisionIntegrationCertFiles(result?.user?.username || "");
+      certBundleReady = true;
+    } catch (certErr) {
+      certError = certErr?.message || String(certErr);
+    }
+
     auditSvc.logEvent({
       actor: authUser,
       request: { method: req.method, path: req.originalUrl || req.path, ip: req.ip },
@@ -91,10 +104,52 @@ router.post("/", async (req, res) => {
         group: Array.isArray(result?.groups) && result.groups[0]
           ? result.groups[0].name
           : "",
+        certBundleReady,
+        certError: certError || undefined,
       },
     });
 
-    res.json({ success: true, ...result });
+    res.json({ success: true, certBundleReady, certError, ...result });
+  } catch (err) {
+    res.status(400).json({ error: toErrorPayload(err) });
+  }
+});
+
+router.get("/:userId/certs/download", async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const user = await users.getUserById(userId);
+    const username = String(user?.username || "").toLowerCase();
+    if (!username.startsWith("nodered-")) {
+      return res.status(403).json({ error: "Not an integration user." });
+    }
+
+    const certPaths = await takSshSvc.getOrProvisionIntegrationCertFiles(username);
+    if (!certPaths || !certPaths.pemPath || !certPaths.keyPath) {
+      return res.status(404).json({ error: "Integration cert files not available." });
+    }
+    if (!fs.existsSync(certPaths.pemPath) || !fs.existsSync(certPaths.keyPath)) {
+      return res.status(404).json({ error: "Integration cert files not found on disk." });
+    }
+
+    const safeName = String(username).replace(/[^a-z0-9-]/g, "");
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="${safeName}-certs.zip"`);
+
+    const archive = archiver("zip", { zlib: { level: 9 } });
+    archive.on("error", (err) => {
+      try {
+        if (!res.headersSent) {
+          res.status(500).json({ error: err?.message || String(err) });
+          return;
+        }
+        res.end();
+      } catch (_) {}
+    });
+    archive.pipe(res);
+    archive.file(certPaths.pemPath, { name: `${safeName}.pem` });
+    archive.file(certPaths.keyPath, { name: `${safeName}.key` });
+    archive.finalize();
   } catch (err) {
     res.status(400).json({ error: toErrorPayload(err) });
   }

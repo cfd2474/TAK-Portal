@@ -24,6 +24,7 @@ const settingsSvc = require("./settings.service");
 const DATA_SSH_DIR = path.join(__dirname, "..", "data", "ssh");
 const DEFAULT_PRIVATE_KEY_PATH = path.join(DATA_SSH_DIR, "tak_ssh_ed25519");
 const DEFAULT_PUBLIC_KEY_PATH = path.join(DATA_SSH_DIR, "tak_ssh_ed25519.pub");
+const INTEGRATION_CERTS_DIR = path.join(__dirname, "..", "data", "integration-certs");
 
 function resolvePathMaybe(p) {
   if (!p || !String(p).trim()) return null;
@@ -39,6 +40,109 @@ function ensureDir(dirPath) {
 
 function quoteForSingleQuotedShell(str) {
   return String(str || "").replace(/'/g, "'\"'\"'");
+}
+
+function sanitizeIntegrationUsername(username) {
+  const un = String(username || "").trim().toLowerCase();
+  if (!/^nodered-[a-z0-9-]+$/.test(un)) {
+    throw new Error("Invalid integration username.");
+  }
+  return un;
+}
+
+function getIntegrationCertPaths(username) {
+  const un = sanitizeIntegrationUsername(username);
+  return {
+    username: un,
+    dir: path.join(INTEGRATION_CERTS_DIR, un),
+    pemPath: path.join(INTEGRATION_CERTS_DIR, un, `${un}.pem`),
+    keyPath: path.join(INTEGRATION_CERTS_DIR, un, `${un}.key`),
+  };
+}
+
+function hasStoredIntegrationCertFiles(username) {
+  const p = getIntegrationCertPaths(username);
+  return fs.existsSync(p.pemPath) && fs.existsSync(p.keyPath);
+}
+
+function parseRemoteCertPair(stdout) {
+  const out = String(stdout || "");
+  const pemMatch = out.match(/__TAK_CERT_PEM_BEGIN__\s*([\s\S]*?)\s*__TAK_CERT_PEM_END__/);
+  const keyMatch = out.match(/__TAK_CERT_KEY_BEGIN__\s*([\s\S]*?)\s*__TAK_CERT_KEY_END__/);
+  if (!pemMatch || !keyMatch) {
+    throw new Error("Remote cert output could not be parsed.");
+  }
+  const pemB64 = String(pemMatch[1] || "").replace(/\s+/g, "");
+  const keyB64 = String(keyMatch[1] || "").replace(/\s+/g, "");
+  const pem = Buffer.from(pemB64, "base64").toString("utf8").trim();
+  const key = Buffer.from(keyB64, "base64").toString("utf8").trim();
+  if (!pem || !key) {
+    throw new Error("Remote cert output was empty.");
+  }
+  return { pem: pem + "\n", key: key + "\n" };
+}
+
+async function fetchIntegrationCertPairFromRemote(username) {
+  const un = sanitizeIntegrationUsername(username);
+  const cfg = getTakSshConfig();
+  if (!cfg) {
+    throw new Error("SSH is not configured. Complete SSH handshake in Settings.");
+  }
+
+  const safeName = quoteForSingleQuotedShell(un);
+  const remoteScript =
+    "sudo -u tak bash -lc 'set -e; cd /opt/tak/certs; " +
+    `name='${safeName}'; ` +
+    "pem=''; key=''; " +
+    "for p in \"./files/${name}.pem\" \"./${name}.pem\" \"/opt/tak/certs/files/${name}.pem\" \"/opt/tak/certs/${name}.pem\"; do [ -f \"$p\" ] && pem=\"$p\" && break; done; " +
+    "for k in \"./files/${name}.key\" \"./${name}.key\" \"/opt/tak/certs/files/${name}.key\" \"/opt/tak/certs/${name}.key\"; do [ -f \"$k\" ] && key=\"$k\" && break; done; " +
+    "if [ -z \"$pem\" ] || [ -z \"$key\" ]; then echo \"Missing cert files for ${name}\" 1>&2; exit 44; fi; " +
+    "echo __TAK_CERT_PEM_BEGIN__; base64 \"$pem\" | tr -d \"\\n\"; echo; echo __TAK_CERT_PEM_END__; " +
+    "echo __TAK_CERT_KEY_BEGIN__; base64 \"$key\" | tr -d \"\\n\"; echo; echo __TAK_CERT_KEY_END__'";
+
+  const result = await execOverSsh(
+    {
+      host: cfg.host,
+      port: cfg.port,
+      username: cfg.username,
+      privateKey: cfg.privateKey,
+      passphrase: cfg.passphrase,
+      readyTimeout: 15000,
+    },
+    remoteScript
+  );
+
+  if (!result.ok) {
+    throw new Error(result.message || "Failed to fetch integration cert files from TAK server.");
+  }
+  return parseRemoteCertPair(result.stdout);
+}
+
+async function storeIntegrationCertPairLocally(username, certPair) {
+  const p = getIntegrationCertPaths(username);
+  ensureDir(p.dir);
+  fs.writeFileSync(p.pemPath, String(certPair.pem || ""), { mode: 0o600 });
+  fs.writeFileSync(p.keyPath, String(certPair.key || ""), { mode: 0o600 });
+  return p;
+}
+
+async function provisionIntegrationCertFiles(username) {
+  const un = sanitizeIntegrationUsername(username);
+  const makeResult = await createTakClientCertForIntegration(un);
+  if (!makeResult.ok) {
+    throw new Error(makeResult.message || "makeCert.sh failed.");
+  }
+  const pair = await fetchIntegrationCertPairFromRemote(un);
+  const stored = await storeIntegrationCertPairLocally(un, pair);
+  return { ok: true, username: un, ...stored };
+}
+
+async function getOrProvisionIntegrationCertFiles(username) {
+  const un = sanitizeIntegrationUsername(username);
+  if (hasStoredIntegrationCertFiles(un)) {
+    return { ok: true, ...getIntegrationCertPaths(un), fromCache: true };
+  }
+  return provisionIntegrationCertFiles(un);
 }
 
 function isUsablePrivateKey(privateKeyText, passphrase) {
@@ -396,6 +500,9 @@ module.exports = {
   ensureLocalSshKeyPair,
   onboardTakSshWithPassword,
   runRemoteSshCommand,
+  hasStoredIntegrationCertFiles,
+  provisionIntegrationCertFiles,
+  getOrProvisionIntegrationCertFiles,
   getTakSshConfig,
   createTakClientCertForIntegration,
 };
