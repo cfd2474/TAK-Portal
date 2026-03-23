@@ -98,6 +98,14 @@
         "TAK_DEBUG",
         "TAK_BYPASS_ENABLED",
         "CLOUDTAK_URL",
+        "TAK_SSH_HOST",
+        "TAK_SSH_PORT",
+        "TAK_SSH_USER",
+        "TAK_SSH_PRIVATE_KEY_PATH",
+        "TAK_SSH_PUBLIC_KEY_PATH",
+        "TAK_SSH_PASSPHRASE",
+        "TAK_SSH_ONBOARDED",
+        "TAK_SSH_LAST_HANDSHAKE_AT",
 
         "PORTAL_AUTH_ENABLED",
         "PORTAL_AUTH_REQUIRED_GROUP",
@@ -170,6 +178,62 @@
             <% renderField("GROUPS_ACTIONS_HIDDEN_PREFIXES","Group Action-Lock Prefixes","Groups whose name starts with these prefixes cannot be modified from the portal."); %>
             <% renderField("DASHBOARD_AUTHENTIK_STATS_REFRESH_SECONDS","Dashboard Authentik Stats Refresh (seconds)","How often the server refreshes cached Authentik dashboard stats in the background. Server restart required for changes to take effect."); %>
           </div>
+        </div>
+      </details>
+    </div>
+
+    <!-- SSH Remote Command Runner -->
+    <div class="card">
+      <details class="settings-section">
+        <summary class="settings-summary">SSH Remote Command Runner</summary>
+
+        <div class="settings-body">
+          <p class="settings-help">
+            Flow: set target host, username, and port; generate keypair; enter password one time to install the public key; then run commands using key-based SSH.
+          </p>
+
+          <div class="grid2">
+            <label class="settings-field">
+              <span class="settings-label">Target Host / IP</span>
+              <input id="sshHostInput" type="text" value="<%= settings.TAK_SSH_HOST || '' %>" placeholder="192.168.1.50" />
+            </label>
+
+            <label class="settings-field">
+              <span class="settings-label">SSH Port</span>
+              <input id="sshPortInput" type="text" value="<%= settings.TAK_SSH_PORT || '22' %>" placeholder="22" />
+            </label>
+
+            <label class="settings-field">
+              <span class="settings-label">SSH Username</span>
+              <input id="sshUserInput" type="text" value="<%= settings.TAK_SSH_USER || '' %>" placeholder="takadmin" />
+            </label>
+
+            <label class="settings-field">
+              <span class="settings-label">One-Time Password (not saved)</span>
+              <input id="sshPasswordInput" type="password" value="" autocomplete="new-password" placeholder="Used once for handshake" />
+            </label>
+          </div>
+
+          <div style="margin-top:.75rem;display:flex;gap:.5rem;flex-wrap:wrap;">
+            <button type="button" class="btn" id="sshGenerateKeyBtn">Generate SSH Key</button>
+            <button type="button" class="btn" id="sshHandshakeBtn">Run One-Time Handshake</button>
+            <button type="button" class="btn" id="sshRefreshStatusBtn">Refresh SSH Status</button>
+          </div>
+
+          <div id="sshStatusBox" class="settings-help" style="margin-top:.5rem;"></div>
+
+          <hr style="margin:1rem 0;opacity:.35;" />
+
+          <label class="settings-field">
+            <span class="settings-label">Remote Command</span>
+            <textarea id="sshCommandInput" rows="5" style="width:100%;font-family:monospace;" placeholder="sudo -u tak bash -c 'cd /opt/tak/certs && ./makeCert.sh client testuser'"></textarea>
+          </label>
+
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+            <button type="button" class="btn" id="sshRunCommandBtn">Run Command Over SSH</button>
+          </div>
+
+          <pre id="sshCommandOutput" style="margin-top:.75rem;background:#0b1020;color:#d1d5db;padding:.75rem;border-radius:.5rem;max-height:300px;overflow:auto;white-space:pre-wrap;"></pre>
         </div>
       </details>
     </div>
@@ -1249,6 +1313,138 @@
   document.addEventListener("DOMContentLoaded", () => {
     wirePasswordToggle("authentikTokenInput", "authentikTokenToggle");
     wirePasswordToggle("p12PassphraseInput", "p12PassphraseToggle");
+
+    const statusBox = document.getElementById("sshStatusBox");
+    const output = document.getElementById("sshCommandOutput");
+    const hostInput = document.getElementById("sshHostInput");
+    const portInput = document.getElementById("sshPortInput");
+    const userInput = document.getElementById("sshUserInput");
+    const passInput = document.getElementById("sshPasswordInput");
+    const cmdInput = document.getElementById("sshCommandInput");
+    const btnGenerate = document.getElementById("sshGenerateKeyBtn");
+    const btnHandshake = document.getElementById("sshHandshakeBtn");
+    const btnStatus = document.getElementById("sshRefreshStatusBtn");
+    const btnRun = document.getElementById("sshRunCommandBtn");
+
+    function setStatus(msg, isError) {
+      if (!statusBox) return;
+      statusBox.textContent = msg || "";
+      statusBox.style.color = isError ? "#dc2626" : "";
+    }
+
+    function setOutput(msg) {
+      if (!output) return;
+      output.textContent = msg || "";
+    }
+
+    async function getStatus() {
+      const res = await fetch("/api/ssh/status");
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || "Failed to load SSH status.");
+      const s = data.status || {};
+      setStatus(
+        "Host: " + (s.host || "(not set)") +
+        " | User: " + (s.username || "(not set)") +
+        " | Port: " + (s.port || "22") +
+        " | Keypair: " + (s.hasKeyPair ? "present" : "missing") +
+        " | Handshake: " + (s.onboarded ? "complete" : "pending") +
+        (s.lastHandshakeAt ? " | Last: " + s.lastHandshakeAt : ""),
+        false
+      );
+    }
+
+    async function postJson(url, body) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body || {}),
+      });
+      const data = await res.json();
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || data.message || "Request failed.");
+      }
+      return data;
+    }
+
+    if (btnStatus) {
+      btnStatus.addEventListener("click", async function () {
+        try {
+          await getStatus();
+        } catch (err) {
+          setStatus(err.message || String(err), true);
+        }
+      });
+    }
+
+    if (btnGenerate) {
+      btnGenerate.addEventListener("click", async function () {
+        try {
+          btnGenerate.disabled = true;
+          await postJson("/api/ssh/generate-key", {});
+          await getStatus();
+        } catch (err) {
+          setStatus(err.message || String(err), true);
+        } finally {
+          btnGenerate.disabled = false;
+        }
+      });
+    }
+
+    if (btnHandshake) {
+      btnHandshake.addEventListener("click", async function () {
+        const host = (hostInput && hostInput.value || "").trim();
+        const port = (portInput && portInput.value || "22").trim();
+        const username = (userInput && userInput.value || "").trim();
+        const password = (passInput && passInput.value || "");
+        if (!host || !username || !password) {
+          setStatus("Host, username, and one-time password are required.", true);
+          return;
+        }
+        try {
+          btnHandshake.disabled = true;
+          await postJson("/api/ssh/handshake", { host, port, username, password });
+          if (passInput) passInput.value = "";
+          await getStatus();
+        } catch (err) {
+          setStatus(err.message || String(err), true);
+        } finally {
+          btnHandshake.disabled = false;
+        }
+      });
+    }
+
+    if (btnRun) {
+      btnRun.addEventListener("click", async function () {
+        const command = (cmdInput && cmdInput.value || "").trim();
+        if (!command) {
+          setOutput("Enter a command first.");
+          return;
+        }
+        try {
+          btnRun.disabled = true;
+          setOutput("Running...");
+          const data = await postJson("/api/ssh/run-command", { command });
+          const lines = [];
+          lines.push("Exit code: " + (data.exitCode == null ? "unknown" : data.exitCode));
+          if (data.stdout) {
+            lines.push("\nSTDOUT:\n" + data.stdout);
+          }
+          if (data.stderr) {
+            lines.push("\nSTDERR:\n" + data.stderr);
+          }
+          if (!data.stdout && !data.stderr) {
+            lines.push("\n(no output)");
+          }
+          setOutput(lines.join("\n"));
+        } catch (err) {
+          setOutput("Error: " + (err.message || String(err)));
+        } finally {
+          btnRun.disabled = false;
+        }
+      });
+    }
+
+    getStatus().catch(function () {});
   });
   </script>
 
