@@ -7,7 +7,6 @@ Below you will find a comprehensive list of items planned for implementation in 
 ## High / In Progress
 - Add locate functionality with texting service to send a link to missing persons
 - Create Getting Started / Basic User Guides for TAK Aware, ATAK, and Open TAK Tracker
-- Further implementation of the Integrations page to create and download certificates for integrations
 - Add access level between Agency and Global that has Global Admin access, but without access to server settings or audit log.  (Helpful for trusted EOC high level users)
 
 ## Medium

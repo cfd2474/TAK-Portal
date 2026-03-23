@@ -12,6 +12,9 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
+### v1.2.60 - 3/23/26
+✨ `Enhancement` - When deleting an integration, TAK Portal will now delete the certificate files from TAK Server after revokation.
+
 ### v1.2.59 - 3/23/26
 🎉 `New Feature` - Integrations page now creates and revokes .pem and .key certificates in TAK Server and allows for easy downloading. (Dependent upon configuring SSH Key in settings)<br>
 ✨ `Enhancement` - TAK Server Settings now include a place to generate an SSH key to the TAK Server
