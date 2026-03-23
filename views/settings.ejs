@@ -305,6 +305,7 @@
 
           <div style="margin-top:.75rem;display:flex;gap:.5rem;flex-wrap:wrap;">
             <button type="button" class="btn" id="sshHandshakeBtn">Generate Key + Run One-Time Handshake</button>
+            <button type="button" class="btn" id="sshTestConnectionBtn">Test SSH Connection</button>
           </div>
 
           <div id="sshStatusBox" class="settings-help" style="margin-top:.5rem;"></div>
@@ -1316,6 +1317,7 @@
     const userInput = document.getElementById("sshUserInput");
     const passInput = document.getElementById("sshPasswordInput");
     const btnHandshake = document.getElementById("sshHandshakeBtn");
+    const btnTestConnection = document.getElementById("sshTestConnectionBtn");
 
     function setStatus(msg, isError) {
       if (!statusBox) return;
@@ -1374,6 +1376,25 @@
           setStatus(err.message || String(err), true);
         } finally {
           btnHandshake.disabled = false;
+        }
+      });
+    }
+
+    if (btnTestConnection) {
+      btnTestConnection.addEventListener("click", async function () {
+        try {
+          btnTestConnection.disabled = true;
+          setStatus("Testing SSH connection...", false);
+          const data = await postJson("/api/ssh/test-connection", {});
+          const remoteUser = String(data.remoteUser || "").trim();
+          setStatus(
+            "SSH connection successful" + (remoteUser ? " (whoami: " + remoteUser + ")" : "."),
+            false
+          );
+        } catch (err) {
+          setStatus("SSH test failed: " + (err.message || String(err)), true);
+        } finally {
+          btnTestConnection.disabled = false;
         }
       });
     }

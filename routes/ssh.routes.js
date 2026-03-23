@@ -63,4 +63,23 @@ router.post("/run-command", async (req, res) => {
   }
 });
 
+router.post("/test-connection", async (req, res) => {
+  try {
+    const result = await takSshSvc.runRemoteSshCommand("whoami");
+    if (!result.ok) {
+      return res.status(400).json(result);
+    }
+    res.json({
+      ok: true,
+      message: "SSH connection successful.",
+      remoteUser: String(result.stdout || "").trim(),
+      stdout: result.stdout || "",
+      stderr: result.stderr || "",
+      exitCode: result.exitCode,
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err?.message || String(err) });
+  }
+});
+
 module.exports = router;
