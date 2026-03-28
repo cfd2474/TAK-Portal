@@ -444,7 +444,7 @@
           coords.className = "settings-help";
           coords.style.marginTop = "2px";
           coords.textContent =
-            Number(loc.lastLatitude).toFixed(5) + ", " + Number(loc.lastLongitude).toFixed(5);
+            Number(loc.lastLatitude).toFixed(7) + ", " + Number(loc.lastLongitude).toFixed(7);
           tdRecent.appendChild(coords);
         } else {
           var noCoord = document.createElement("div");
@@ -513,7 +513,7 @@
               cell(formatTime(h.at));
               cell(h.name);
               if (h.latitude != null && h.longitude != null) {
-                cell(h.latitude.toFixed(5) + ", " + h.longitude.toFixed(5));
+                cell(h.latitude.toFixed(7) + ", " + h.longitude.toFixed(7));
               } else {
                 cell("—");
               }
