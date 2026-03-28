@@ -6,9 +6,42 @@
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const https = require("https");
 const axios = require("axios");
-const { getString } = require("./env");
+const { getString, getBool } = require("./env");
 const settingsSvc = require("./settings.service");
+
+function resolvePathMaybe(p) {
+  if (!p || !String(p).trim()) return null;
+  const raw = String(p).trim();
+  return path.isAbsolute(raw) ? raw : path.join(process.cwd(), raw);
+}
+
+/**
+ * HTTPS agent for outbound GETs to TAK /locate/api (same host as TAK_URL).
+ * - Prefer TAK_CA_PATH (PEM) so Node trusts your TAK server chain.
+ * - If the server uses self-signed TLS and you have no CA PEM, set
+ *   TAK_LOCATE_RELAY_TLS_INSECURE=true in env or Server Settings (lab only).
+ */
+function getLocateRelayHttpsAgent() {
+  const insecure = getBool("TAK_LOCATE_RELAY_TLS_INSECURE", false);
+  if (insecure) {
+    return new https.Agent({
+      rejectUnauthorized: false,
+      checkServerIdentity: () => undefined,
+    });
+  }
+
+  const caPath = resolvePathMaybe(getString("TAK_CA_PATH", ""));
+  const opts = {
+    rejectUnauthorized: true,
+    checkServerIdentity: () => undefined,
+  };
+  if (caPath && fs.existsSync(caPath)) {
+    opts.ca = fs.readFileSync(caPath);
+  }
+  return new https.Agent(opts);
+}
 
 const FILE = path.join(__dirname, "..", "data", "locators.json");
 
@@ -205,12 +238,31 @@ async function relayPingToTak({ latitude, longitude, name, remarks }) {
   u.searchParams.set("longitude", String(longitude));
   u.searchParams.set("name", name);
   u.searchParams.set("remarks", remarks || "");
-  const resp = await axios.get(u.toString(), {
-    timeout: 25000,
-    validateStatus: (s) => s >= 200 && s < 600,
-  });
-  if (resp.status < 200 || resp.status >= 300) {
-    throw new Error(`TAK locate API returned HTTP ${resp.status}. Check TAK_URL and that locate is enabled on the server.`);
+  try {
+    const resp = await axios.get(u.toString(), {
+      timeout: 25000,
+      httpsAgent: getLocateRelayHttpsAgent(),
+      validateStatus: (s) => s >= 200 && s < 600,
+    });
+    if (resp.status < 200 || resp.status >= 300) {
+      throw new Error(`TAK locate API returned HTTP ${resp.status}. Check TAK_URL and that locate is enabled on the server.`);
+    }
+  } catch (err) {
+    const msg = err?.message || String(err);
+    const code = err?.code || "";
+    if (
+      code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE" ||
+      code === "CERT_HAS_EXPIRED" ||
+      code === "SELF_SIGNED_CERT_IN_CHAIN" ||
+      /self-signed certificate/i.test(msg) ||
+      /unable to verify the first certificate/i.test(msg)
+    ) {
+      throw new Error(
+        "TLS verification failed when calling the TAK locate API. " +
+          "Upload your TAK CA to TAK_CA_PATH in Server Settings, or for lab systems only set TAK_LOCATE_RELAY_TLS_INSECURE=true."
+      );
+    }
+    throw err;
   }
 }
 
