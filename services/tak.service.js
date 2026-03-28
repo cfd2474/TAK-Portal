@@ -106,7 +106,11 @@ function getStringAllowEmpty(name) {
 }
 
 /**
- * @param {{ allowInsecureServer?: boolean }} [options] - If true, skip verifying the server certificate (rejectUnauthorized: false). The public locate relay uses this; cert revoke uses the default (verify server).
+ * @param {{
+ *   allowInsecureServer?: boolean;
+ *   baseURL?: string;
+ *   timeout?: number;
+ * }} [options] - allowInsecureServer: skip server cert verify (locate relay). baseURL/timeout: optional overrides (locate relay uses locate API origin, not Marti).
  */
 function buildTakAxios(options = {}) {
   const TAK_DEBUG = getBool("TAK_DEBUG", false);
@@ -210,9 +214,9 @@ function buildTakAxios(options = {}) {
   const httpsAgent = new https.Agent(agentOptions);
 
   const client = axios.create({
-    baseURL: getTakBaseUrl(),
+    baseURL: options.baseURL !== undefined ? options.baseURL : getTakBaseUrl(),
     httpsAgent,
-    timeout: 5000,
+    timeout: typeof options.timeout === "number" ? options.timeout : 5000,
   });
 
   if (TAK_DEBUG) {

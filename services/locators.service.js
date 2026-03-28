@@ -80,7 +80,8 @@ function formatLocatePingNameForTak(firstName, lastName) {
   const first = String(firstName || "").trim();
   const label = last && first ? `${last}, ${first}` : last || first || "Unknown";
   const d = new Date();
-  const md = `${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(-2)}`;
+  // Hyphens avoid "/" in query values (some TAK builds mishandle slashes in the name param).
+  const md = `${d.getMonth() + 1}-${d.getDate()}-${String(d.getFullYear()).slice(-2)}`;
   const hm = d.toTimeString().slice(0, 8);
   return `${label} ${md} ${hm}`;
 }
@@ -257,14 +258,20 @@ async function relayPingToTak({ latitude, longitude, name, remarks }) {
 
   let client;
   try {
-    client = buildTakAxios({ allowInsecureServer: true });
+    // Use the locate API origin as baseURL (not Marti /api base) and POST path + query only.
+    client = buildTakAxios({
+      allowInsecureServer: true,
+      baseURL: u.origin,
+      timeout: 25000,
+    });
   } catch (setupErr) {
     throw new Error(setupErr?.message || String(setupErr));
   }
 
+  const pathAndQuery = `${u.pathname}${u.search}`;
+
   try {
-    const resp = await client.post(u.toString(), null, {
-      timeout: 25000,
+    const resp = await client.post(pathAndQuery, "", {
       headers: {
         Accept: "*/*",
         "X-Requested-With": "XMLHttpRequest",
@@ -283,6 +290,9 @@ async function relayPingToTak({ latitude, longitude, name, remarks }) {
           "Check takserver-api logs and client-cert rules for /locate/api.";
       } else if (resp.status === 404) {
         msg += ". HTTP 404 — confirm locate is enabled and reachable at https://<host>/locate/api on port 443.";
+      } else if (resp.status >= 500) {
+        msg +=
+          ". HTTP 5xx usually indicates an error inside takserver-api processing this request; check TAK logs for /locate/api.";
       }
       throw new Error(msg);
     }
