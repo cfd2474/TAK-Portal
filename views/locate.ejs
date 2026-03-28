@@ -81,6 +81,27 @@
     </table>
   </div>
 
+  <details class="card" style="margin-top:1.25rem;">
+    <summary style="cursor:pointer;font-weight:600;user-select:none;">
+      Archived locators <span id="archivedCountWrap">(<span id="archivedCount">0</span>)</span>
+    </summary>
+    <div style="margin-top:12px;">
+      <div id="archivedListMsg" class="msg" style="margin-left:0;"></div>
+      <table class="table" style="margin-top:10px;">
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th style="width:100px;">Ping (s)</th>
+            <th style="width:120px;">Status</th>
+            <th style="width:220px;">Recent update</th>
+            <th style="min-width:220px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="archivedLocatorsTbody"></tbody>
+      </table>
+    </div>
+  </details>
+
   <div id="locHistOverlay" class="modalOverlay" style="display:none;" aria-hidden="true">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="locHistTitle" style="width:min(900px,96vw); max-height:85vh; overflow:auto;">
       <div class="modalHeader">
@@ -323,6 +344,9 @@
 <script>
 (function () {
   var tbody = document.getElementById("locatorsTbody");
+  var archivedTbody = document.getElementById("archivedLocatorsTbody");
+  var archivedCountEl = document.getElementById("archivedCount");
+  var archivedListMsg = document.getElementById("archivedListMsg");
   var listMsg = document.getElementById("locListMsg");
   var newLocMsg = document.getElementById("newLocMsg");
   var titleIn = document.getElementById("newLocTitle");
@@ -371,6 +395,82 @@
     return window.location.origin + "/locate/" + encodeURIComponent(slug);
   }
 
+  function setArchivedMsg(text, bad) {
+    archivedListMsg.textContent = text || "";
+    archivedListMsg.style.display = text ? "block" : "none";
+    archivedListMsg.classList.toggle("bad", !!bad);
+  }
+
+  function titleCellPlain(loc) {
+    var tdTitle = document.createElement("td");
+    tdTitle.textContent = loc.title;
+    var small = document.createElement("div");
+    small.className = "settings-help";
+    small.style.marginTop = "4px";
+    small.textContent = publicUrl(loc.slug);
+    tdTitle.appendChild(small);
+    return tdTitle;
+  }
+
+  function appendRecentCell(tdRecent, loc) {
+    tdRecent.style.fontSize = "0.9rem";
+    tdRecent.style.lineHeight = "1.35";
+    if (!loc.lastPingAt) {
+      tdRecent.textContent = "—";
+      return;
+    }
+    var rel = document.createElement("div");
+    rel.textContent = formatRelative(loc.lastPingAt);
+    tdRecent.appendChild(rel);
+    if (loc.lastLatitude != null && loc.lastLongitude != null) {
+      var coords = document.createElement("div");
+      coords.className = "settings-help";
+      coords.style.marginTop = "2px";
+      coords.textContent =
+        Number(loc.lastLatitude).toFixed(7) + ", " + Number(loc.lastLongitude).toFixed(7);
+      tdRecent.appendChild(coords);
+    } else {
+      var noCoord = document.createElement("div");
+      noCoord.className = "settings-help";
+      noCoord.style.marginTop = "2px";
+      noCoord.textContent = "No GPS stored yet";
+      tdRecent.appendChild(noCoord);
+    }
+  }
+
+  function openHistoryForId(locId) {
+    fetch("/api/locate/locators/" + encodeURIComponent(locId) + "/history")
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data.ok) throw new Error(data.error || "Failed");
+        histTbody.innerHTML = "";
+        (data.history || []).forEach(function (h) {
+          var hr = document.createElement("tr");
+          function cell(x) {
+            var td = document.createElement("td");
+            td.textContent = x == null ? "—" : String(x);
+            hr.appendChild(td);
+          }
+          cell(formatTime(h.at));
+          cell(h.name);
+          if (h.latitude != null && h.longitude != null) {
+            cell(h.latitude.toFixed(7) + ", " + h.longitude.toFixed(7));
+          } else {
+            cell("—");
+          }
+          cell(h.remarks);
+          histTbody.appendChild(hr);
+        });
+        histOverlay.style.display = "flex";
+        document.body.style.overflow = "hidden";
+      })
+      .catch(function (e) {
+        setListMsg(e.message || String(e), true);
+      });
+  }
+
   function renderRows(locators) {
     tbody.innerHTML = "";
     if (!locators || !locators.length) {
@@ -386,18 +486,7 @@
       if (loc.archived) return;
       var tr = document.createElement("tr");
 
-      var tdTitle = document.createElement("td");
-      var link = document.createElement("a");
-      link.href = publicUrl(loc.slug);
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      link.textContent = loc.title;
-      tdTitle.appendChild(link);
-      var small = document.createElement("div");
-      small.className = "settings-help";
-      small.style.marginTop = "4px";
-      small.textContent = publicUrl(loc.slug);
-      tdTitle.appendChild(small);
+      var tdTitle = titleCellPlain(loc);
 
       var tdPing = document.createElement("td");
       tdPing.textContent = String(loc.pingIntervalSeconds != null ? loc.pingIntervalSeconds : "—");
@@ -431,29 +520,7 @@
       tdStatus.appendChild(pill);
 
       var tdRecent = document.createElement("td");
-      tdRecent.style.fontSize = "0.9rem";
-      tdRecent.style.lineHeight = "1.35";
-      if (!loc.lastPingAt) {
-        tdRecent.textContent = "—";
-      } else {
-        var rel = document.createElement("div");
-        rel.textContent = formatRelative(loc.lastPingAt);
-        tdRecent.appendChild(rel);
-        if (loc.lastLatitude != null && loc.lastLongitude != null) {
-          var coords = document.createElement("div");
-          coords.className = "settings-help";
-          coords.style.marginTop = "2px";
-          coords.textContent =
-            Number(loc.lastLatitude).toFixed(7) + ", " + Number(loc.lastLongitude).toFixed(7);
-          tdRecent.appendChild(coords);
-        } else {
-          var noCoord = document.createElement("div");
-          noCoord.className = "settings-help";
-          noCoord.style.marginTop = "2px";
-          noCoord.textContent = "No GPS stored yet";
-          tdRecent.appendChild(noCoord);
-        }
-      }
+      appendRecentCell(tdRecent, loc);
 
       var tdAct = document.createElement("td");
       tdAct.style.whiteSpace = "normal";
@@ -498,34 +565,7 @@
       });
 
       addBtn("History", function () {
-        fetch("/api/locate/locators/" + encodeURIComponent(loc.id) + "/history")
-          .then(function (r) { return r.json(); })
-          .then(function (data) {
-            if (!data.ok) throw new Error(data.error || "Failed");
-            histTbody.innerHTML = "";
-            (data.history || []).forEach(function (h) {
-              var hr = document.createElement("tr");
-              function cell(x) {
-                var td = document.createElement("td");
-                td.textContent = x == null ? "—" : String(x);
-                hr.appendChild(td);
-              }
-              cell(formatTime(h.at));
-              cell(h.name);
-              if (h.latitude != null && h.longitude != null) {
-                cell(h.latitude.toFixed(7) + ", " + h.longitude.toFixed(7));
-              } else {
-                cell("—");
-              }
-              cell(h.remarks);
-              histTbody.appendChild(hr);
-            });
-            histOverlay.style.display = "flex";
-            document.body.style.overflow = "hidden";
-          })
-          .catch(function (e) {
-            setListMsg(e.message || String(e), true);
-          });
+        openHistoryForId(loc.id);
       });
 
       addBtn("Archive", function () {
@@ -550,6 +590,98 @@
     });
   }
 
+  function renderArchivedRows(locators) {
+    archivedTbody.innerHTML = "";
+    if (archivedCountEl) archivedCountEl.textContent = String((locators && locators.length) || 0);
+    if (!locators || !locators.length) {
+      var tr0 = document.createElement("tr");
+      var td0 = document.createElement("td");
+      td0.colSpan = 5;
+      td0.textContent = "No archived locators.";
+      tr0.appendChild(td0);
+      archivedTbody.appendChild(tr0);
+      return;
+    }
+    locators.forEach(function (loc) {
+      var tr = document.createElement("tr");
+      var tdTitle = titleCellPlain(loc);
+      var tdPing = document.createElement("td");
+      tdPing.textContent = String(loc.pingIntervalSeconds != null ? loc.pingIntervalSeconds : "—");
+      var tdStatus = document.createElement("td");
+      var pill = document.createElement("span");
+      pill.textContent = "Archived";
+      pill.style.display = "inline-block";
+      pill.style.padding = "2px 10px";
+      pill.style.borderRadius = "999px";
+      pill.style.fontSize = "0.85rem";
+      pill.style.background = "#4a4a2a";
+      pill.style.color = "#eee8a8";
+      tdStatus.appendChild(pill);
+      var tdRecent = document.createElement("td");
+      appendRecentCell(tdRecent, loc);
+      var tdAct = document.createElement("td");
+      tdAct.style.whiteSpace = "normal";
+      function addBtn(label, onClick, danger) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = danger ? "btn danger" : "btn";
+        b.style.marginRight = "6px";
+        b.style.marginBottom = "4px";
+        b.textContent = label;
+        b.addEventListener("click", onClick);
+        tdAct.appendChild(b);
+      }
+      addBtn("History", function () {
+        openHistoryForId(loc.id);
+      });
+      addBtn("Reactivate", function () {
+        fetch("/api/locate/locators/" + encodeURIComponent(loc.id) + "/reactivate", { method: "POST" })
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (data) {
+            if (!data.ok) throw new Error(data.error || "Failed");
+            setArchivedMsg("");
+            loadLocators();
+          })
+          .catch(function (e) {
+            setArchivedMsg(e.message || String(e), true);
+          });
+      });
+      addBtn(
+        "Permanently delete",
+        function () {
+          if (
+            !window.confirm(
+              "Permanently delete this locator and all of its ping history? This cannot be undone."
+            )
+          ) {
+            return;
+          }
+          fetch("/api/locate/locators/" + encodeURIComponent(loc.id), { method: "DELETE" })
+            .then(function (r) {
+              return r.json();
+            })
+            .then(function (data) {
+              if (!data.ok) throw new Error(data.error || "Failed");
+              setArchivedMsg("");
+              loadLocators();
+            })
+            .catch(function (e) {
+              setArchivedMsg(e.message || String(e), true);
+            });
+        },
+        true
+      );
+      tr.appendChild(tdTitle);
+      tr.appendChild(tdPing);
+      tr.appendChild(tdStatus);
+      tr.appendChild(tdRecent);
+      tr.appendChild(tdAct);
+      archivedTbody.appendChild(tr);
+    });
+  }
+
   function patchLoc(id, body) {
     fetch("/api/locate/locators/" + encodeURIComponent(id), {
       method: "PATCH",
@@ -568,11 +700,20 @@
 
   function loadLocators() {
     setListMsg("");
+    setArchivedMsg("");
     fetch("/api/locate/locators")
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data.ok) throw new Error(data.error || "Failed to load locators");
-        renderRows(data.locators || []);
+        var all = data.locators || [];
+        var active = all.filter(function (l) {
+          return !l.archived;
+        });
+        var archived = all.filter(function (l) {
+          return l.archived;
+        });
+        renderRows(active);
+        renderArchivedRows(archived);
       })
       .catch(function (e) {
         setListMsg(e.message || String(e), true);
@@ -619,6 +760,6 @@
   loadLocators();
   setInterval(function () {
     if (document.visibilityState === "visible") loadLocators();
-  }, 45000);
+  }, 15000);
 })();
 </script>

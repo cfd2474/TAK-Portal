@@ -93,6 +93,26 @@ router.post("/locators/:id/archive", async (req, res) => {
   }
 });
 
+router.post("/locators/:id/reactivate", async (req, res) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    const loc = locatorsSvc.reactivate(id);
+    res.json({ ok: true, locator: loc });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: toSafeApiError(err) });
+  }
+});
+
+router.delete("/locators/:id", async (req, res) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    locatorsSvc.permanentDelete(id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: toSafeApiError(err) });
+  }
+});
+
 router.post("/locators/:id/manual-ping", async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();

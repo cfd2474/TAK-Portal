@@ -23,9 +23,5 @@ Below you will find a comprehensive list of items planned for implementation in 
 
 
 ## Locate Plans:
-- Admin creates Locator based off an event title and Sets Ping interval (can be adjusted later). Also add a manual ping button.  Link gets created takportal.agency.gov/locate/xyztitle
-- Possibly create a custom form editor?  Custom fields, photo upload?, etc?  But for now collect First name, Last name, and message field.
+- Possibly create a custom form editor?  Custom fields, photo upload?, etc?
 - Displays Copy link, Send SMS (will need backend support), and Email options
-- Lost person clicks link and confirmation page displays their coordinates and last updated time.  Remove heavy css to help with minimal cell signal. Notify user to keep page open
-- TAK server recieves COTS labeled "Last, First 3/27/26 18:25:15". Additional cots are added per the ping interval.  Data is also displayed in TAK Portal keeping a running log of Coordinates and last update time
-- At the end of mission, TAK Portal can archive the log if needed for later

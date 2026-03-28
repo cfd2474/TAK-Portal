@@ -225,6 +225,29 @@ function archive(id) {
   return data.locators[idx];
 }
 
+function reactivate(id) {
+  const data = load();
+  const idx = data.locators.findIndex((l) => l.id === id);
+  if (idx < 0) throw new Error("Locator not found.");
+  if (!data.locators[idx].archived) throw new Error("Locator is not archived.");
+  data.locators[idx].archived = false;
+  data.locators[idx].active = true;
+  data.locators[idx].updatedAt = new Date().toISOString();
+  save(data);
+  return data.locators[idx];
+}
+
+/** Remove locator and all of its ping history (cannot be undone). */
+function permanentDelete(id) {
+  const data = load();
+  const idx = data.locators.findIndex((l) => l.id === id);
+  if (idx < 0) throw new Error("Locator not found.");
+  const locId = data.locators[idx].id;
+  data.locators.splice(idx, 1);
+  data.history = data.history.filter((h) => h.locatorId !== locId);
+  save(data);
+}
+
 function addHistoryEntry({ locatorId, latitude, longitude, name, remarks, kind }) {
   const data = load();
   const entry = {
@@ -353,6 +376,8 @@ module.exports = {
   create,
   update,
   archive,
+  reactivate,
+  permanentDelete,
   addHistoryEntry,
   listHistory,
   addManualOperatorPing,
