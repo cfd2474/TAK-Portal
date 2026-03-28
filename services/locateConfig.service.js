@@ -25,13 +25,11 @@ function unescapeXmlAttr(s) {
 
 function removeLocateElements(xml) {
   let s = String(xml || "");
-  // Remove the whole line when locate is on its own line (typical after our insert)
-  s = s.replace(/^\s*<locate\b[^>]*\/>[ \t]*$/gim, "");
-  // Remove newline + indented locate line (line-oriented removal)
+  // Remove newline + indented locate line (typical formatting after insert)
   s = s.replace(/\r?\n[ \t]*<locate\b[^>]*\/>[ \t]*/gi, "");
-  // Any remaining self-closing locate (inline edge cases)
+  // Any remaining locate tag (same-line / edge cases)
   s = s.replace(/<locate\b[^>]*\/>/gi, "");
-  // Collapse extra blank lines left before <vbm> after the locate line is gone
+  // Collapse extra blank lines left before <vbm> (e.g. blank line that sat under locate)
   s = s.replace(/(\r?\n)(?:[ \t]*\r?\n)+([ \t]*<vbm\b)/gi, "$1$2");
   return s;
 }
