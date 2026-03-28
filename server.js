@@ -292,6 +292,20 @@ app.use(
   require("./routes/locate.routes")
 );
 
+// Public: client config poll (interval + wake signals; no auth)
+app.get("/api/public/locate/:slug/client-config", (req, res) => {
+  try {
+    const slug = String(req.params.slug || "").trim().toLowerCase();
+    const cfg = locatorsSvc.getClientConfigForPublicSlug(slug);
+    if (!cfg) {
+      return res.status(404).json({ ok: false, error: "Locator not found." });
+    }
+    res.json(cfg);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: toSafeApiError(err) });
+  }
+});
+
 // Public: missing-person locator ping (no auth; slug identifies session)
 app.post("/api/public/locate/:slug/ping", async (req, res) => {
   try {
@@ -406,6 +420,8 @@ app.get("/locate/:slug", (req, res) => {
     slug: loc.slug,
     pingIntervalSeconds: loc.pingIntervalSeconds,
     locatorActive: loc.active,
+    intervalEpoch: Number(loc.intervalEpoch) || 1,
+    remotePingEpoch: Number(loc.remotePingEpoch) || 1,
   });
 });
 

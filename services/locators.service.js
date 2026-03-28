@@ -105,6 +105,31 @@ function getById(id) {
   return load().locators.find((l) => l.id === id) || null;
 }
 
+/**
+ * Public poll payload so share pages can pick up interval edits and admin "manual ping" wake-ups without reload.
+ */
+function getClientConfigForPublicSlug(slug) {
+  const l = getBySlug(slug);
+  if (!l || l.archived) return null;
+  const ping = Math.max(10, Math.min(86400, Number(l.pingIntervalSeconds) || 60));
+  return {
+    ok: true,
+    pingIntervalSeconds: ping,
+    active: !!l.active,
+    intervalEpoch: Number(l.intervalEpoch) || 1,
+    remotePingEpoch: Number(l.remotePingEpoch) || 1,
+  };
+}
+
+function bumpRemotePingEpoch(locatorId) {
+  const data = load();
+  const li = data.locators.findIndex((l) => l.id === locatorId);
+  if (li < 0) throw new Error("Locator not found.");
+  data.locators[li].remotePingEpoch = (Number(data.locators[li].remotePingEpoch) || 0) + 1;
+  data.locators[li].updatedAt = new Date().toISOString();
+  save(data);
+}
+
 function listLocatorsForAdmin() {
   const data = load();
   const locators = data.locators.slice().sort((a, b) => {
@@ -152,6 +177,8 @@ function create({ title, pingIntervalSeconds }) {
     slug,
     title: titleStr,
     pingIntervalSeconds: ping,
+    intervalEpoch: 1,
+    remotePingEpoch: 1,
     active: true,
     archived: false,
     createdAt: now,
@@ -173,7 +200,11 @@ function update(id, patch) {
     if (t) l.title = t;
   }
   if (patch.pingIntervalSeconds !== undefined) {
-    l.pingIntervalSeconds = Math.max(10, Math.min(86400, Number(patch.pingIntervalSeconds) || 60));
+    const next = Math.max(10, Math.min(86400, Number(patch.pingIntervalSeconds) || 60));
+    if (next !== l.pingIntervalSeconds) {
+      l.pingIntervalSeconds = next;
+      l.intervalEpoch = (Number(l.intervalEpoch) || 0) + 1;
+    }
   }
   if (patch.active !== undefined) l.active = !!patch.active;
 
@@ -232,6 +263,7 @@ function listHistory(locatorId, { limit = 200 } = {}) {
 }
 
 function addManualOperatorPing(locatorId) {
+  bumpRemotePingEpoch(locatorId);
   return addHistoryEntry({
     locatorId,
     latitude: null,
@@ -321,6 +353,7 @@ module.exports = {
   titleToSlug,
   formatLocatePingNameForTak,
   getTakLocateApiBase,
+  getClientConfigForPublicSlug,
   getBySlug,
   getById,
   listLocatorsForAdmin,

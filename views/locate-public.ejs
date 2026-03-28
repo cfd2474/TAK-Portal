@@ -22,7 +22,7 @@
 
   <div class="card">
     <p class="settings-help" style="margin-top:0;">
-      Enter your name and an optional message, then send your location. Your device will continue to report at the interval set by your agency (every <strong><%= pingIntervalSeconds %></strong> seconds) until you stop.
+      Enter your name and an optional message, then send your location. Your device will continue to report at the interval set by your agency (every <strong id="lpIntervalHint"><%= pingIntervalSeconds %></strong> seconds) until you stop.
     </p>
 
     <div class="row" style="flex-wrap:wrap; gap:12px;">
@@ -51,10 +51,13 @@
   var slug = <%- JSON.stringify(slug) %>;
   var intervalMs = <%= Math.max(10, Number(pingIntervalSeconds) || 60) %> * 1000;
   var active = <%= locatorActive ? "true" : "false" %>;
+  var lastIntervalEpoch = <%= Number(intervalEpoch) || 1 %>;
+  var lastRemoteEpoch = <%= Number(remotePingEpoch) || 1 %>;
 
   var sendBtn = document.getElementById("lpSendBtn");
   var stopBtn = document.getElementById("lpStopBtn");
   var msg = document.getElementById("lpMsg");
+  var intervalHint = document.getElementById("lpIntervalHint");
   var timer = null;
   var sending = false;
 
@@ -86,6 +89,12 @@
         return data;
       });
     });
+  }
+
+  function restartSharingTimer() {
+    if (!timer) return;
+    clearInterval(timer);
+    timer = setInterval(tick, intervalMs);
   }
 
   function tick() {
@@ -133,6 +142,7 @@
             setMsg("Location sent. Next update in about " + Math.round(intervalMs / 1000) + " seconds.", false);
             sendBtn.style.display = "none";
             stopBtn.style.display = "";
+            if (timer) clearInterval(timer);
             timer = setInterval(tick, intervalMs);
           })
           .catch(function (e) {
@@ -158,9 +168,43 @@
     setMsg("Sharing stopped.", false);
   }
 
+  function pollConfig() {
+    fetch("/api/public/locate/" + encodeURIComponent(slug) + "/client-config")
+      .then(function (r) {
+        return r.json().then(function (data) {
+          return { ok: r.ok, data: data };
+        });
+      })
+      .then(function (out) {
+        var data = out.data;
+        if (!data || !data.ok) return;
+
+        if (data.active === false && timer) {
+          stop();
+          setMsg("This locator was disabled by your agency.", true);
+          return;
+        }
+
+        if (data.intervalEpoch !== lastIntervalEpoch) {
+          lastIntervalEpoch = data.intervalEpoch;
+          intervalMs = Math.max(10, Number(data.pingIntervalSeconds) || 60) * 1000;
+          if (intervalHint) intervalHint.textContent = String(Math.round(intervalMs / 1000));
+          restartSharingTimer();
+        }
+
+        if (data.remotePingEpoch > lastRemoteEpoch) {
+          var wake = timer != null;
+          lastRemoteEpoch = data.remotePingEpoch;
+          if (wake) tick();
+        }
+      })
+      .catch(function () {});
+  }
+
   if (active) {
     sendBtn.addEventListener("click", start);
     stopBtn.addEventListener("click", stop);
+    setInterval(pollConfig, 4000);
   }
 })();
 </script>
