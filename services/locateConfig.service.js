@@ -24,7 +24,16 @@ function unescapeXmlAttr(s) {
 }
 
 function removeLocateElements(xml) {
-  return String(xml || "").replace(/<locate\b[^>]*\/>/gi, "");
+  let s = String(xml || "");
+  // Remove the whole line when locate is on its own line (typical after our insert)
+  s = s.replace(/^\s*<locate\b[^>]*\/>[ \t]*$/gim, "");
+  // Remove newline + indented locate line (line-oriented removal)
+  s = s.replace(/\r?\n[ \t]*<locate\b[^>]*\/>[ \t]*/gi, "");
+  // Any remaining self-closing locate (inline edge cases)
+  s = s.replace(/<locate\b[^>]*\/>/gi, "");
+  // Collapse extra blank lines left before <vbm> after the locate line is gone
+  s = s.replace(/(\r?\n)(?:[ \t]*\r?\n)+([ \t]*<vbm\b)/gi, "$1$2");
+  return s;
 }
 
 function buildLocateTag(groupDisplayName) {
