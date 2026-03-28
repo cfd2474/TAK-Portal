@@ -22,6 +22,8 @@ const accessSvc = require("./services/access.service");
 const usersSvc = require("./services/users.service");
 const groupsSvc = require("./services/groups.service");
 const agencyTypesSvc = require("./services/agencyTypes.service");
+const locatorsSvc = require("./services/locators.service");
+const { toSafeApiError } = require("./services/apiErrorPayload.service");
 
 const app = express();
 
@@ -167,6 +169,10 @@ app.use((req, res, next) => {
     // Normalize path (strip trailing slash except root)
     const p = (req.path || "").replace(/\/+$/, "") || "/";
     if (PUBLIC_PATHS.has(p)) return next();
+    // Public missing-person locator pages (not the admin /locate console)
+    if (p.startsWith("/locate/") && p !== "/locate") return next();
+    // Anonymous ping API for locator share links
+    if (p.startsWith("/api/public/locate/")) return next();
   } catch (_) {
     // fall through
   }
@@ -285,6 +291,50 @@ app.use(
   requireBetaModeApi,
   require("./routes/locate.routes")
 );
+
+// Public: missing-person locator ping (no auth; slug identifies session)
+app.post("/api/public/locate/:slug/ping", async (req, res) => {
+  try {
+    const slug = String(req.params.slug || "").trim().toLowerCase();
+    const loc = locatorsSvc.getBySlug(slug);
+    if (!loc || loc.archived) {
+      return res.status(404).json({ ok: false, error: "Locator not found." });
+    }
+    if (!loc.active) {
+      return res.status(403).json({ ok: false, error: "This locator is inactive." });
+    }
+    const body = req.body || {};
+    const lat = Number(body.latitude);
+    const lng = Number(body.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return res.status(400).json({ ok: false, error: "Valid latitude and longitude are required." });
+    }
+    const last = String(body.lastName || "").trim();
+    const first = String(body.firstName || "").trim();
+    const name = last && first ? `${last}, ${first}` : last || first || "Unknown";
+    const remarks = String(body.remarks || "").trim();
+
+    await locatorsSvc.relayPingToTak({
+      latitude: lat,
+      longitude: lng,
+      name,
+      remarks,
+    });
+
+    locatorsSvc.addHistoryEntry({
+      locatorId: loc.id,
+      latitude: lat,
+      longitude: lng,
+      name,
+      remarks,
+      kind: "interval",
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: toSafeApiError(err) });
+  }
+});
 app.use("/api/email", (req, res, next) => {
   const user = req.authentikUser;
   if (!user || (!user.isGlobalAdmin && !user.isAgencyAdmin)) {
@@ -343,6 +393,21 @@ app.get("/locate-persons", (req, res) => {
 app.get("/locate", requireStrictGlobalAdmin, requireBetaMode, (req, res) =>
   res.render("locate")
 );
+
+// Public share link for a locator (no auth)
+app.get("/locate/:slug", (req, res) => {
+  const slug = String(req.params.slug || "").trim().toLowerCase();
+  const loc = locatorsSvc.getBySlug(slug);
+  if (!loc || loc.archived) {
+    return res.status(404).render("locate-not-found");
+  }
+  return res.render("locate-public", {
+    locatorTitle: loc.title,
+    slug: loc.slug,
+    pingIntervalSeconds: loc.pingIntervalSeconds,
+    locatorActive: loc.active,
+  });
+});
 
 // Plugin Manager (global admin only)
 app.get("/plugin-manager", requireGlobalAdmin, async (req, res) => {
