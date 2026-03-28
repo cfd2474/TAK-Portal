@@ -72,6 +72,19 @@ function getTakLocateApiBase() {
   }
 }
 
+/**
+ * Display name sent to TAK locate API: "Last, First M/D/YY HH:MM:SS" (local time).
+ */
+function formatLocatePingNameForTak(firstName, lastName) {
+  const last = String(lastName || "").trim();
+  const first = String(firstName || "").trim();
+  const label = last && first ? `${last}, ${first}` : last || first || "Unknown";
+  const d = new Date();
+  const md = `${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(-2)}`;
+  const hm = d.toTimeString().slice(0, 8);
+  return `${label} ${md} ${hm}`;
+}
+
 function summarizeTakResponseBody(data) {
   if (data == null || data === "") return "";
   if (typeof data === "string") return data.trim().slice(0, 500);
@@ -100,17 +113,28 @@ function listLocatorsForAdmin() {
   });
   return locators.map((l) => {
     const pings = data.history.filter((h) => h.locatorId === l.id);
-    const last = pings.sort((a, b) => String(b.at).localeCompare(String(a.at)))[0];
+    const sorted = pings.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    const last = sorted[0];
+    const lastWithCoords = sorted.find(
+      (h) =>
+        h.latitude != null &&
+        h.longitude != null &&
+        Number.isFinite(Number(h.latitude)) &&
+        Number.isFinite(Number(h.longitude))
+    );
     return {
       ...l,
       lastPingAt: last ? last.at : null,
+      lastLatitude: lastWithCoords != null ? Number(lastWithCoords.latitude) : null,
+      lastLongitude: lastWithCoords != null ? Number(lastWithCoords.longitude) : null,
+      hasPositionPing: !!lastWithCoords,
     };
   });
 }
 
 function create({ title, pingIntervalSeconds }) {
-  const titleStr = String(title || "").trim();
-  if (!titleStr) throw new Error("Title is required.");
+  let titleStr = String(title || "").trim();
+  if (!titleStr) titleStr = "Missing person";
   const ping = Math.max(10, Math.min(86400, Number(pingIntervalSeconds) || 60));
 
   let slug = titleToSlug(titleStr);
@@ -278,21 +302,6 @@ async function relayPingToTak({ latitude, longitude, name, remarks }) {
           "Use the same TAK_API_P12_PATH (or TAK_API_CERT_PATH + TAK_API_KEY_PATH) that works for Marti/API calls—a cert the TAK server trusts for HTTPS clients."
       );
     }
-    if (
-      scanCode === "UNABLE_TO_VERIFY_LEAF_SIGNATURE" ||
-      scanCode === "UNABLE_TO_GET_ISSUER_CERT_LOCALLY" ||
-      scanCode === "CERT_HAS_EXPIRED" ||
-      scanCode === "SELF_SIGNED_CERT_IN_CHAIN" ||
-      /self-signed certificate/i.test(scan) ||
-      /unable to verify the first certificate/i.test(scan) ||
-      /unable to get local issuer certificate/i.test(scan)
-    ) {
-      throw new Error(
-        "TLS verification failed when calling the TAK locate API (Node cannot build a trust chain to the server certificate). " +
-          "Set TAK_CA_PATH in Server Settings to a PEM file that includes your TAK CA and any intermediates needed to validate the server cert. " +
-          "For lab testing only, set TAK_LOCATE_RELAY_TLS_INSECURE=true to skip verifying the server cert (mTLS client cert is still used)."
-      );
-    }
     throw err;
   }
 }
@@ -300,6 +309,7 @@ async function relayPingToTak({ latitude, longitude, name, remarks }) {
 module.exports = {
   FILE,
   titleToSlug,
+  formatLocatePingNameForTak,
   getTakLocateApiBase,
   getBySlug,
   getById,

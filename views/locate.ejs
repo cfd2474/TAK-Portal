@@ -47,14 +47,14 @@
   <div class="card" style="margin-top:1.25rem;">
     <h2 style="margin-top:0;">Create locator</h2>
     <p class="settings-help" style="margin-bottom:0.75rem;">
-      Each locator gets a public page at <code>/locate/your-title-here</code> (dashes, no spaces) for the missing person to open and share GPS. Pings are forwarded to your TAK Server <code>/locate/api</code> using <code>TAK URL</code> from Server Settings.
+      Set how often the public page sends GPS (seconds). An optional label is used in the admin list and URL slug; if you leave it blank, a default title is used. Each locator gets a page at <code>/locate/…</code> for the missing person to open. Pings go to your TAK Server <code>/locate/api</code> via <code>TAK URL</code> in Server Settings.
     </p>
     <div class="row" style="flex-wrap: wrap; align-items: flex-end; gap: 12px;">
-      <label style="flex:1; min-width:200px;">Title
-        <input id="newLocTitle" type="text" placeholder="e.g. Smith County SAR" style="width:100%; box-sizing:border-box;" />
-      </label>
       <label style="min-width: 160px;">Ping interval (seconds)
         <input id="newLocPing" type="number" min="10" max="86400" value="60" style="width:100%; box-sizing:border-box;" />
+      </label>
+      <label style="flex:1; min-width:200px;">Label (optional)
+        <input id="newLocTitle" type="text" placeholder="e.g. Smith County SAR — or leave blank" style="width:100%; box-sizing:border-box;" />
       </label>
       <label>
         &nbsp;
@@ -71,9 +71,10 @@
       <thead>
         <tr>
           <th>Title</th>
-          <th style="width:110px;">Status</th>
-          <th style="width:200px;">Recent update</th>
-          <th style="min-width:280px;">Actions</th>
+          <th style="width:100px;">Ping (s)</th>
+          <th style="width:120px;">Status</th>
+          <th style="width:220px;">Recent update</th>
+          <th style="min-width:260px;">Actions</th>
         </tr>
       </thead>
       <tbody id="locatorsTbody"></tbody>
@@ -353,6 +354,20 @@
     }
   }
 
+  function formatRelative(iso) {
+    if (!iso) return "—";
+    var t = new Date(iso).getTime();
+    if (!Number.isFinite(t)) return "—";
+    var sec = Math.floor((Date.now() - t) / 1000);
+    if (sec < 0) return "just now";
+    if (sec < 10) return "just now";
+    if (sec < 60) return sec + "s ago";
+    if (sec < 3600) return Math.floor(sec / 60) + "m ago";
+    if (sec < 86400) return Math.floor(sec / 3600) + "h ago";
+    if (sec < 604800) return Math.floor(sec / 86400) + "d ago";
+    return formatTime(iso);
+  }
+
   function publicUrl(slug) {
     return window.location.origin + "/locate/" + encodeURIComponent(slug);
   }
@@ -362,7 +377,7 @@
     if (!locators || !locators.length) {
       var tr = document.createElement("tr");
       var td = document.createElement("td");
-      td.colSpan = 4;
+      td.colSpan = 5;
       td.textContent = "No locators yet.";
       tr.appendChild(td);
       tbody.appendChild(tr);
@@ -385,14 +400,29 @@
       small.textContent = publicUrl(loc.slug);
       tdTitle.appendChild(small);
 
+      var tdPing = document.createElement("td");
+      tdPing.textContent = String(loc.pingIntervalSeconds != null ? loc.pingIntervalSeconds : "—");
+
       var tdStatus = document.createElement("td");
       var pill = document.createElement("span");
-      pill.textContent = loc.active ? "Active" : "Inactive";
+      var statusLabel;
+      var statusOk;
+      if (!loc.active) {
+        statusLabel = "Disabled";
+        statusOk = false;
+      } else if (!loc.hasPositionPing) {
+        statusLabel = "Inactive";
+        statusOk = false;
+      } else {
+        statusLabel = "Active";
+        statusOk = true;
+      }
+      pill.textContent = statusLabel;
       pill.style.display = "inline-block";
       pill.style.padding = "2px 10px";
       pill.style.borderRadius = "999px";
       pill.style.fontSize = "0.85rem";
-      if (loc.active) {
+      if (statusOk) {
         pill.style.background = "#1f4d2a";
         pill.style.color = "#b8ffc8";
       } else {
@@ -402,7 +432,29 @@
       tdStatus.appendChild(pill);
 
       var tdRecent = document.createElement("td");
-      tdRecent.textContent = formatTime(loc.lastPingAt || loc.updatedAt);
+      tdRecent.style.fontSize = "0.9rem";
+      tdRecent.style.lineHeight = "1.35";
+      if (!loc.lastPingAt) {
+        tdRecent.textContent = "—";
+      } else {
+        var rel = document.createElement("div");
+        rel.textContent = formatRelative(loc.lastPingAt);
+        tdRecent.appendChild(rel);
+        if (loc.lastLatitude != null && loc.lastLongitude != null) {
+          var coords = document.createElement("div");
+          coords.className = "settings-help";
+          coords.style.marginTop = "2px";
+          coords.textContent =
+            Number(loc.lastLatitude).toFixed(5) + ", " + Number(loc.lastLongitude).toFixed(5);
+          tdRecent.appendChild(coords);
+        } else {
+          var noCoord = document.createElement("div");
+          noCoord.className = "settings-help";
+          noCoord.style.marginTop = "2px";
+          noCoord.textContent = "No GPS stored yet";
+          tdRecent.appendChild(noCoord);
+        }
+      }
 
       var tdAct = document.createElement("td");
       tdAct.style.whiteSpace = "normal";
@@ -418,14 +470,7 @@
         tdAct.appendChild(b);
       }
 
-      addBtn("Edit", function () {
-        var t = window.prompt("Title", loc.title);
-        if (t === null) return;
-        t = String(t).trim();
-        if (!t) {
-          setListMsg("Title cannot be empty.", true);
-          return;
-        }
+      addBtn("Edit interval", function () {
         var p = window.prompt("Ping interval (seconds, 10–86400)", String(loc.pingIntervalSeconds));
         if (p === null) return;
         var ping = parseInt(String(p), 10);
@@ -433,7 +478,7 @@
           setListMsg("Invalid ping interval.", true);
           return;
         }
-        patchLoc(loc.id, { title: t, pingIntervalSeconds: ping });
+        patchLoc(loc.id, { pingIntervalSeconds: ping });
       });
 
       addBtn(loc.active ? "Deactivate" : "Activate", function () {
@@ -499,6 +544,7 @@
       });
 
       tr.appendChild(tdTitle);
+      tr.appendChild(tdPing);
       tr.appendChild(tdStatus);
       tr.appendChild(tdRecent);
       tr.appendChild(tdAct);
@@ -539,8 +585,8 @@
     setNewMsg("");
     var title = String(titleIn.value || "").trim();
     var ping = parseInt(String(pingIn.value || "60"), 10);
-    if (!title) {
-      setNewMsg("Enter a title.", true);
+    if (!Number.isFinite(ping) || ping < 10 || ping > 86400) {
+      setNewMsg("Enter a valid ping interval (10–86400 seconds).", true);
       return;
     }
     fetch("/api/locate/locators", {
@@ -573,5 +619,8 @@
   });
 
   loadLocators();
+  setInterval(function () {
+    if (document.visibilityState === "visible") loadLocators();
+  }, 45000);
 })();
 </script>

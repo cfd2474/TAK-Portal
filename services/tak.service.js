@@ -106,7 +106,7 @@ function getStringAllowEmpty(name) {
 }
 
 /**
- * @param {{ allowInsecureServer?: boolean }} [options] - If true, skip verifying the server certificate (rejectUnauthorized: false). Used by the locate relay when TAK_LOCATE_RELAY_TLS_INSECURE is passed through; cert revoke uses the default (verify server).
+ * @param {{ allowInsecureServer?: boolean }} [options] - If true, skip verifying the server certificate (rejectUnauthorized: false). The public locate relay uses this; cert revoke uses the default (verify server).
  */
 function buildTakAxios(options = {}) {
   const TAK_DEBUG = getBool("TAK_DEBUG", false);

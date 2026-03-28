@@ -311,7 +311,7 @@ app.post("/api/public/locate/:slug/ping", async (req, res) => {
     }
     const last = String(body.lastName || "").trim();
     const first = String(body.firstName || "").trim();
-    const name = last && first ? `${last}, ${first}` : last || first || "Unknown";
+    const name = locatorsSvc.formatLocatePingNameForTak(first, last);
     const remarks = String(body.remarks || "").trim();
 
     await locatorsSvc.relayPingToTak({
