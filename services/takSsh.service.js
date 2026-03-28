@@ -383,6 +383,110 @@ function ensureLocalSshKeyPair() {
   return getLocalKeyStatus();
 }
 
+function execOverSshWithStdin(connectConfig, command, stdinUtf8, timeoutMs = 180000) {
+  return new Promise((resolve) => {
+    const conn = new Client();
+    let finished = false;
+    const done = (payload) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(t);
+      try {
+        conn.end();
+      } catch (_) {}
+      resolve(payload);
+    };
+
+    const t = setTimeout(() => {
+      done({ ok: false, message: "SSH command timed out.", stdout: "", stderr: "", exitCode: null });
+    }, timeoutMs);
+
+    conn
+      .on("keyboard-interactive", (name, instructions, instructionsLang, prompts, finish) => {
+        if (connectConfig && connectConfig.password) {
+          finish([String(connectConfig.password)]);
+          return;
+        }
+        finish([]);
+      })
+      .on("ready", () => {
+        conn.exec(command, (err, stream) => {
+          if (err) {
+            done({ ok: false, message: err.message || String(err), stdout: "", stderr: "", exitCode: null });
+            return;
+          }
+
+          let stdout = "";
+          let stderr = "";
+          stream.on("data", (data) => {
+            stdout += data.toString();
+          });
+          stream.stderr.on("data", (data) => {
+            stderr += data.toString();
+          });
+          stream.on("close", (code) => {
+            const exitCode = Number.isInteger(code) ? code : null;
+            if (exitCode !== 0) {
+              done({
+                ok: false,
+                message: stderr.trim() || stdout.trim() || `Exit code ${exitCode}`,
+                stdout,
+                stderr,
+                exitCode,
+              });
+              return;
+            }
+            done({ ok: true, stdout, stderr, exitCode: 0 });
+          });
+
+          const input = String(stdinUtf8 || "");
+          stream.end(Buffer.from(input, "utf8"));
+        });
+      })
+      .on("error", (err) => {
+        done({ ok: false, message: err.message || String(err), stdout: "", stderr: "", exitCode: null });
+      })
+      .connect(connectConfig);
+  });
+}
+
+/**
+ * Write full file contents on the remote host (e.g. CoreConfig.xml) via stdin to `sudo tee`.
+ * @param {string} remoteAbsolutePath
+ * @param {string} contentUtf8
+ */
+async function writeRemoteFileViaSudoTee(remoteAbsolutePath, contentUtf8) {
+  const p = String(remoteAbsolutePath || "").trim();
+  if (!p.startsWith("/")) {
+    return { ok: false, message: "Remote path must be absolute.", stdout: "", stderr: "", exitCode: null };
+  }
+  const cfg = getTakSshConfig();
+  if (!cfg) {
+    return {
+      ok: false,
+      message: "SSH is not configured. Complete the SSH handshake in Settings first.",
+      stdout: "",
+      stderr: "",
+      exitCode: null,
+    };
+  }
+  const safePath = quoteForSingleQuotedShell(p);
+  const cmd = `sudo tee '${safePath}' > /dev/null`;
+  return execOverSshWithStdin(
+    {
+      host: cfg.host,
+      port: cfg.port,
+      username: cfg.username,
+      privateKey: cfg.privateKey,
+      passphrase: cfg.passphrase,
+      readyTimeout: 15000,
+    },
+    cmd,
+    contentUtf8,
+    180000
+  );
+}
+
 function execOverSsh(connectConfig, command, timeoutMs = 30000) {
   return new Promise((resolve) => {
     const conn = new Client();
@@ -502,7 +606,7 @@ async function onboardTakSshWithPassword({ host, port, username, password }) {
   };
 }
 
-async function runRemoteSshCommand(command) {
+async function runRemoteSshCommand(command, timeoutMs = 30000) {
   const raw = String(command || "").trim();
   if (!raw) {
     return { ok: false, message: "Command is required.", stdout: "", stderr: "", exitCode: null };
@@ -527,7 +631,8 @@ async function runRemoteSshCommand(command) {
       passphrase: cfg.passphrase,
       readyTimeout: 15000,
     },
-    raw
+    raw,
+    timeoutMs
   );
 }
 
@@ -583,6 +688,7 @@ module.exports = {
   ensureLocalSshKeyPair,
   onboardTakSshWithPassword,
   runRemoteSshCommand,
+  writeRemoteFileViaSudoTee,
   hasStoredIntegrationCertFiles,
   provisionIntegrationCertFiles,
   getOrProvisionIntegrationCertFiles,

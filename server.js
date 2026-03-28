@@ -197,6 +197,34 @@ function requireStrictGlobalAdmin(req, res, next) {
 
   next();
 }
+
+function requireBetaMode(req, res, next) {
+  const cfg = settingsSvc.getSettings() || {};
+  const beta = String(cfg.BETA_MODE || "").toLowerCase() === "true";
+  if (!beta) {
+    return res.status(404).render("access-denied", {
+      username: req.authentikUser?.username || "",
+    });
+  }
+  next();
+}
+
+function requireStrictGlobalAdminApi(req, res, next) {
+  const user = req.authentikUser;
+  if (!user || !user.isGlobalAdmin) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+  next();
+}
+
+function requireBetaModeApi(req, res, next) {
+  const cfg = settingsSvc.getSettings() || {};
+  const beta = String(cfg.BETA_MODE || "").toLowerCase() === "true";
+  if (!beta) {
+    return res.status(404).json({ error: "Not found" });
+  }
+  next();
+}
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
@@ -251,6 +279,12 @@ app.use("/api/audit-log", requireGlobalAdmin, require("./routes/auditLog.routes"
 app.use("/api/plugins", requireGlobalAdmin, require("./routes/plugins.routes"));
 app.use("/api/integrations", requireGlobalAdmin, require("./routes/integrations.routes"));
 app.use("/api/ssh", requireGlobalAdmin, require("./routes/ssh.routes"));
+app.use(
+  "/api/locate",
+  requireStrictGlobalAdminApi,
+  requireBetaModeApi,
+  require("./routes/locate.routes")
+);
 app.use("/api/email", (req, res, next) => {
   const user = req.authentikUser;
   if (!user || (!user.isGlobalAdmin && !user.isAgencyAdmin)) {
@@ -303,16 +337,12 @@ app.get("/email", (req, res) => {
   return res.render("email");
 });
 app.get("/locate-persons", (req, res) => {
-  const user = req.authentikUser;
-  if (!user || (!user.isGlobalAdmin && !user.isAgencyAdmin)) {
-    const username = user && user.username ? user.username : "";
-    return res.status(403).render("access-denied", { username });
-  }
-  const cfg = settingsSvc.getSettings() || {};
-  const beta = String(cfg.BETA_MODE || "").toLowerCase() === "true";
-  if (!beta) return res.status(404).render("access-denied", { username: req.authentikUser?.username || "" });
-  return res.render("locate-persons");
+  res.redirect(301, "/locate");
 });
+
+app.get("/locate", requireStrictGlobalAdmin, requireBetaMode, (req, res) =>
+  res.render("locate")
+);
 
 // Plugin Manager (global admin only)
 app.get("/plugin-manager", requireGlobalAdmin, async (req, res) => {

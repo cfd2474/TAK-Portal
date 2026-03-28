@@ -1,0 +1,168 @@
+<%- include("partials/header") %>
+<%- include("partials/sidebar") %>
+
+<main class="main">
+  <h1>Locate</h1>
+
+  <div class="card">
+    <h2 style="margin-top:0;">TAK Server locate</h2>
+    <p class="settings-help" style="margin-bottom:1rem;">
+      When enabled, the portal updates <code>/opt/tak/CoreConfig.xml</code> on the TAK Server over SSH (same connection as Server Settings),
+      inserts the <code>&lt;locate&gt;</code> element before <code>&lt;vbm&gt;</code>, then runs <code>sudo systemctl restart takserver</code>.
+      The group name sent to the server does not include the <code>tak_</code> prefix.
+    </p>
+
+    <div id="locateSshWarn" class="msg" style="display:none;"></div>
+
+    <div class="row" style="flex-wrap: wrap; align-items: flex-end; gap: 12px;">
+      <label style="min-width: 200px;">
+        Locate
+        <select id="locateEnabledSelect" aria-label="Locate enabled">
+          <option value="false">Disabled</option>
+          <option value="true">Enabled</option>
+        </select>
+      </label>
+
+      <label id="locateGroupWrap" style="min-width: 280px; display: none;">
+        Notification group
+        <select id="locateGroupSelect" style="min-width: 260px;">
+          <option value="">Select a group</option>
+        </select>
+      </label>
+
+      <label>
+        &nbsp;
+        <button class="btn" type="button" id="locateApplyBtn">Apply changes &amp; restart TAK Server</button>
+      </label>
+    </div>
+
+    <div id="locateMsg" class="msg" style="margin-top:12px;"></div>
+  </div>
+</main>
+
+<script>
+(function () {
+  function stripTakPrefix(name) {
+    var n = String(name || "").trim();
+    return n.toLowerCase().indexOf("tak_") === 0 ? n.slice(4) : n;
+  }
+
+  var enabledSelect = document.getElementById("locateEnabledSelect");
+  var groupWrap = document.getElementById("locateGroupWrap");
+  var groupSelect = document.getElementById("locateGroupSelect");
+  var applyBtn = document.getElementById("locateApplyBtn");
+  var msg = document.getElementById("locateMsg");
+  var sshWarn = document.getElementById("locateSshWarn");
+
+  function setMsg(text, isError) {
+    msg.textContent = text || "";
+    msg.style.display = text ? "block" : "none";
+    if (isError) {
+      msg.style.color = "var(--danger, #f66)";
+    } else {
+      msg.style.color = "";
+    }
+  }
+
+  function syncGroupVisibility() {
+    var on = enabledSelect.value === "true";
+    groupWrap.style.display = on ? "" : "none";
+  }
+
+  enabledSelect.addEventListener("change", syncGroupVisibility);
+
+  async function loadGroups() {
+    var res = await fetch("/api/groups");
+    if (!res.ok) throw new Error("Failed to load groups.");
+    var data = await res.json();
+    if (!Array.isArray(data)) throw new Error("Invalid groups response.");
+
+    var takGroups = data.filter(function (g) {
+      return String(g.name || "").toLowerCase().indexOf("tak_") === 0;
+    });
+    takGroups.sort(function (a, b) {
+      return String(a.name || "").localeCompare(String(b.name || ""));
+    });
+
+    var prev = groupSelect.value;
+    groupSelect.innerHTML = '<option value="">Select a group</option>';
+    takGroups.forEach(function (g) {
+      var opt = document.createElement("option");
+      var shortName = stripTakPrefix(g.name);
+      opt.value = shortName;
+      opt.textContent = g.name;
+      groupSelect.appendChild(opt);
+    });
+    if (prev && Array.prototype.some.call(groupSelect.options, function (o) { return o.value === prev; })) {
+      groupSelect.value = prev;
+    }
+    return takGroups;
+  }
+
+  async function loadConfig() {
+    var res = await fetch("/api/locate/config");
+    var data = await res.json();
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || "Failed to load locate config.");
+    }
+    if (!data.sshConfigured) {
+      sshWarn.style.display = "block";
+      sshWarn.textContent =
+        "SSH is not configured. Configure the TAK Server SSH connection under Server Settings before applying locate changes.";
+      applyBtn.disabled = true;
+    } else {
+      sshWarn.style.display = "none";
+      sshWarn.textContent = "";
+      applyBtn.disabled = false;
+    }
+    enabledSelect.value = data.enabled ? "true" : "false";
+    if (data.group) {
+      groupSelect.value = data.group;
+    }
+    syncGroupVisibility();
+  }
+
+  applyBtn.addEventListener("click", async function () {
+    setMsg("");
+    var enabled = enabledSelect.value === "true";
+    var group = String(groupSelect.value || "").trim();
+    if (enabled && !group) {
+      setMsg("Select a TAK group for locate notifications.", true);
+      return;
+    }
+    applyBtn.disabled = true;
+    try {
+      var res = await fetch("/api/locate/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          enabled: enabled,
+          group: enabled ? group : "",
+        }),
+      });
+      var data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "Apply failed.");
+      }
+      setMsg(data.message || "Saved.", false);
+      await loadConfig();
+    } catch (e) {
+      setMsg(e.message || String(e), true);
+    } finally {
+      if (!sshWarn.textContent) applyBtn.disabled = false;
+    }
+  });
+
+  (async function init() {
+    try {
+      await loadGroups();
+      await loadConfig();
+      if (groupSelect.value) {
+        syncGroupVisibility();
+      }
+    } catch (e) {
+      setMsg(e.message || String(e), true);
+    }
+  })();
+})();
+</script>
