@@ -105,7 +105,10 @@ function getStringAllowEmpty(name) {
   return String(process.env[name] ?? "");
 }
 
-function buildTakAxios() {
+/**
+ * @param {{ allowInsecureServer?: boolean }} [options] - If true, skip verifying the server certificate (rejectUnauthorized: false). Used by the locate relay when TAK_LOCATE_RELAY_TLS_INSECURE is passed through; cert revoke uses the default (verify server).
+ */
+function buildTakAxios(options = {}) {
   const TAK_DEBUG = getBool("TAK_DEBUG", false);
 
   const p12Path = resolvePathMaybe(getString("TAK_API_P12_PATH", ""));
@@ -141,9 +144,11 @@ function buildTakAxios() {
     );
   }
 
+  const allowInsecureServer = options.allowInsecureServer === true;
+
   const agentOptions = {
     ca: caPath ? fs.readFileSync(caPath) : undefined,
-    rejectUnauthorized: true,
+    rejectUnauthorized: !allowInsecureServer,
 
     // Keep your previous behavior (skip hostname verification)
     checkServerIdentity: () => undefined,
@@ -415,4 +420,5 @@ async function revokeCertsForUser(username, options = {}) {
 module.exports = {
   isTakConfigured,
   revokeCertsForUser,
+  buildTakAxios,
 };

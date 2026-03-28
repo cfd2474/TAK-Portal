@@ -6,10 +6,9 @@
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
-const axios = require("axios");
-const { getString } = require("./env");
+const { getString, getBool } = require("./env");
 const settingsSvc = require("./settings.service");
-const { buildTakMtlsHttpsAgent } = require("./takMetrics.service");
+const { buildTakAxios } = require("./tak.service");
 
 const FILE = path.join(__dirname, "..", "data", "locators.json");
 
@@ -232,17 +231,18 @@ async function relayPingToTak({ latitude, longitude, name, remarks }) {
   u.searchParams.set("name", name);
   u.searchParams.set("remarks", remarks || "");
 
-  let httpsAgent;
+  let client;
   try {
-    httpsAgent = buildTakMtlsHttpsAgent();
+    client = buildTakAxios({
+      allowInsecureServer: getBool("TAK_LOCATE_RELAY_TLS_INSECURE", false),
+    });
   } catch (setupErr) {
     throw new Error(setupErr?.message || String(setupErr));
   }
 
   try {
-    const resp = await axios.post(u.toString(), null, {
+    const resp = await client.post(u.toString(), null, {
       timeout: 25000,
-      httpsAgent,
       headers: {
         Accept: "*/*",
         "X-Requested-With": "XMLHttpRequest",
