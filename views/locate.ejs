@@ -382,7 +382,11 @@
     if (sec < 0) return "just now";
     if (sec < 10) return "just now";
     if (sec < 60) return sec + "s ago";
-    if (sec < 3600) return Math.floor(sec / 60) + "m ago";
+    if (sec < 3600) {
+      var m = Math.floor(sec / 60);
+      var s = sec % 60;
+      return m + "m " + s + "s ago";
+    }
     if (sec < 86400) return Math.floor(sec / 3600) + "h ago";
     if (sec < 604800) return Math.floor(sec / 86400) + "d ago";
     return formatTime(iso);
@@ -412,26 +416,41 @@
   function appendRecentCell(tdRecent, loc) {
     tdRecent.style.fontSize = "0.9rem";
     tdRecent.style.lineHeight = "1.35";
-    if (!loc.lastPingAt) {
-      tdRecent.textContent = "—";
-      return;
-    }
-    var rel = document.createElement("div");
-    rel.textContent = formatRelative(loc.lastPingAt);
-    tdRecent.appendChild(rel);
-    if (loc.lastLatitude != null && loc.lastLongitude != null) {
+    if (loc.lastCoordsAt) {
+      var rel = document.createElement("div");
+      rel.className = "loc-recent-live";
+      rel.setAttribute("data-at", loc.lastCoordsAt);
+      rel.textContent = formatRelative(loc.lastCoordsAt);
+      tdRecent.appendChild(rel);
       var coords = document.createElement("div");
       coords.className = "settings-help";
       coords.style.marginTop = "2px";
       coords.textContent =
         Number(loc.lastLatitude).toFixed(7) + ", " + Number(loc.lastLongitude).toFixed(7);
       tdRecent.appendChild(coords);
-    } else {
-      var noCoord = document.createElement("div");
-      noCoord.className = "settings-help";
-      noCoord.style.marginTop = "2px";
-      noCoord.textContent = "No GPS stored yet";
-      tdRecent.appendChild(noCoord);
+      return;
+    }
+    if (!loc.lastPingAt) {
+      tdRecent.textContent = "—";
+      return;
+    }
+    tdRecent.textContent = "";
+    var dash = document.createElement("div");
+    dash.textContent = "—";
+    tdRecent.appendChild(dash);
+    var noCoord = document.createElement("div");
+    noCoord.className = "settings-help";
+    noCoord.style.marginTop = "2px";
+    noCoord.textContent = "No GPS stored yet";
+    tdRecent.appendChild(noCoord);
+  }
+
+  function tickRecentLiveCells() {
+    var nodes = document.querySelectorAll(".loc-recent-live");
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      var at = el.getAttribute("data-at");
+      el.textContent = formatRelative(at);
     }
   }
 
@@ -758,5 +777,8 @@
   setInterval(function () {
     if (document.visibilityState === "visible") loadLocators();
   }, 15000);
+  setInterval(function () {
+    if (document.visibilityState === "visible") tickRecentLiveCells();
+  }, 1000);
 })();
 </script>

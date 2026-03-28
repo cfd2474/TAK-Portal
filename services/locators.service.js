@@ -151,6 +151,7 @@ function listLocatorsForAdmin() {
     return {
       ...l,
       lastPingAt: last ? last.at : null,
+      lastCoordsAt: lastWithCoords ? lastWithCoords.at : null,
       lastLatitude: lastWithCoords != null ? Number(lastWithCoords.latitude) : null,
       lastLongitude: lastWithCoords != null ? Number(lastWithCoords.longitude) : null,
       hasPositionPing: !!lastWithCoords,
