@@ -106,6 +106,84 @@ function shouldRetryPing(err){
   var m=String(err&&err.message!=null?err.message:err||"");
   return /failed to fetch|load failed|networkerror|network error|timed out|aborted/i.test(m)||(typeof TypeError!=="undefined"&&err instanceof TypeError);
 }
+function isMobileDevice(){
+  var ua=navigator.userAgent||"";
+  if(/iPhone|iPad|iPod|Android/i.test(ua))return true;
+  if(navigator.platform==="MacIntel"&&typeof navigator.maxTouchPoints==="number"&&navigator.maxTouchPoints>1)return true;
+  return false;
+}
+var lpPingFormEl=null,lpPingIframeEl=null;
+/**
+ * Mobile Safari often blocks fetch/XHR on cellular; a real HTML form POST (target=iframe)
+ * uses the browser's document navigation path and usually still works.
+ */
+function postPingFormIframe(body){
+  if(!lpPingFormEl){
+    lpPingIframeEl=document.createElement("iframe");
+    lpPingIframeEl.name="lpPingFrame";
+    lpPingIframeEl.id="lpPingFrame";
+    lpPingIframeEl.title="Location send";
+    lpPingIframeEl.style.cssText="position:absolute;width:0;height:0;border:0;visibility:hidden";
+    lpPingIframeEl.setAttribute("aria-hidden","true");
+    lpPingFormEl=document.createElement("form");
+    lpPingFormEl.method="POST";
+    lpPingFormEl.action=pingUrl();
+    lpPingFormEl.target="lpPingFrame";
+    lpPingFormEl.enctype="application/x-www-form-urlencoded";
+    lpPingFormEl.style.display="none";
+    lpPingFormEl.setAttribute("novalidate","novalidate");
+    ["latitude","longitude","firstName","lastName","remarks","accuracyMeters"].forEach(function(n){
+      var inp=document.createElement("input");
+      inp.type="hidden";
+      inp.name=n;
+      inp.id="lpHidden_"+n;
+      lpPingFormEl.appendChild(inp);
+    });
+    document.body.appendChild(lpPingIframeEl);
+    document.body.appendChild(lpPingFormEl);
+  }
+  return new Promise(function(resolve,reject){
+    document.getElementById("lpHidden_latitude").value=String(body.latitude);
+    document.getElementById("lpHidden_longitude").value=String(body.longitude);
+    document.getElementById("lpHidden_firstName").value=body.firstName||"";
+    document.getElementById("lpHidden_lastName").value=body.lastName||"";
+    document.getElementById("lpHidden_remarks").value=body.remarks||"";
+    var accEl=document.getElementById("lpHidden_accuracyMeters");
+    if(body.accuracyMeters!=null&&Number.isFinite(body.accuracyMeters)){
+      accEl.value=String(body.accuracyMeters);
+    }else{
+      accEl.value="";
+    }
+    var to=setTimeout(function(){
+      lpPingIframeEl.onload=null;
+      reject(new Error("Request timed out"));
+    },90000);
+    lpPingIframeEl.onload=function(){
+      clearTimeout(to);
+      setTimeout(function(){
+        try{
+          var doc=lpPingIframeEl.contentDocument||lpPingIframeEl.contentWindow.document;
+          var text=(doc.body&&doc.body.textContent)?String(doc.body.textContent).trim():"";
+          if(!text){
+            reject(new Error("Empty response"));
+            return;
+          }
+          var d=JSON.parse(text);
+          if(d.ok)resolve(d);
+          else{
+            var he=new Error(d.error||"Request failed");
+            he.isHttpError=true;
+            reject(he);
+          }
+        }catch(ex){
+          reject(ex);
+        }
+      },0);
+    };
+    lpPingFormEl.action=pingUrl()+"?_="+String(Date.now());
+    lpPingFormEl.submit();
+  });
+}
 /** XHR + JSON body (same as fetch). */
 function postPingXHRJSON(body){
   return new Promise(function(resolve,reject){
@@ -160,14 +238,7 @@ function setSharingUi(on){
   if(beforeShare)beforeShare.style.display=on?"none":"";
   if(keepOpen)keepOpen.className=on?"keep on":"keep";
 }
-function postPing(lat,lng,accuracy){
-  var body={
-    latitude:lat,longitude:lng,
-    firstName:document.getElementById("lpFirst").value.trim(),
-    lastName:document.getElementById("lpLast").value.trim(),
-    remarks:document.getElementById("lpRemarks").value.trim()
-  };
-  if(accuracy!=null&&Number.isFinite(accuracy))body.accuracyMeters=accuracy;
+function postPingViaHttpApis(body){
   var payload=JSON.stringify(body);
   var fetchOpts={
     method:"POST",
@@ -200,6 +271,22 @@ function postPing(lat,lng,accuracy){
       if(!shouldRetryPing(err))throw err;
       return postPingXHRJSON(body);
     });
+}
+function postPing(lat,lng,accuracy){
+  var body={
+    latitude:lat,longitude:lng,
+    firstName:document.getElementById("lpFirst").value.trim(),
+    lastName:document.getElementById("lpLast").value.trim(),
+    remarks:document.getElementById("lpRemarks").value.trim()
+  };
+  if(accuracy!=null&&Number.isFinite(accuracy))body.accuracyMeters=accuracy;
+  if(isMobileDevice()){
+    return postPingFormIframe(body).catch(function(err){
+      if(err&&err.isHttpError)throw err;
+      return postPingViaHttpApis(body);
+    });
+  }
+  return postPingViaHttpApis(body);
 }
 /** Fresh GPS (no stale cache), long timeout, optional 2nd sample if first accuracy is poor. */
 function getBestFix(onOk,onErr){
