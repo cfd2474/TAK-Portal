@@ -7,7 +7,7 @@ const settingsSvc = require("./services/settings.service");
 const dashboardStatsCache = require("./services/dashboardStatsCache.service");
 const takDashboardCache = require("./services/takDashboardCache.service");
 const axios = require("axios");
-const { getString } = require("./services/env");
+const { getString, getServerTimeZone } = require("./services/env");
 const { URL } = require("url");
 const pkg = require("./package.json");
 const mutualAidSvc = require("./services/mutualAid.service");
@@ -448,7 +448,7 @@ app.get("/locate-persons", (req, res) => {
 });
 
 app.get("/locate", requireStrictGlobalAdmin, requireBetaMode, (req, res) =>
-  res.render("locate")
+  res.render("locate", { serverTimeZone: getServerTimeZone() })
 );
 
 // Public share link for a locator (no auth)

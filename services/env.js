@@ -31,8 +31,20 @@ function getInt(name, fallback) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+/** IANA zone for displaying wall-clock times as the server sees them (uses `TZ` when set). */
+function getServerTimeZone() {
+  try {
+    const tz = process.env.TZ;
+    if (tz && String(tz).trim()) return String(tz).trim();
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+
 module.exports = {
   getString,
   getBool,
   getInt,
+  getServerTimeZone,
 };
