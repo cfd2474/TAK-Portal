@@ -364,7 +364,6 @@
 
 <script>
 (function () {
-  var SERVER_TIMEZONE = <%- JSON.stringify(typeof serverTimeZone !== "undefined" && serverTimeZone ? serverTimeZone : "") %>;
   var tbody = document.getElementById("locatorsTbody");
   var archivedTbody = document.getElementById("archivedLocatorsTbody");
   var archivedCountEl = document.getElementById("archivedCount");
@@ -402,11 +401,7 @@
   function formatTime(iso) {
     if (!iso) return "—";
     try {
-      var d = new Date(iso);
-      if (SERVER_TIMEZONE) {
-        return d.toLocaleString(undefined, { timeZone: SERVER_TIMEZONE });
-      }
-      return d.toLocaleString();
+      return new Date(iso).toLocaleString();
     } catch (e) {
       return iso;
     }
