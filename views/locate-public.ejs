@@ -106,12 +106,12 @@ function shouldRetryPing(err){
   var m=String(err&&err.message!=null?err.message:err||"");
   return /failed to fetch|load failed|networkerror|network error|timed out|aborted/i.test(m)||(typeof TypeError!=="undefined"&&err instanceof TypeError);
 }
-/** XHR fallback: some mobile WebViews / networks fail fetch() but succeed with XMLHttpRequest. */
-function postPingXHR(body){
+/** XHR + JSON body (same as fetch). */
+function postPingXHRJSON(body){
   return new Promise(function(resolve,reject){
     var xhr=new XMLHttpRequest();
     xhr.open("POST",pingUrl());
-    xhr.setRequestHeader("Content-Type","application/json");
+    xhr.setRequestHeader("Content-Type","application/json;charset=UTF-8");
     xhr.setRequestHeader("Accept","application/json");
     xhr.timeout=90000;
     xhr.onload=function(){
@@ -123,6 +123,37 @@ function postPingXHR(body){
     xhr.onerror=function(){reject(new Error("Failed to fetch"));};
     xhr.ontimeout=function(){reject(new Error("Request timed out"));};
     xhr.send(JSON.stringify(body));
+  });
+}
+/**
+ * XHR + urlencoded body — some cellular networks / proxies mishandle JSON POSTs; html forms use this shape.
+ */
+function postPingXHRUrlEncoded(body){
+  var params=new URLSearchParams();
+  params.set("latitude",String(body.latitude));
+  params.set("longitude",String(body.longitude));
+  params.set("firstName",body.firstName||"");
+  params.set("lastName",body.lastName||"");
+  params.set("remarks",body.remarks||"");
+  if(body.accuracyMeters!=null&&Number.isFinite(body.accuracyMeters)){
+    params.set("accuracyMeters",String(body.accuracyMeters));
+  }
+  var enc=params.toString();
+  return new Promise(function(resolve,reject){
+    var xhr=new XMLHttpRequest();
+    xhr.open("POST",pingUrl());
+    xhr.setRequestHeader("Content-Type","application/x-www-form-urlencoded;charset=UTF-8");
+    xhr.setRequestHeader("Accept","application/json");
+    xhr.timeout=90000;
+    xhr.onload=function(){
+      var text=xhr.responseText||"",d={};
+      try{d=text?JSON.parse(text):{}}catch(e){}
+      if(xhr.status>=200&&xhr.status<300)resolve(d);
+      else{var he=new Error(d.error||text||"Request failed");he.isHttpError=true;reject(he);}
+    };
+    xhr.onerror=function(){reject(new Error("Failed to fetch"));};
+    xhr.ontimeout=function(){reject(new Error("Request timed out"));};
+    xhr.send(enc);
   });
 }
 function setSharingUi(on){
@@ -142,13 +173,21 @@ function postPing(lat,lng,accuracy){
     method:"POST",
     credentials:"omit",
     cache:"no-store",
-    headers:{"Content-Type":"application/json","Accept":"application/json"},
+    headers:{"Content-Type":"application/json;charset=UTF-8","Accept":"application/json"},
     body:payload
   };
   function tryFetch(){
     return fetch(pingUrl(),fetchOpts).then(parsePingResponse);
   }
-  return tryFetch()
+  return postPingXHRUrlEncoded(body)
+    .catch(function(err){
+      if(err&&err.isHttpError)throw err;
+      return postPingXHRJSON(body);
+    })
+    .catch(function(err){
+      if(err&&err.isHttpError)throw err;
+      return tryFetch();
+    })
     .catch(function(err){
       if(!shouldRetryPing(err))throw err;
       return new Promise(function(r){setTimeout(r,400);}).then(tryFetch);
@@ -159,7 +198,7 @@ function postPing(lat,lng,accuracy){
     })
     .catch(function(err){
       if(!shouldRetryPing(err))throw err;
-      return postPingXHR(body);
+      return postPingXHRJSON(body);
     });
 }
 /** Fresh GPS (no stale cache), long timeout, optional 2nd sample if first accuracy is poor. */

@@ -293,6 +293,22 @@ app.use(
   require("./routes/locate.routes")
 );
 
+// Public locate APIs: CORS + OPTIONS so mobile browsers / in-app WebViews that treat the
+// request as cross-origin (or require preflight) can still POST; same-origin pages ignore these headers.
+app.use("/api/public/locate", (req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Accept, X-Requested-With"
+  );
+  res.setHeader("Access-Control-Max-Age", "7200");
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+  next();
+});
+
 // Public: client config poll (interval + wake signals; no auth)
 app.get("/api/public/locate/:slug/client-config", (req, res) => {
   try {
