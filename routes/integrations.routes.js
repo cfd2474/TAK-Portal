@@ -149,6 +149,9 @@ router.get("/:userId/certs/download", async (req, res) => {
     archive.pipe(res);
     archive.file(certPaths.pemPath, { name: `${safeName}.pem` });
     archive.file(certPaths.keyPath, { name: `${safeName}.key` });
+    if (certPaths.p12Path && fs.existsSync(certPaths.p12Path)) {
+      archive.file(certPaths.p12Path, { name: `${safeName}.p12` });
+    }
     archive.finalize();
   } catch (err) {
     res.status(400).json({ error: toErrorPayload(err) });

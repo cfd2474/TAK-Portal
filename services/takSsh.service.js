@@ -57,6 +57,7 @@ function getIntegrationCertPaths(username) {
     dir: path.join(INTEGRATION_CERTS_DIR, un),
     pemPath: path.join(INTEGRATION_CERTS_DIR, un, `${un}.pem`),
     keyPath: path.join(INTEGRATION_CERTS_DIR, un, `${un}.key`),
+    p12Path: path.join(INTEGRATION_CERTS_DIR, un, `${un}.p12`),
   };
 }
 
@@ -69,6 +70,9 @@ function deleteStoredIntegrationCertFiles(username) {
     if (fs.existsSync(p.keyPath)) fs.unlinkSync(p.keyPath);
   } catch (_) {}
   try {
+    if (fs.existsSync(p.p12Path)) fs.unlinkSync(p.p12Path);
+  } catch (_) {}
+  try {
     if (fs.existsSync(p.dir) && fs.readdirSync(p.dir).length === 0) fs.rmdirSync(p.dir);
   } catch (_) {}
 }
@@ -78,7 +82,7 @@ function hasStoredIntegrationCertFiles(username) {
   return fs.existsSync(p.pemPath) && fs.existsSync(p.keyPath);
 }
 
-function parseRemoteCertPair(stdout) {
+function parseRemoteCertBundle(stdout) {
   const out = String(stdout || "");
   const pemMatch = out.match(/__TAK_CERT_PEM_BEGIN__\s*([\s\S]*?)\s*__TAK_CERT_PEM_END__/);
   const keyMatch = out.match(/__TAK_CERT_KEY_BEGIN__\s*([\s\S]*?)\s*__TAK_CERT_KEY_END__/);
@@ -92,7 +96,16 @@ function parseRemoteCertPair(stdout) {
   if (!pem || !key) {
     throw new Error("Remote cert output was empty.");
   }
-  return { pem: pem + "\n", key: key + "\n" };
+  const p12Match = out.match(/__TAK_CERT_P12_BEGIN__\s*([\s\S]*?)\s*__TAK_CERT_P12_END__/);
+  let p12 = null;
+  if (p12Match) {
+    const p12B64 = String(p12Match[1] || "").replace(/\s+/g, "");
+    if (p12B64) {
+      const buf = Buffer.from(p12B64, "base64");
+      if (buf.length) p12 = buf;
+    }
+  }
+  return { pem: pem + "\n", key: key + "\n", p12 };
 }
 
 async function fetchIntegrationCertPairFromRemote(username) {
@@ -106,12 +119,14 @@ async function fetchIntegrationCertPairFromRemote(username) {
   const remoteScript =
     "sudo -u tak bash -lc 'set -e; cd /opt/tak/certs; " +
     `name='${safeName}'; ` +
-    "pem=''; key=''; " +
+    "pem=''; key=''; p12path=''; " +
     "for p in \"./files/${name}.pem\" \"./${name}.pem\" \"/opt/tak/certs/files/${name}.pem\" \"/opt/tak/certs/${name}.pem\"; do [ -f \"$p\" ] && pem=\"$p\" && break; done; " +
     "for k in \"./files/${name}.key\" \"./${name}.key\" \"/opt/tak/certs/files/${name}.key\" \"/opt/tak/certs/${name}.key\"; do [ -f \"$k\" ] && key=\"$k\" && break; done; " +
+    "for f in \"./files/${name}.p12\" \"./${name}.p12\" \"/opt/tak/certs/files/${name}.p12\" \"/opt/tak/certs/${name}.p12\"; do [ -f \"$f\" ] && p12path=\"$f\" && break; done; " +
     "if [ -z \"$pem\" ] || [ -z \"$key\" ]; then echo \"Missing cert files for ${name}\" 1>&2; exit 44; fi; " +
     "echo __TAK_CERT_PEM_BEGIN__; base64 \"$pem\" | tr -d \"\\n\"; echo; echo __TAK_CERT_PEM_END__; " +
-    "echo __TAK_CERT_KEY_BEGIN__; base64 \"$key\" | tr -d \"\\n\"; echo; echo __TAK_CERT_KEY_END__'";
+    "echo __TAK_CERT_KEY_BEGIN__; base64 \"$key\" | tr -d \"\\n\"; echo; echo __TAK_CERT_KEY_END__; " +
+    "if [ -n \"$p12path\" ]; then echo __TAK_CERT_P12_BEGIN__; base64 \"$p12path\" | tr -d \"\\n\"; echo; echo __TAK_CERT_P12_END__; fi'";
 
   const result = await execOverSsh(
     {
@@ -128,7 +143,7 @@ async function fetchIntegrationCertPairFromRemote(username) {
   if (!result.ok) {
     throw new Error(result.message || "Failed to fetch integration cert files from TAK server.");
   }
-  return parseRemoteCertPair(result.stdout);
+  return parseRemoteCertBundle(result.stdout);
 }
 
 async function storeIntegrationCertPairLocally(username, certPair) {
@@ -136,6 +151,9 @@ async function storeIntegrationCertPairLocally(username, certPair) {
   ensureDir(p.dir);
   fs.writeFileSync(p.pemPath, String(certPair.pem || ""), { mode: 0o600 });
   fs.writeFileSync(p.keyPath, String(certPair.key || ""), { mode: 0o600 });
+  if (certPair.p12 && Buffer.isBuffer(certPair.p12) && certPair.p12.length > 0) {
+    fs.writeFileSync(p.p12Path, certPair.p12, { mode: 0o600 });
+  }
   return p;
 }
 
@@ -164,6 +182,15 @@ async function provisionIntegrationCertFiles(username) {
 async function getOrProvisionIntegrationCertFiles(username) {
   const un = sanitizeIntegrationUsername(username);
   if (hasStoredIntegrationCertFiles(un)) {
+    const paths = getIntegrationCertPaths(un);
+    if (!fs.existsSync(paths.p12Path)) {
+      try {
+        const bundle = await fetchIntegrationCertPairFromRemote(un);
+        await storeIntegrationCertPairLocally(un, bundle);
+      } catch (_) {
+        // Keep serving pem/key from cache if a refresh for .p12 fails.
+      }
+    }
     return { ok: true, ...getIntegrationCertPaths(un), fromCache: true };
   }
   return provisionIntegrationCertFiles(un);
