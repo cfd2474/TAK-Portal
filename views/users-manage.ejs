@@ -95,7 +95,7 @@
       </div>
 
       <div style="grid-column: 1 / -1; display:flex; align-items:center; gap:10px; flex-wrap: wrap;">
-        <button class="btn">Create New User</button>
+        <button class="btn" type="submit" id="createUserSubmitBtn">Create New User</button>
         <button class="btn success" type="button" id="createCsvBtn">Create from CSV</button>
         <input type="file" id="createCsvFileInput" accept=".csv" style="display:none" />
         <span id="createMsg" class="msg"></span>
@@ -378,6 +378,7 @@ const clearAllBtn = document.getElementById("createClearAllBtn");
 const groupsInner = document.getElementById("createGroupsInner"); // NEW inner wrapper
 
 const createMsg = document.getElementById("createMsg");
+const createUserSubmitBtn = document.getElementById("createUserSubmitBtn");
 const form = document.getElementById("createForm");
 const csvBtn = document.getElementById("createCsvBtn");
 const csvFileInput = document.getElementById("createCsvFileInput");
@@ -648,40 +649,50 @@ form.onsubmit = async (e) => {
     payload.manualGroupIds = ids;
   }
 
-  const res = await fetch("/api/users", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  if (createUserSubmitBtn) createUserSubmitBtn.disabled = true;
+  createMsg.textContent = "User creation in progress…";
+  createMsg.className = "msg pending";
 
-  const out = await res.json();
-  if (!res.ok) {
-    setMsg(out.error || "Create failed", false);
-    return;
+  try {
+    const res = await fetch("/api/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const out = await res.json();
+    if (!res.ok) {
+      setMsg(out.error || "Create failed", false);
+      return;
+    }
+
+    const first = payload.firstName || "";
+    const last = payload.lastName || "";
+
+    // Pull actual normalized username from API response
+    const username = (out.user && out.user.username) || "";
+
+    setMsg(`${username} – ${last}, ${first} created successfully`, true);
+
+    // preserve selected agency after reset
+    const agencyKeep = agencySelect.value;
+
+    form.reset();
+    agencySelect.value = agencyKeep;
+
+    pickedManualGroupIds.clear();
+    groupFilter.value = "";
+    renderGroupsBox();
+
+    await loadMeta();
+
+    // Refresh the Existing Users table after successful creation
+    window.dispatchEvent(new CustomEvent("users:refresh"));
+  } catch (err) {
+    setMsg(err && err.message ? err.message : "Create failed", false);
+  } finally {
+    if (createUserSubmitBtn) createUserSubmitBtn.disabled = false;
   }
-
-  const first = payload.firstName || "";
-  const last = payload.lastName || "";
-
-  // Pull actual normalized username from API response
-  const username = (out.user && out.user.username) || "";
-
-  setMsg(`${username} – ${last}, ${first} created successfully`, true);
-
-  // preserve selected agency after reset
-  const agencyKeep = agencySelect.value;
-
-  form.reset();
-  agencySelect.value = agencyKeep;
-
-  pickedManualGroupIds.clear();
-  groupFilter.value = "";
-  renderGroupsBox();
-
-  await loadMeta();
-
-  // Refresh the Existing Users table after successful creation
-  window.dispatchEvent(new CustomEvent("users:refresh"));
 };
 
 // -------------------- Init --------------------

@@ -627,6 +627,10 @@ select:focus {
     color: #ff7a7a;
 }
 
+.msg.pending {
+    color: #e8c170;
+}
+
 /* ======================
    MODALS
    ====================== */
