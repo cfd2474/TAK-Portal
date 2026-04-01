@@ -357,6 +357,38 @@ async function handlePublicLocatePing(req, res) {
       accuracyMeters: acc,
     });
 
+    const accLabel =
+      acc != null ? ` (accuracy about ${Math.round(acc)} m)` : "";
+    const remarksShort = remarks
+      ? String(remarks).trim().slice(0, 240)
+      : "";
+    auditSvc.logEvent({
+      actor: null,
+      request: {
+        method: req.method,
+        path: req.originalUrl || req.path,
+        ip: req.ip,
+      },
+      action: "LOCATE_PUBLIC_POSITION_REPORTED",
+      targetType: "locator",
+      targetId: loc.id,
+      details: {
+        slug,
+        locatorTitle: loc.title,
+        latitude: lat,
+        longitude: lng,
+        accuracyMeters: acc,
+        takDisplayName: name,
+        remarksPreview: remarksShort || undefined,
+        clientUserAgent: String(req.get("user-agent") || "").trim().slice(0, 400) || undefined,
+        summary: `Someone using the public locate page reported a position for "${loc.title}" (${slug}): ${lat.toFixed(
+          5
+        )}, ${lng.toFixed(5)}${accLabel}. Display name sent to TAK: ${name}${
+          remarksShort ? `. Remarks: ${remarksShort}` : ""
+        }.`,
+      },
+    });
+
     res.json({ ok: true });
 
     setImmediate(() => {

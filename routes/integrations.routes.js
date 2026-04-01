@@ -93,6 +93,10 @@ router.post("/", async (req, res) => {
       certError = certErr?.message || String(certErr);
     }
 
+    const groupName =
+      Array.isArray(result?.groups) && result.groups[0]
+        ? result.groups[0].name
+        : "";
     auditSvc.logEvent({
       actor: authUser,
       request: { method: req.method, path: req.originalUrl || req.path, ip: req.ip },
@@ -101,11 +105,14 @@ router.post("/", async (req, res) => {
       targetId: String(result?.user?.pk || ""),
       details: {
         username: result?.user?.username,
-        group: Array.isArray(result?.groups) && result.groups[0]
-          ? result.groups[0].name
-          : "",
+        group: groupName,
         certBundleReady,
         certError: certError || undefined,
+        summary: `Created integration user ${result?.user?.username || ""}${
+          groupName ? ` in group ${groupName}` : ""
+        }. Client certificate bundle ${
+          certBundleReady ? "was prepared successfully" : "could not be fully prepared"
+        }${certError ? `: ${certError}` : ""}.`,
       },
     });
 
@@ -133,6 +140,30 @@ router.get("/:userId/certs/download", async (req, res) => {
     }
 
     const safeName = String(username).replace(/[^a-z0-9-]/g, "");
+    const includesP12 =
+      !!(certPaths.p12Path && fs.existsSync(certPaths.p12Path));
+    const fileList = includesP12
+      ? `${safeName}.pem, ${safeName}.key, ${safeName}.p12`
+      : `${safeName}.pem, ${safeName}.key`;
+    auditSvc.logEvent({
+      actor: req.authentikUser || null,
+      request: {
+        method: req.method,
+        path: req.originalUrl || req.path,
+        ip: req.ip,
+      },
+      action: "DOWNLOAD_INTEGRATION_CERT_BUNDLE",
+      targetType: "user",
+      targetId: String(userId),
+      details: {
+        username,
+        displayName: String(user?.name || "").trim() || undefined,
+        zipFileName: `${safeName}-certs.zip`,
+        filesIncluded: includesP12 ? ["pem", "key", "p12"] : ["pem", "key"],
+        summary: `Downloaded integration certificate bundle for ${username} (${fileList} in zip).`,
+      },
+    });
+
     res.setHeader("Content-Type", "application/zip");
     res.setHeader("Content-Disposition", `attachment; filename="${safeName}-certs.zip"`);
 
@@ -181,7 +212,11 @@ router.put("/:userId/group", async (req, res) => {
       action: "SET_INTEGRATION_GROUP",
       targetType: "user",
       targetId: String(userId),
-      details: { username: user?.username, groupId: groupIdStr },
+      details: {
+        username: user?.username,
+        groupId: groupIdStr,
+        summary: `Changed integration user ${user?.username || userId} to Authentik group id ${groupIdStr}.`,
+      },
     });
     res.json({ success: true });
   } catch (err) {
@@ -210,7 +245,11 @@ router.delete("/:userId", async (req, res) => {
       action: "DELETE_INTEGRATION_USER",
       targetType: "user",
       targetId: String(userId),
-      details: { username: user?.username, sshRevokeScript: "ok" },
+      details: {
+        username: user?.username,
+        sshRevokeScript: "ok",
+        summary: `Deleted integration user ${user?.username || userId} and revoked its TAK client certificate on the server.`,
+      },
     });
     res.json({ success: true });
   } catch (err) {

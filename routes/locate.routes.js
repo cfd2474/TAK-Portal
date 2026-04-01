@@ -9,6 +9,14 @@ const smsSvc = require("../services/sms.service");
 
 const EMAIL_RE = /^\S+@\S+\.[A-Za-z]{2,}$/;
 
+function auditRequest(req) {
+  return {
+    method: req.method,
+    path: req.originalUrl || req.path,
+    ip: req.ip,
+  };
+}
+
 function parseRecipientEmails(raw) {
   const s = String(raw || "").trim();
   if (!s) return { error: "Enter at least one email address." };
@@ -70,6 +78,22 @@ router.post("/apply", async (req, res) => {
       enabled,
       groupDisplayName: group,
     });
+    const authUser = req.authentikUser || null;
+    auditSvc.logEvent({
+      actor: authUser,
+      request: auditRequest(req),
+      action: "LOCATE_TAK_CORE_CONFIG_APPLIED",
+      targetType: "locate_config",
+      targetId: "tak-coreconfig-locate",
+      details: {
+        locateEnabled: enabled,
+        takNotifyGroup: enabled ? group : null,
+        takServerRestartInitiated: true,
+        summary: enabled
+          ? `Locate was enabled on the TAK Server for notifications to group "${group}". CoreConfig.xml was updated over SSH and a TAK Server restart was started.`
+          : `Locate was disabled on the TAK Server: the locate block was removed from CoreConfig.xml over SSH and a TAK Server restart was started.`,
+      },
+    });
     res.json({ ok: true, ...out });
   } catch (err) {
     res.status(500).json({ ok: false, error: toSafeApiError(err) });
@@ -92,6 +116,19 @@ router.post("/locators", async (req, res) => {
     const title = String(req.body?.title || "").trim();
     const pingIntervalSeconds = req.body?.pingIntervalSeconds;
     const loc = locatorsSvc.create({ title, pingIntervalSeconds });
+    auditSvc.logEvent({
+      actor: req.authentikUser || null,
+      request: auditRequest(req),
+      action: "LOCATE_LOCATOR_CREATED",
+      targetType: "locator",
+      targetId: loc.id,
+      details: {
+        title: loc.title,
+        slug: loc.slug,
+        pingIntervalSeconds: loc.pingIntervalSeconds,
+        summary: `Created missing-person locator "${loc.title}" (public slug "${loc.slug}", ping every ${loc.pingIntervalSeconds}s).`,
+      },
+    });
     res.json({ ok: true, locator: loc });
   } catch (err) {
     res.status(400).json({ ok: false, error: toSafeApiError(err) });
@@ -101,10 +138,46 @@ router.post("/locators", async (req, res) => {
 router.patch("/locators/:id", async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
+    const before = locatorsSvc.getById(id);
     const loc = locatorsSvc.update(id, {
       title: req.body?.title,
       pingIntervalSeconds: req.body?.pingIntervalSeconds,
       active: req.body?.active,
+    });
+    const changes = [];
+    if (before && before.title !== loc.title) {
+      changes.push(`title "${before.title}" → "${loc.title}"`);
+    }
+    if (
+      before &&
+      Number(before.pingIntervalSeconds) !== Number(loc.pingIntervalSeconds)
+    ) {
+      changes.push(
+        `ping interval ${before.pingIntervalSeconds}s → ${loc.pingIntervalSeconds}s`
+      );
+    }
+    if (before && !!before.active !== !!loc.active) {
+      changes.push(`active ${before.active} → ${loc.active}`);
+    }
+    auditSvc.logEvent({
+      actor: req.authentikUser || null,
+      request: auditRequest(req),
+      action: "LOCATE_LOCATOR_UPDATED",
+      targetType: "locator",
+      targetId: id,
+      details: {
+        slug: loc.slug,
+        title: loc.title,
+        pingIntervalSeconds: loc.pingIntervalSeconds,
+        active: loc.active,
+        previousTitle: before?.title,
+        previousPingIntervalSeconds: before?.pingIntervalSeconds,
+        previousActive: before?.active,
+        summary:
+          changes.length > 0
+            ? `Updated locator "${loc.title}" (${loc.slug}): ${changes.join("; ")}.`
+            : `Saved locator "${loc.title}" (${loc.slug}) with no effective field changes.`,
+      },
     });
     res.json({ ok: true, locator: loc });
   } catch (err) {
@@ -116,6 +189,18 @@ router.post("/locators/:id/archive", async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
     const loc = locatorsSvc.archive(id);
+    auditSvc.logEvent({
+      actor: req.authentikUser || null,
+      request: auditRequest(req),
+      action: "LOCATE_LOCATOR_ARCHIVED",
+      targetType: "locator",
+      targetId: id,
+      details: {
+        title: loc.title,
+        slug: loc.slug,
+        summary: `Archived locator "${loc.title}" (slug "${loc.slug}"). The public link is treated as inactive/archived.`,
+      },
+    });
     res.json({ ok: true, locator: loc });
   } catch (err) {
     res.status(400).json({ ok: false, error: toSafeApiError(err) });
@@ -126,6 +211,18 @@ router.post("/locators/:id/reactivate", async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
     const loc = locatorsSvc.reactivate(id);
+    auditSvc.logEvent({
+      actor: req.authentikUser || null,
+      request: auditRequest(req),
+      action: "LOCATE_LOCATOR_REACTIVATED",
+      targetType: "locator",
+      targetId: id,
+      details: {
+        title: loc.title,
+        slug: loc.slug,
+        summary: `Reactivated locator "${loc.title}" (slug "${loc.slug}") from archived state.`,
+      },
+    });
     res.json({ ok: true, locator: loc });
   } catch (err) {
     res.status(400).json({ ok: false, error: toSafeApiError(err) });
@@ -135,7 +232,22 @@ router.post("/locators/:id/reactivate", async (req, res) => {
 router.delete("/locators/:id", async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
+    const before = locatorsSvc.getById(id);
     locatorsSvc.permanentDelete(id);
+    auditSvc.logEvent({
+      actor: req.authentikUser || null,
+      request: auditRequest(req),
+      action: "LOCATE_LOCATOR_DELETED",
+      targetType: "locator",
+      targetId: id,
+      details: {
+        title: before?.title,
+        slug: before?.slug,
+        summary: before
+          ? `Permanently deleted locator "${before.title}" (slug "${before.slug}") and its stored ping history.`
+          : `Permanently deleted locator id ${id} and its stored ping history.`,
+      },
+    });
     res.json({ ok: true });
   } catch (err) {
     res.status(400).json({ ok: false, error: toSafeApiError(err) });
@@ -150,6 +262,18 @@ router.post("/locators/:id/manual-ping", async (req, res) => {
       return res.status(404).json({ ok: false, error: "Locator not found." });
     }
     locatorsSvc.addManualOperatorPing(id);
+    auditSvc.logEvent({
+      actor: req.authentikUser || null,
+      request: auditRequest(req),
+      action: "LOCATE_MANUAL_PING_REQUESTED",
+      targetType: "locator",
+      targetId: id,
+      details: {
+        title: loc.title,
+        slug: loc.slug,
+        summary: `Requested a manual ping for locator "${loc.title}" (slug "${loc.slug}"); devices with the page open should send a location update soon.`,
+      },
+    });
     res.json({ ok: true, message: "Devices with this link open will send a location update soon." });
   } catch (err) {
     res.status(500).json({ ok: false, error: toSafeApiError(err) });
@@ -235,15 +359,16 @@ router.post("/locators/:id/send-link-email", async (req, res) => {
 
     auditSvc.logEvent({
       actor: req.authentikUser || null,
-      request: {
-        method: req.method,
-        path: req.originalUrl || req.path,
-        ip: req.ip,
-      },
+      request: auditRequest(req),
       action: "LOCATE_LINK_EMAIL_SENT",
       targetType: "locator",
       targetId: id,
-      details: { recipientCount: emails.length, slug: loc.slug },
+      details: {
+        locatorTitle: loc.title,
+        slug: loc.slug,
+        recipientCount: emails.length,
+        summary: `Emailed the public locate link to ${emails.length} recipient(s) for locator "${loc.title}" (slug "${loc.slug}").`,
+      },
     });
 
     res.json({ ok: true, count: emails.length });
@@ -292,15 +417,16 @@ router.post("/locators/:id/send-link-sms", async (req, res) => {
 
     auditSvc.logEvent({
       actor: req.authentikUser || null,
-      request: {
-        method: req.method,
-        path: req.originalUrl || req.path,
-        ip: req.ip,
-      },
+      request: auditRequest(req),
       action: "LOCATE_LINK_SMS_SENT",
       targetType: "locator",
       targetId: id,
-      details: { recipientCount: parsed.phones.length, slug: loc.slug },
+      details: {
+        locatorTitle: loc.title,
+        slug: loc.slug,
+        recipientCount: parsed.phones.length,
+        summary: `Sent the public locate link by SMS to ${parsed.phones.length} phone number(s) for locator "${loc.title}" (slug "${loc.slug}").`,
+      },
     });
 
     res.json({ ok: true, count: parsed.phones.length });
