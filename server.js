@@ -13,6 +13,7 @@ const pkg = require("./package.json");
 const mutualAidSvc = require("./services/mutualAid.service");
 const portalAuth = require("./services/portalAuth.middleware");
 const emailSvc = require("./services/email.service");
+const smsSvc = require("./services/sms.service");
 const emailTemplatesSvc = require("./services/emailTemplates.service");
 const qrSvc = require("./services/qr.service");
 const agenciesStore = require("./services/agencies.service");
@@ -22,6 +23,8 @@ const accessSvc = require("./services/access.service");
 const usersSvc = require("./services/users.service");
 const groupsSvc = require("./services/groups.service");
 const agencyTypesSvc = require("./services/agencyTypes.service");
+const locatorsSvc = require("./services/locators.service");
+const { toSafeApiError } = require("./services/apiErrorPayload.service");
 
 const app = express();
 
@@ -167,6 +170,10 @@ app.use((req, res, next) => {
     // Normalize path (strip trailing slash except root)
     const p = (req.path || "").replace(/\/+$/, "") || "/";
     if (PUBLIC_PATHS.has(p)) return next();
+    // Public missing-person locator pages (not the admin /locate console)
+    if (p.startsWith("/locate/") && p !== "/locate") return next();
+    // Anonymous ping API for locator share links
+    if (p.startsWith("/api/public/locate/")) return next();
   } catch (_) {
     // fall through
   }
@@ -195,6 +202,34 @@ function requireStrictGlobalAdmin(req, res, next) {
     return res.status(403).render("access-denied", { username });
   }
 
+  next();
+}
+
+function requireBetaMode(req, res, next) {
+  const cfg = settingsSvc.getSettings() || {};
+  const beta = String(cfg.BETA_MODE || "").toLowerCase() === "true";
+  if (!beta) {
+    return res.status(404).render("access-denied", {
+      username: req.authentikUser?.username || "",
+    });
+  }
+  next();
+}
+
+function requireStrictGlobalAdminApi(req, res, next) {
+  const user = req.authentikUser;
+  if (!user || !user.isGlobalAdmin) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+  next();
+}
+
+function requireBetaModeApi(req, res, next) {
+  const cfg = settingsSvc.getSettings() || {};
+  const beta = String(cfg.BETA_MODE || "").toLowerCase() === "true";
+  if (!beta) {
+    return res.status(404).json({ error: "Not found" });
+  }
   next();
 }
 app.set("view engine", "ejs");
@@ -251,6 +286,112 @@ app.use("/api/audit-log", requireGlobalAdmin, require("./routes/auditLog.routes"
 app.use("/api/plugins", requireGlobalAdmin, require("./routes/plugins.routes"));
 app.use("/api/integrations", requireGlobalAdmin, require("./routes/integrations.routes"));
 app.use("/api/ssh", requireGlobalAdmin, require("./routes/ssh.routes"));
+app.use(
+  "/api/locate",
+  requireStrictGlobalAdminApi,
+  requireBetaModeApi,
+  require("./routes/locate.routes")
+);
+
+// Public locate APIs: CORS + OPTIONS (preflight for JSON POST).
+function publicLocateApiCors(req, res, next) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Accept, X-Requested-With"
+  );
+  res.setHeader("Access-Control-Max-Age", "7200");
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+  next();
+}
+
+function handlePublicLocateClientConfig(req, res) {
+  try {
+    const slug = String(req.params.slug || "").trim().toLowerCase();
+    const cfg = locatorsSvc.getClientConfigForPublicSlug(slug);
+    if (!cfg) {
+      return res.status(404).json({ ok: false, error: "Locator not found." });
+    }
+    res.json(cfg);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: toSafeApiError(err) });
+  }
+}
+
+async function handlePublicLocatePing(req, res) {
+  try {
+    const slug = String(req.params.slug || "").trim().toLowerCase();
+    const loc = locatorsSvc.getBySlug(slug);
+    if (!loc || loc.archived) {
+      return res.status(404).json({ ok: false, error: "Locator not found." });
+    }
+    if (!loc.active) {
+      return res.status(403).json({ ok: false, error: "This locator is inactive." });
+    }
+    const body = req.body || {};
+    const lat = Number(body.latitude);
+    const lng = Number(body.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return res.status(400).json({ ok: false, error: "Valid latitude and longitude are required." });
+    }
+    const accuracyMeters = Number(body.accuracyMeters);
+    const acc =
+      Number.isFinite(accuracyMeters) && accuracyMeters >= 0 && accuracyMeters < 1e7
+        ? accuracyMeters
+        : null;
+    const last = String(body.lastName || "").trim();
+    const first = String(body.firstName || "").trim();
+    const name = locatorsSvc.formatLocatePingNameForTak(first, last);
+    const remarks = String(body.remarks || "").trim();
+
+    locatorsSvc.addHistoryEntry({
+      locatorId: loc.id,
+      latitude: lat,
+      longitude: lng,
+      name,
+      remarks,
+      kind: "interval",
+      accuracyMeters: acc,
+    });
+
+    res.json({ ok: true });
+
+    setImmediate(() => {
+      locatorsSvc
+        .relayPingToTak({
+          latitude: lat,
+          longitude: lng,
+          name,
+          remarks,
+        })
+        .catch((err) => {
+          console.error(
+            "[locate ping] TAK relay failed (position saved in portal):",
+            err?.message || err
+          );
+        });
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: toSafeApiError(err) });
+  }
+}
+
+app.use("/api/public/locate", publicLocateApiCors);
+app.get("/api/public/locate/:slug/client-config", handlePublicLocateClientConfig);
+app.post("/api/public/locate/:slug/ping", handlePublicLocatePing);
+
+// Same handlers under /locate/:slug/... so reverse proxies can expose only /locate/* as
+// public (bypassing forward_auth) without listing /api/public/locate/* — e.g. Caddy @public path /locate/*
+app.options("/locate/:slug/ping", publicLocateApiCors);
+app.get(
+  "/locate/:slug/client-config",
+  publicLocateApiCors,
+  handlePublicLocateClientConfig
+);
+app.post("/locate/:slug/ping", publicLocateApiCors, handlePublicLocatePing);
 app.use("/api/email", (req, res, next) => {
   const user = req.authentikUser;
   if (!user || (!user.isGlobalAdmin && !user.isAgencyAdmin)) {
@@ -303,15 +444,27 @@ app.get("/email", (req, res) => {
   return res.render("email");
 });
 app.get("/locate-persons", (req, res) => {
-  const user = req.authentikUser;
-  if (!user || (!user.isGlobalAdmin && !user.isAgencyAdmin)) {
-    const username = user && user.username ? user.username : "";
-    return res.status(403).render("access-denied", { username });
+  res.redirect(301, "/locate");
+});
+
+app.get("/locate", requireStrictGlobalAdmin, requireBetaMode, (req, res) =>
+  res.render("locate")
+);
+
+// Public share link for a locator (no auth)
+app.get("/locate/:slug", (req, res) => {
+  const slug = String(req.params.slug || "").trim().toLowerCase();
+  const loc = locatorsSvc.getBySlug(slug);
+  if (!loc || loc.archived) {
+    return res.status(404).render("locate-not-found");
   }
-  const cfg = settingsSvc.getSettings() || {};
-  const beta = String(cfg.BETA_MODE || "").toLowerCase() === "true";
-  if (!beta) return res.status(404).render("access-denied", { username: req.authentikUser?.username || "" });
-  return res.render("locate-persons");
+  return res.render("locate-public", {
+    slug: loc.slug,
+    pingIntervalSeconds: loc.pingIntervalSeconds,
+    locatorActive: loc.active,
+    intervalEpoch: Number(loc.intervalEpoch) || 1,
+    remotePingEpoch: Number(loc.remotePingEpoch) || 1,
+  });
 });
 
 // Plugin Manager (global admin only)
@@ -811,6 +964,8 @@ app.get("/settings", requireGlobalAdmin, (req, res) => {
   emailTemplates,
   importStatus: req.query.import,
   importError: req.query.error,
+  smsTest: req.query.smsTest || "",
+  smsErr: req.query.smsErr || "",
   p12Exists,
   caExists
   });
@@ -1068,6 +1223,79 @@ app.post("/settings/test-email", requireGlobalAdmin, async (req, res) => {
       .send("Failed to send test email. Check SMTP settings and server logs.");
   }
 });
+
+const uploadSmsTest = multer();
+app.post(
+  "/settings/test-sms",
+  requireGlobalAdmin,
+  uploadSmsTest.none(),
+  async (req, res) => {
+    try {
+      const bodySettings = smsSvc.collectBodySettings(req.body || {});
+      const current = settingsSvc.getSettings() || {};
+      const cfg = { ...current };
+      [
+        "SMS_PROVIDER",
+        "SMS_TWILIO_ACCOUNT_SID",
+        "SMS_TWILIO_AUTH_TOKEN",
+        "SMS_TWILIO_FROM",
+        "SMS_BREVO_API_KEY",
+        "SMS_BREVO_SENDER",
+        "SMS_TEST_TO",
+      ].forEach((k) => {
+        if (bodySettings[k] !== undefined) cfg[k] = bodySettings[k];
+      });
+
+      const provider = String(cfg.SMS_PROVIDER || "disabled").trim().toLowerCase();
+      if (provider !== "twilio" && provider !== "brevo") {
+        return res.redirect(
+          "/settings?smsTest=fail&smsErr=" +
+            encodeURIComponent("Choose Twilio or Brevo and enter credentials.") +
+            "#sms-settings"
+        );
+      }
+
+      const testToRaw = String(bodySettings.SMS_TEST_TO || "").trim();
+      if (!testToRaw) {
+        return res.redirect(
+          "/settings?smsTest=fail&smsErr=" +
+            encodeURIComponent(
+              "Enter a test number in “SMS test recipient(s)” (digits + country code, comma-separated for Twilio)."
+            ) +
+            "#sms-settings"
+        );
+      }
+
+      const parsed = smsSvc.parsePhoneList(testToRaw);
+      if (parsed.error) {
+        return res.redirect(
+          "/settings?smsTest=fail&smsErr=" + encodeURIComponent(parsed.error) + "#sms-settings"
+        );
+      }
+
+      const msg = "TAK Portal - SMS test";
+      for (const phone of parsed.phones) {
+        const out = await smsSvc.sendSmsUsingConfig(cfg, phone, msg);
+        if (!out.ok) {
+          return res.redirect(
+            "/settings?smsTest=fail&smsErr=" +
+              encodeURIComponent(out.error || "SMS failed") +
+              "#sms-settings"
+          );
+        }
+      }
+
+      return res.redirect("/settings?smsTest=ok#sms-settings");
+    } catch (err) {
+      console.error("[settings] Test SMS failed:", err?.message || err);
+      return res.redirect(
+        "/settings?smsTest=fail&smsErr=" +
+          encodeURIComponent(err?.message || String(err)) +
+          "#sms-settings"
+      );
+    }
+  }
+);
 
 
 // Import (restore) a zip into the data folder

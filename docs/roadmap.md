@@ -20,3 +20,8 @@ Below you will find a comprehensive list of items planned for implementation in 
 - Expand Mutual Aid to allow Agency Admins to access the page and create events for their agency channels only
 - Add ability to delete a mutual aid user while leaving the mutual aid channel intact
 - Consider adding a "timeout/sandbox" group so instead of deleting a user with the delete button, requiring a restart, it removes all groups and adds them to a single "special" write only group to remove their access.  Then create a tab for the global admin of all the pending user deletions that need to take place before a restart.
+
+
+## Locate Plans:
+- Possibly create a custom form editor?  Custom fields, photo upload?, etc?
+- Displays Copy link, Send SMS (will need backend support), and Email options

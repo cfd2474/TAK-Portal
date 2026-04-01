@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Share Location</title>
+    <style>
+      body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:1rem;max-width:36rem;margin-inline:auto;background:#f5f5f5;color:#1a1a1a;line-height:1.45;font-size:16px}
+      h1{font-size:1.35rem;margin:0 0 1rem;font-weight:600;color:#111}
+      label{display:block;margin-top:.65rem}
+      input,textarea{width:100%;box-sizing:border-box;padding:.5rem;margin-top:.25rem;font:inherit;border:1px solid #bbb;border-radius:4px;background:#fff;color:#111}
+      textarea{min-height:4.5rem;resize:vertical}
+      .r{display:flex;flex-wrap:wrap;gap:.75rem}
+      .r>label{flex:1;min-width:8rem}
+      .btns{margin-top:.85rem;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+      button{font:inherit;padding:.55rem 1rem;border:0;border-radius:4px;cursor:pointer;background:#1a6b3a;color:#fff}
+      button.d{background:#a82a2a;color:#fff}
+      .m{margin-top:.75rem;padding:.5rem;border-radius:4px;display:none}
+      .m.on{display:block}
+      .bad{background:#fde8e8;color:#8b1a1a;border:1px solid #f0b4b4}
+      .h{font-size:.95rem;margin:0 0 .75rem;color:#333}
+      .h strong{display:block;margin-top:.75rem;font-size:.95rem;letter-spacing:.02em;color:#111}
+      .warn{background:#fff8e6;border:1px solid #e6c96a;padding:.65rem;border-radius:4px;margin-bottom:1rem;color:#5c4a00}
+      .keep{display:none;margin:0 0 1rem;padding:.85rem 1rem;background:#e8f4fc;border:2px solid #2180c4;border-radius:6px;color:#0a3d5c;font-size:.95rem;line-height:1.4}
+      .keep.on{display:block}
+      .keep strong{display:block;margin-top:.4rem;font-size:1rem}
+    </style>
+  </head>
+  <body>
+
+<main>
+  <h1>Share Location</h1>
+
+  <% if (!locatorActive) { %>
+    <div class="warn">This locator is inactive.</div>
+  <% } %>
+
+  <div id="lpBeforeShare">
+    <p class="h">Enter your name and an optional message. <strong>PLEASE KEEP THIS PAGE OPEN AND DO NOT CLOSE UNTIL INSTRUCTED TO CLOSE BY A RESPONDER.</strong></p>
+
+    <div class="r">
+      <label>First name<input id="lpFirst" type="text" autocomplete="given-name" <%= locatorActive ? "" : "disabled" %> /></label>
+      <label>Last name<input id="lpLast" type="text" autocomplete="family-name" <%= locatorActive ? "" : "disabled" %> /></label>
+    </div>
+    <label>Message (optional)<textarea id="lpRemarks" rows="3" <%= locatorActive ? "" : "disabled" %>></textarea></label>
+  </div>
+
+  <p id="lpKeepOpen" class="keep" role="status">Location is being shared.<strong>PLEASE KEEP THIS PAGE OPEN UNTIL INSTRUCTED TO CLOSE BY RESPONDER.</strong></p>
+
+  <div class="btns">
+    <button type="button" id="lpSendBtn" <%= locatorActive ? "" : "disabled" %>>Send location</button>
+    <button type="button" class="d" id="lpStopBtn" style="display:none;">Stop sharing</button>
+  </div>
+
+  <div id="lpMsg" class="m" aria-live="polite"></div>
+</main>
+
+<script>
+(function(){
+var slug=<%- JSON.stringify(slug) %>;
+var intervalMs=<%= Math.max(10, Number(pingIntervalSeconds)||60) %>*1000;
+var active=<%= locatorActive?"true":"false" %>;
+var lastIntervalEpoch=<%= Number(intervalEpoch)||1 %>;
+var lastRemoteEpoch=<%= Number(remotePingEpoch)||1 %>;
+var sendBtn=document.getElementById("lpSendBtn");
+var stopBtn=document.getElementById("lpStopBtn");
+var msg=document.getElementById("lpMsg");
+var beforeShare=document.getElementById("lpBeforeShare");
+var keepOpen=document.getElementById("lpKeepOpen");
+var timer=null,sending=false;
+function setMsg(t,bad){
+  msg.textContent=t||"";
+  msg.className="m on"+(bad?" bad":"");
+  if(!t)msg.className="m";
+}
+/** Mobile browsers often surface fetch failures as "Load failed" / "Failed to fetch". */
+function friendlyNetworkError(e){
+  var m=String(e&&e.message!=null?e.message:e||"");
+  if(/load failed|failed to fetch|networkerror|timed out|network error/i.test(m)){
+    return "Could not reach the server. Check signal or Wi‑Fi and try again. If the problem continues, wait a few seconds and tap Send location again.";
+  }
+  return m||"Request failed";
+}
+function apiBase(){
+  return String(window.location.origin||"").replace(/\/$/,"");
+}
+function pingUrl(){
+  return apiBase()+"/locate/"+encodeURIComponent(slug)+"/ping";
+}
+function clientConfigUrl(){
+  return apiBase()+"/locate/"+encodeURIComponent(slug)+"/client-config";
+}
+function parsePingResponse(res){
+  return res.text().then(function(text){
+    var d={};try{d=text?JSON.parse(text):{}}catch(e){}
+    if(!res.ok){
+      var he=new Error(d.error||text||"Request failed");
+      he.isHttpError=true;
+      throw he;
+    }
+    return d;
+  });
+}
+function shouldRetryPing(err){
+  if(err&&err.isHttpError)return false;
+  var m=String(err&&err.message!=null?err.message:err||"");
+  return /failed to fetch|load failed|networkerror|network error|timed out|aborted/i.test(m)||(typeof TypeError!=="undefined"&&err instanceof TypeError);
+}
+function isMobileDevice(){
+  var ua=navigator.userAgent||"";
+  if(/iPhone|iPad|iPod|Android/i.test(ua))return true;
+  if(navigator.platform==="MacIntel"&&typeof navigator.maxTouchPoints==="number"&&navigator.maxTouchPoints>1)return true;
+  return false;
+}
+var lpPingFormEl=null,lpPingIframeEl=null;
+/**
+ * Mobile Safari often blocks fetch/XHR on cellular; a real HTML form POST (target=iframe)
+ * uses the browser's document navigation path and usually still works.
+ */
+function postPingFormIframe(body){
+  if(!lpPingFormEl){
+    lpPingIframeEl=document.createElement("iframe");
+    lpPingIframeEl.name="lpPingFrame";
+    lpPingIframeEl.id="lpPingFrame";
+    lpPingIframeEl.title="Location send";
+    lpPingIframeEl.style.cssText="position:absolute;width:0;height:0;border:0;visibility:hidden";
+    lpPingIframeEl.setAttribute("aria-hidden","true");
+    lpPingFormEl=document.createElement("form");
+    lpPingFormEl.method="POST";
+    lpPingFormEl.action=pingUrl();
+    lpPingFormEl.target="lpPingFrame";
+    lpPingFormEl.enctype="application/x-www-form-urlencoded";
+    lpPingFormEl.style.display="none";
+    lpPingFormEl.setAttribute("novalidate","novalidate");
+    ["latitude","longitude","firstName","lastName","remarks","accuracyMeters"].forEach(function(n){
+      var inp=document.createElement("input");
+      inp.type="hidden";
+      inp.name=n;
+      inp.id="lpHidden_"+n;
+      lpPingFormEl.appendChild(inp);
+    });
+    document.body.appendChild(lpPingIframeEl);
+    document.body.appendChild(lpPingFormEl);
+  }
+  return new Promise(function(resolve,reject){
+    document.getElementById("lpHidden_latitude").value=String(body.latitude);
+    document.getElementById("lpHidden_longitude").value=String(body.longitude);
+    document.getElementById("lpHidden_firstName").value=body.firstName||"";
+    document.getElementById("lpHidden_lastName").value=body.lastName||"";
+    document.getElementById("lpHidden_remarks").value=body.remarks||"";
+    var accEl=document.getElementById("lpHidden_accuracyMeters");
+    if(body.accuracyMeters!=null&&Number.isFinite(body.accuracyMeters)){
+      accEl.value=String(body.accuracyMeters);
+    }else{
+      accEl.value="";
+    }
+    var to=setTimeout(function(){
+      lpPingIframeEl.onload=null;
+      reject(new Error("Request timed out"));
+    },90000);
+    lpPingIframeEl.onload=function(){
+      clearTimeout(to);
+      setTimeout(function(){
+        try{
+          var doc=lpPingIframeEl.contentDocument||lpPingIframeEl.contentWindow.document;
+          var text=(doc.body&&doc.body.textContent)?String(doc.body.textContent).trim():"";
+          if(!text){
+            reject(new Error("Empty response"));
+            return;
+          }
+          var d=JSON.parse(text);
+          if(d.ok)resolve(d);
+          else{
+            var he=new Error(d.error||"Request failed");
+            he.isHttpError=true;
+            reject(he);
+          }
+        }catch(ex){
+          reject(ex);
+        }
+      },0);
+    };
+    lpPingFormEl.action=pingUrl()+"?_="+String(Date.now());
+    lpPingFormEl.submit();
+  });
+}
+/** XHR + JSON body (same as fetch). */
+function postPingXHRJSON(body){
+  return new Promise(function(resolve,reject){
+    var xhr=new XMLHttpRequest();
+    xhr.open("POST",pingUrl());
+    xhr.setRequestHeader("Content-Type","application/json;charset=UTF-8");
+    xhr.setRequestHeader("Accept","application/json");
+    xhr.timeout=90000;
+    xhr.onload=function(){
+      var text=xhr.responseText||"",d={};
+      try{d=text?JSON.parse(text):{}}catch(e){}
+      if(xhr.status>=200&&xhr.status<300)resolve(d);
+      else{var he=new Error(d.error||text||"Request failed");he.isHttpError=true;reject(he);}
+    };
+    xhr.onerror=function(){reject(new Error("Failed to fetch"));};
+    xhr.ontimeout=function(){reject(new Error("Request timed out"));};
+    xhr.send(JSON.stringify(body));
+  });
+}
+/**
+ * XHR + urlencoded body — some cellular networks / proxies mishandle JSON POSTs; html forms use this shape.
+ */
+function postPingXHRUrlEncoded(body){
+  var params=new URLSearchParams();
+  params.set("latitude",String(body.latitude));
+  params.set("longitude",String(body.longitude));
+  params.set("firstName",body.firstName||"");
+  params.set("lastName",body.lastName||"");
+  params.set("remarks",body.remarks||"");
+  if(body.accuracyMeters!=null&&Number.isFinite(body.accuracyMeters)){
+    params.set("accuracyMeters",String(body.accuracyMeters));
+  }
+  var enc=params.toString();
+  return new Promise(function(resolve,reject){
+    var xhr=new XMLHttpRequest();
+    xhr.open("POST",pingUrl());
+    xhr.setRequestHeader("Content-Type","application/x-www-form-urlencoded;charset=UTF-8");
+    xhr.setRequestHeader("Accept","application/json");
+    xhr.timeout=90000;
+    xhr.onload=function(){
+      var text=xhr.responseText||"",d={};
+      try{d=text?JSON.parse(text):{}}catch(e){}
+      if(xhr.status>=200&&xhr.status<300)resolve(d);
+      else{var he=new Error(d.error||text||"Request failed");he.isHttpError=true;reject(he);}
+    };
+    xhr.onerror=function(){reject(new Error("Failed to fetch"));};
+    xhr.ontimeout=function(){reject(new Error("Request timed out"));};
+    xhr.send(enc);
+  });
+}
+function setSharingUi(on){
+  if(beforeShare)beforeShare.style.display=on?"none":"";
+  if(keepOpen)keepOpen.className=on?"keep on":"keep";
+}
+function postPingViaHttpApis(body){
+  var payload=JSON.stringify(body);
+  var fetchOpts={
+    method:"POST",
+    credentials:"omit",
+    cache:"no-store",
+    headers:{"Content-Type":"application/json;charset=UTF-8","Accept":"application/json"},
+    body:payload
+  };
+  function tryFetch(){
+    return fetch(pingUrl(),fetchOpts).then(parsePingResponse);
+  }
+  return postPingXHRUrlEncoded(body)
+    .catch(function(err){
+      if(err&&err.isHttpError)throw err;
+      return postPingXHRJSON(body);
+    })
+    .catch(function(err){
+      if(err&&err.isHttpError)throw err;
+      return tryFetch();
+    })
+    .catch(function(err){
+      if(!shouldRetryPing(err))throw err;
+      return new Promise(function(r){setTimeout(r,400);}).then(tryFetch);
+    })
+    .catch(function(err){
+      if(!shouldRetryPing(err))throw err;
+      return new Promise(function(r){setTimeout(r,1200);}).then(tryFetch);
+    })
+    .catch(function(err){
+      if(!shouldRetryPing(err))throw err;
+      return postPingXHRJSON(body);
+    });
+}
+function postPing(lat,lng,accuracy){
+  var body={
+    latitude:lat,longitude:lng,
+    firstName:document.getElementById("lpFirst").value.trim(),
+    lastName:document.getElementById("lpLast").value.trim(),
+    remarks:document.getElementById("lpRemarks").value.trim()
+  };
+  if(accuracy!=null&&Number.isFinite(accuracy))body.accuracyMeters=accuracy;
+  if(isMobileDevice()){
+    return postPingFormIframe(body).catch(function(err){
+      if(err&&err.isHttpError)throw err;
+      return postPingViaHttpApis(body);
+    });
+  }
+  return postPingViaHttpApis(body);
+}
+/** Fresh GPS (no stale cache), long timeout, optional 2nd sample if first accuracy is poor. */
+function getBestFix(onOk,onErr){
+  var opt={enableHighAccuracy:true,maximumAge:0,timeout:60000};
+  navigator.geolocation.getCurrentPosition(function(p1){
+    var a1=p1.coords.accuracy;
+    if(a1!=null&&a1>50&&a1<1e5){
+      setTimeout(function(){
+        navigator.geolocation.getCurrentPosition(function(p2){
+          var a2=p2.coords.accuracy;
+          if(a2!=null&&a1!=null&&a2<a1)onOk(p2);else onOk(p1);
+        },function(){onOk(p1);},opt);
+      },2000);
+      return;
+    }
+    onOk(p1);
+  },onErr,opt);
+}
+function restartSharingTimer(){if(!timer)return;clearInterval(timer);timer=setInterval(tick,intervalMs);}
+function tick(){
+  if(!navigator.geolocation){setMsg("Location is not available in this browser.",true);stop();return;}
+  if(sending)return;
+  sending=true;
+  getBestFix(function(pos){
+    postPing(pos.coords.latitude,pos.coords.longitude,pos.coords.accuracy).then(function(){
+      setMsg("",false);
+    }).catch(function(e){setMsg(friendlyNetworkError(e),true);}).then(function(){sending=false;});
+  },function(err){sending=false;setMsg("Could not read GPS/location: "+(err&&err.message||"denied or unavailable"),true);});
+}
+function start(){
+  var f=document.getElementById("lpFirst").value.trim(),l=document.getElementById("lpLast").value.trim();
+  if(!f||!l){setMsg("Please enter your first and last name.",true);return;}
+  setMsg("Requesting location…",false);
+  sending=true;
+  getBestFix(function(pos){
+    postPing(pos.coords.latitude,pos.coords.longitude,pos.coords.accuracy).then(function(){
+      setMsg("",false);
+      sendBtn.style.display="none";stopBtn.style.display="";
+      setSharingUi(true);
+      if(timer)clearInterval(timer);timer=setInterval(tick,intervalMs);
+    }).catch(function(e){setMsg(friendlyNetworkError(e),true);}).then(function(){sending=false;});
+  },function(err){sending=false;setMsg("Could not read GPS/location: "+(err&&err.message||"denied or unavailable"),true);});
+}
+function stop(byUser){
+  if(timer)clearInterval(timer);
+  timer=null;
+  sendBtn.style.display="";
+  stopBtn.style.display="none";
+  setSharingUi(false);
+  if(byUser)setMsg("Stopped by user.",false);
+}
+function pollConfig(){
+  fetch(clientConfigUrl(),{credentials:"omit",cache:"no-store",headers:{Accept:"application/json"}}).then(function(r){return r.json().then(function(d){return{ok:r.ok,data:d};});}).then(function(out){
+    var data=out.data;if(!data||!data.ok)return;
+    if(data.active===false&&timer){stop();setMsg("This locator was disabled by your agency.",true);return;}
+    if(data.intervalEpoch!==lastIntervalEpoch){
+      lastIntervalEpoch=data.intervalEpoch;
+      intervalMs=Math.max(10,Number(data.pingIntervalSeconds)||60)*1000;
+      restartSharingTimer();
+    }
+    if(data.remotePingEpoch>lastRemoteEpoch){var wake=timer!=null;lastRemoteEpoch=data.remotePingEpoch;if(wake)tick();}
+  }).catch(function(){});
+}
+if(active){
+  sendBtn.addEventListener("click",start);
+  stopBtn.addEventListener("click",function(){stop(true);});
+  setInterval(pollConfig,8000);
+}
+})();
+</script>
+  </body>
+</html>

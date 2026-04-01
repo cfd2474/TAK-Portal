@@ -105,7 +105,14 @@ function getStringAllowEmpty(name) {
   return String(process.env[name] ?? "");
 }
 
-function buildTakAxios() {
+/**
+ * @param {{
+ *   allowInsecureServer?: boolean;
+ *   baseURL?: string;
+ *   timeout?: number;
+ * }} [options] - allowInsecureServer: skip server cert verify (locate relay). baseURL/timeout: optional overrides (locate relay uses locate API origin, not Marti).
+ */
+function buildTakAxios(options = {}) {
   const TAK_DEBUG = getBool("TAK_DEBUG", false);
 
   const p12Path = resolvePathMaybe(getString("TAK_API_P12_PATH", ""));
@@ -141,9 +148,11 @@ function buildTakAxios() {
     );
   }
 
+  const allowInsecureServer = options.allowInsecureServer === true;
+
   const agentOptions = {
     ca: caPath ? fs.readFileSync(caPath) : undefined,
-    rejectUnauthorized: true,
+    rejectUnauthorized: !allowInsecureServer,
 
     // Keep your previous behavior (skip hostname verification)
     checkServerIdentity: () => undefined,
@@ -205,9 +214,9 @@ function buildTakAxios() {
   const httpsAgent = new https.Agent(agentOptions);
 
   const client = axios.create({
-    baseURL: getTakBaseUrl(),
+    baseURL: options.baseURL !== undefined ? options.baseURL : getTakBaseUrl(),
     httpsAgent,
-    timeout: 5000,
+    timeout: typeof options.timeout === "number" ? options.timeout : 5000,
   });
 
   if (TAK_DEBUG) {
@@ -415,4 +424,5 @@ async function revokeCertsForUser(username, options = {}) {
 module.exports = {
   isTakConfigured,
   revokeCertsForUser,
+  buildTakAxios,
 };
