@@ -26,6 +26,43 @@ function takErrMessage(err) {
   return String(d);
 }
 
+/**
+ * TAK rejects fat mission objects from GET when used as PUT/POST bodies (e.g. ownerRole, token, guid).
+ * Only forward fields the Marti change-mission API expects.
+ */
+function sanitizeMissionWriteBody(body) {
+  if (!body || typeof body !== "object") return {};
+  const o = {};
+  const keys = [
+    "name",
+    "tool",
+    "description",
+    "defaultRole",
+    "keywords",
+    "inviteOnly",
+    "chatRoom",
+    "baseLayer",
+    "bbox",
+    "path",
+    "classification",
+    "expiration",
+  ];
+  for (let i = 0; i < keys.length; i++) {
+    const k = keys[i];
+    if (body[k] !== undefined) o[k] = body[k];
+  }
+  if (Array.isArray(body.groups)) {
+    o.groups = body.groups
+      .map((g) => {
+        if (typeof g === "string") return g.trim();
+        if (g && typeof g === "object" && g.name != null) return String(g.name).trim();
+        return String(g || "").trim();
+      })
+      .filter(Boolean);
+  }
+  return o;
+}
+
 function sendTakError(res, err, fallbackStatus) {
   const code = err?.code;
   if (code === "TAK_NOT_CONFIGURED" || code === "TAK_BYPASS" || code === "INVALID_MISSION_NAME") {
@@ -184,7 +221,8 @@ router.get("/missions/:missionName", async (req, res) => {
 
 router.put("/missions/:missionName", async (req, res) => {
   try {
-    const data = await dataSyncSvc.putMission(req.params.missionName, req.body);
+    const body = sanitizeMissionWriteBody(req.body);
+    const data = await dataSyncSvc.putMission(req.params.missionName, body);
     return res.json(data);
   } catch (err) {
     return sendTakError(res, err);
@@ -193,7 +231,8 @@ router.put("/missions/:missionName", async (req, res) => {
 
 router.post("/missions/:missionName", async (req, res) => {
   try {
-    const data = await dataSyncSvc.postMission(req.params.missionName, req.body);
+    const body = sanitizeMissionWriteBody(req.body);
+    const data = await dataSyncSvc.changeMission(req.params.missionName, body);
     return res.json(data);
   } catch (err) {
     return sendTakError(res, err);
@@ -203,6 +242,9 @@ router.post("/missions/:missionName", async (req, res) => {
 router.delete("/missions/:missionName", async (req, res) => {
   try {
     const data = await dataSyncSvc.deleteMission(req.params.missionName);
+    if (data === undefined || data === null || data === "") {
+      return res.status(200).json({ ok: true });
+    }
     return res.json(data);
   } catch (err) {
     return sendTakError(res, err);

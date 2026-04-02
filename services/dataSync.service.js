@@ -61,10 +61,33 @@ async function postMission(missionName, body) {
   return res.data;
 }
 
+/** Prefer POST for mission changes; some TAK builds only allow PUT (405). */
+async function changeMission(missionName, body) {
+  assertTakAvailable();
+  const client = buildTakAxios({ timeout: 60000 });
+  const headers = { "Content-Type": "application/json", Accept: "application/json" };
+  try {
+    const res = await client.post(missionPath(missionName), body, { headers });
+    return res.data;
+  } catch (postErr) {
+    const st = postErr?.response?.status;
+    if (st === 405 || st === 501) {
+      const res = await client.put(missionPath(missionName), body, { headers });
+      return res.data;
+    }
+    throw postErr;
+  }
+}
+
 async function deleteMission(missionName) {
   assertTakAvailable();
   const client = buildTakAxios({ timeout: 60000 });
-  const res = await client.delete(missionPath(missionName));
+  const res = await client.delete(missionPath(missionName), {
+    validateStatus: (s) => (s >= 200 && s < 300) || s === 404,
+  });
+  if (res.status === 404) {
+    return { ok: true, alreadyGone: true };
+  }
   return res.data;
 }
 
@@ -169,6 +192,7 @@ module.exports = {
   getMission,
   putMission,
   postMission,
+  changeMission,
   deleteMission,
   setMissionPassword,
   clearMissionPassword,

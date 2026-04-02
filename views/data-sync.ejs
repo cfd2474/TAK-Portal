@@ -431,8 +431,9 @@
     return parts.length ? "?" + parts.join("&") : "";
   }
 
-  async function loadMissions() {
-    setMissionsMsg("Loading missions…", undefined);
+  async function loadMissions(opts) {
+    opts = opts || {};
+    if (!opts.silent) setMissionsMsg("Loading missions…", undefined);
     try {
       var qs = buildQueryString(missionQueryParams());
       var res = await fetch(API + "/missions" + qs);
@@ -760,7 +761,7 @@
 
       clearCreateMissionForm();
       setCreateMissionMsg("Mission created.", true);
-      await loadMissions();
+      loadMissions({ silent: true });
     } catch (e) {
       setCreateMissionMsg(e.message || "Create failed", false);
     }
@@ -844,21 +845,17 @@
   }
 
   function buildSavePayload() {
-    var base = missionDetail && typeof missionDetail === "object" ? JSON.parse(JSON.stringify(missionDetail)) : {};
     var name = (mName.value || "").trim();
-
-    base.name = name;
-    base.tool = "public";
-    base.description = mDescription ? String(mDescription.value || "") : "";
-    base.defaultRole = buildDefaultRoleObject(mDefaultRole && mDefaultRole.value);
-    base.groups = getSelectedGroupsFromBox();
-    if (!Array.isArray(base.keywords)) base.keywords = [];
-    base.inviteOnly = false;
-
-    delete base.contents;
-    delete base.uids;
-
-    return base;
+    var kw = missionDetail && Array.isArray(missionDetail.keywords) ? missionDetail.keywords.slice() : [];
+    return {
+      name: name,
+      tool: "public",
+      description: mDescription ? String(mDescription.value || "") : "",
+      defaultRole: buildDefaultRoleObject(mDefaultRole && mDefaultRole.value),
+      groups: getSelectedGroupsFromBox(),
+      keywords: kw,
+      inviteOnly: false,
+    };
   }
 
   async function saveMission() {
@@ -868,8 +865,10 @@
       if (!payload.name) throw new Error("Mission name is required.");
 
       var url = API + "/missions/" + encodeURIComponent(payload.name);
+      /* TAK Marti: POST is used for changing an existing mission; fat GET payloads on PUT caused
+         "Illegal attempt to change Mission groups" when merged with UI state. */
       var res = await fetch(url, {
-        method: "PUT",
+        method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify(payload),
       });
@@ -903,8 +902,7 @@
       }
 
       setMissionModalMsg("Saved.", true);
-      await loadMissions();
-      await openEditMission(payload.name);
+      await Promise.all([loadMissions({ silent: true }), openEditMission(payload.name)]);
     } catch (e) {
       setMissionModalMsg(e.message || "Save failed", false);
     }
