@@ -274,13 +274,63 @@
 
   function normalizeGroupNames(payload) {
     var raw = unwrapList(payload);
-    var out = [];
-    for (var i = 0; i < raw.length; i++) {
-      var g = raw[i];
-      var n = typeof g === "string" ? g : (g && (g.name || g.groupName || g.group));
-      if (n) out.push(String(n));
+    return extractGroupNames(raw).sort(function (a, b) { return a.localeCompare(b); });
+  }
+
+  /** One entry from TAK: string or { name, groupName, … } — same shape as pagedmissions vs GET mission. */
+  function entryToGroupName(entry) {
+    if (entry == null) return "";
+    if (typeof entry === "string") return entry.trim();
+    if (typeof entry === "object") {
+      return String(
+        entry.name ||
+          entry.groupName ||
+          entry.group ||
+          entry.title ||
+          ""
+      ).trim();
     }
-    return out.sort(function (a, b) { return a.localeCompare(b); });
+    return String(entry).trim();
+  }
+
+  function extractGroupNames(arr) {
+    if (!Array.isArray(arr)) return [];
+    var out = [];
+    for (var i = 0; i < arr.length; i++) {
+      var n = entryToGroupName(arr[i]);
+      if (n) out.push(n);
+    }
+    return out;
+  }
+
+  /** Map a TAK group name to the canonical string in groupsCache (for checkbox value match). */
+  function resolveToGroupsCache(name) {
+    var n = String(name || "").trim();
+    if (!n) return null;
+    if (groupsCache.indexOf(n) >= 0) return n;
+    var nl = n.toLowerCase();
+    for (var i = 0; i < groupsCache.length; i++) {
+      if (groupsCache[i].toLowerCase() === nl) return groupsCache[i];
+    }
+    return null;
+  }
+
+  function missionRowFromCache(missionName) {
+    var want = String(missionName || "");
+    for (var i = 0; i < missionsCache.length; i++) {
+      var m = missionsCache[i];
+      if (m && String(m.name) === want) return m;
+    }
+    return null;
+  }
+
+  function applyMissionGroupsToSelection(rawGroupsArray) {
+    selectedGroupSet = new Set();
+    var names = extractGroupNames(rawGroupsArray);
+    for (var j = 0; j < names.length; j++) {
+      var canon = resolveToGroupsCache(names[j]);
+      if (canon) selectedGroupSet.add(canon);
+    }
   }
 
   async function loadStatus() {
@@ -299,12 +349,8 @@
             : "Set <strong>TAK_URL</strong> and upload the <strong>TAK API PKCS#12</strong> (or PEM cert/key) so the portal can call Marti.");
         return false;
       }
-      statusBanner.style.display = "block";
-      statusBanner.className = "card data-sync-status msg ok";
-      statusBanner.innerHTML =
-        "<strong>Connected to TAK.</strong> " +
-        (j.takHost ? "Host <code>" + esc(j.takHost) + "</code>. " : "") +
-        "Requests use the portal&rsquo;s mTLS identity to Marti.";
+      statusBanner.style.display = "none";
+      statusBanner.innerHTML = "";
       return true;
     } catch (e) {
       statusBanner.style.display = "block";
@@ -488,9 +534,13 @@
       mKeywords.value = kw.join(", ");
       mInviteOnly.checked = missionDetail.inviteOnly === true;
 
-      selectedGroupSet = new Set();
+      /* GET /missions/:name often returns groups as {name:"…"} objects; list endpoint uses strings. */
       var mg = Array.isArray(missionDetail.groups) ? missionDetail.groups : [];
-      for (var i = 0; i < mg.length; i++) selectedGroupSet.add(String(mg[i]));
+      applyMissionGroupsToSelection(mg);
+      if (selectedGroupSet.size === 0) {
+        var row = missionRowFromCache(name);
+        if (row && Array.isArray(row.groups)) applyMissionGroupsToSelection(row.groups);
+      }
 
       groupFilter.value = "";
       renderGroupCheckboxes();
