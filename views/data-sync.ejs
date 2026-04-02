@@ -33,7 +33,10 @@
         </label>
       </div>
       <label>Password (optional)
-        <input type="password" id="createMissionPw" autocomplete="new-password" />
+        <div class="passwordWrap">
+          <input type="password" id="createMissionPw" autocomplete="new-password" />
+          <button type="button" id="createMissionPwToggle" class="passwordToggle" aria-label="Show password" title="Show password">👁</button>
+        </div>
       </label>
       <div style="grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
         <button type="button" class="btn success" id="btnCreateMissionSubmit">Create mission</button>
@@ -136,7 +139,10 @@
         <h3 style="margin: 0 0 8px 0; font-size: 1rem;">Password (optional)</h3>
         <div class="row" style="flex-wrap: wrap; gap: 10px; align-items: flex-end;">
           <label style="flex: 1; min-width: 200px;">New password
-            <input type="password" id="mNewPw" autocomplete="new-password" style="width: 100%; box-sizing: border-box;" />
+            <div class="passwordWrap">
+              <input type="password" id="mNewPw" autocomplete="new-password" style="width: 100%; box-sizing: border-box;" />
+              <button type="button" id="mNewPwToggle" class="passwordToggle" aria-label="Show password" title="Show password">👁</button>
+            </div>
           </label>
           <button type="button" class="btn success" id="mBtnSetPw">Set password</button>
           <button type="button" class="btn danger" id="mBtnClearPw">Remove password</button>
@@ -1110,6 +1116,21 @@
   }
 
   if (btnKmlUpload) btnKmlUpload.addEventListener("click", doKmlUpload);
+
+  function wirePasswordToggle(inputEl, toggleEl) {
+    if (!inputEl || !toggleEl) return;
+    toggleEl.textContent = "👁";
+    toggleEl.setAttribute("aria-label", "Show password");
+    toggleEl.title = "Show password";
+    toggleEl.addEventListener("click", function () {
+      var isHidden = inputEl.type === "password";
+      inputEl.type = isHidden ? "text" : "password";
+      toggleEl.setAttribute("aria-label", isHidden ? "Hide password" : "Show password");
+      toggleEl.title = isHidden ? "Hide password" : "Show password";
+    });
+  }
+  wirePasswordToggle(document.getElementById("createMissionPw"), document.getElementById("createMissionPwToggle"));
+  wirePasswordToggle(document.getElementById("mNewPw"), document.getElementById("mNewPwToggle"));
 
   if (deleteModalClose) deleteModalClose.addEventListener("click", closeDeleteModal);
   if (deleteModalConfirm) deleteModalConfirm.addEventListener("click", confirmDelete);
