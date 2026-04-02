@@ -124,6 +124,55 @@ router.get("/missions/:missionName/export-kml", async (req, res) => {
   }
 });
 
+/** Mission HTML archive — TAK GET /Marti/api/missions/:name/archive */
+router.get("/missions/:missionName/export-archive", async (req, res) => {
+  try {
+    const missionName = req.params.missionName;
+    const q = { ...req.query };
+    const r = await dataSyncSvc.exportMissionArchiveStream(missionName, q);
+
+    if (r.status >= 400) {
+      const chunks = [];
+      await new Promise((resolve, reject) => {
+        r.data.on("data", (c) => chunks.push(c));
+        r.data.on("end", resolve);
+        r.data.on("error", reject);
+      });
+      const buf = Buffer.concat(chunks);
+      let msg = buf.toString("utf8").slice(0, 2000);
+      try {
+        const j = JSON.parse(msg);
+        msg = j.error || j.message || msg;
+      } catch (_) {
+        /* ignore */
+      }
+      return res.status(r.status).json({ error: msg || "TAK mission archive failed" });
+    }
+
+    res.status(r.status);
+    const ct = r.headers["content-type"];
+    if (ct) res.setHeader("Content-Type", ct);
+    else res.setHeader("Content-Type", "text/html; charset=utf-8");
+
+    const cd = r.headers["content-disposition"];
+    if (cd) {
+      res.setHeader("Content-Disposition", cd);
+    } else {
+      const safe =
+        String(missionName).replace(/[^\w.\- ()\[\]]+/g, "_").trim().slice(0, 120) || "mission";
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename="${safe}.html"; filename*=UTF-8''${encodeURIComponent(safe + ".html")}`
+      );
+    }
+    const cl = r.headers["content-length"];
+    if (cl) res.setHeader("Content-Length", cl);
+    r.data.pipe(res);
+  } catch (err) {
+    return sendTakError(res, err);
+  }
+});
+
 router.get("/missions/:missionName", async (req, res) => {
   try {
     const data = await dataSyncSvc.getMission(req.params.missionName);

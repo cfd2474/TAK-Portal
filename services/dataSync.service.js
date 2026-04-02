@@ -143,6 +143,25 @@ async function exportMissionKmlStream(missionName, queryParams = {}) {
   });
 }
 
+/**
+ * Mission HTML archive (open in browser) — TAK Marti GET /api/missions/{name}/archive
+ */
+async function exportMissionArchiveStream(missionName, queryParams = {}) {
+  assertTakAvailable();
+  const client = buildTakAxios({ timeout: 180000 });
+  const name = String(missionName || "").trim();
+  if (!name) {
+    const e = new Error("Mission name is required.");
+    e.code = "INVALID_MISSION_NAME";
+    throw e;
+  }
+  return client.get(`${missionPath(name)}/archive`, {
+    params: queryParams || {},
+    responseType: "stream",
+    validateStatus: () => true,
+  });
+}
+
 module.exports = {
   assertTakAvailable,
   missionPath,
@@ -158,5 +177,6 @@ module.exports = {
   putMissionContents,
   getSyncSearch,
   exportMissionKmlStream,
+  exportMissionArchiveStream,
   KML_MIME,
 };

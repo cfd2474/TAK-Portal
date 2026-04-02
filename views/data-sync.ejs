@@ -35,11 +35,11 @@
         <thead>
           <tr>
             <th>Name</th>
-            <th>Tool</th>
+            <th>Description</th>
             <th>Groups</th>
             <th>Password</th>
             <th>Created</th>
-            <th style="min-width: 280px;">Actions</th>
+            <th style="min-width: 340px;">Actions</th>
           </tr>
         </thead>
         <tbody id="missionsTbody"></tbody>
@@ -51,7 +51,7 @@
     <h2 style="margin-top: 0;">KML data sync packages</h2>
     <p class="muted" style="margin-top: 0; max-width: 85ch;">
       Upload and download <strong>entire Data Sync packages as KML</strong> (same style as ATAK exports, e.g. <code>nsi active incident.kml</code>).
-      Uploads go to <code>POST /Marti/sync/upload</code> with a <code>.kml</code> part; downloads use <code>GET /Marti/api/missions/&lt;name&gt;/kml?download=true</code>.
+      Uploads go to <code>POST /Marti/sync/upload</code> with a <code>.kml</code> part. Downloads use <code>GET /Marti/api/missions/&lt;name&gt;/archive</code> (HTML) and <code>…/kml?download=true</code> (KML).
     </p>
     <div class="row" style="flex-wrap: wrap; align-items: flex-end; gap: 14px;">
       <label style="min-width: 220px;">
@@ -83,21 +83,25 @@
     <div class="modalBody">
       <div id="missionModalMsg" class="msg" style="margin-bottom: 10px;"></div>
 
-      <div class="row" style="flex-wrap: wrap; gap: 12px;">
-        <label style="flex: 1; min-width: 200px;">
-          Mission name
-          <input type="text" id="mName" readonly style="width: 100%; box-sizing: border-box; opacity: 0.85;" />
-        </label>
-        <label style="min-width: 160px;">
-          Tool
-          <input type="text" id="mTool" placeholder="public" style="width: 100%; box-sizing: border-box;" />
-        </label>
-      </div>
+      <label style="display: block;">
+        Mission name
+        <input type="text" id="mName" readonly style="width: 100%; box-sizing: border-box; opacity: 0.85;" />
+      </label>
 
       <label style="display: block; margin-top: 12px;">
-        Keywords (comma-separated)
-        <input type="text" id="mKeywords" placeholder="e.g. incident, ops" style="width: 100%; box-sizing: border-box;" />
+        Description
+        <textarea id="mDescription" rows="3" placeholder="Mission description" style="width: 100%; box-sizing: border-box; resize: vertical;"></textarea>
       </label>
+
+      <label style="display: block; margin-top: 12px;">
+        Default role for subscribers
+        <select id="mDefaultRole" style="min-width: 280px;">
+          <option value="MISSION_SUBSCRIBER">Mission subscriber (MISSION_SUBSCRIBER)</option>
+          <option value="MISSION_OWNER">Mission owner (MISSION_OWNER)</option>
+          <option value="MISSION_READONLY_SUBSCRIBER">Read-only subscriber (MISSION_READONLY_SUBSCRIBER)</option>
+        </select>
+      </label>
+      <p class="muted" style="margin: 6px 0 0 0; font-size: 12px;">Tool is always <code>public</code> for Data Sync missions (not shown).</p>
 
       <div style="margin-top: 14px;">
         <div class="row" style="justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
@@ -107,13 +111,8 @@
         <div id="mGroupsBox" class="groupsBox" style="margin-top: 8px;"></div>
       </div>
 
-      <label class="chk-inline" style="margin-top: 12px;">
-        <input type="checkbox" id="mInviteOnly" />
-        Invite only
-      </label>
-
       <div class="card" style="margin-top: 16px; background: var(--card);">
-        <h3 style="margin: 0 0 8px 0; font-size: 1rem;">Mission password (optional)</h3>
+        <h3 style="margin: 0 0 8px 0; font-size: 1rem;">Password (optional)</h3>
         <div class="row" style="flex-wrap: wrap; gap: 10px; align-items: flex-end;">
           <label style="flex: 1; min-width: 200px;">New password
             <input type="password" id="mNewPw" autocomplete="new-password" style="width: 100%; box-sizing: border-box;" />
@@ -124,8 +123,9 @@
       </div>
 
       <div class="row" style="margin-top: 14px; flex-wrap: wrap; gap: 10px; align-items: flex-end;">
-        <button type="button" class="btn" id="mBtnExportKml">Download mission KML (.kml)</button>
-        <label style="min-width: 200px; flex: 1;">Password for export (if protected)
+        <button type="button" class="btn" id="mBtnExportHtml">HTML (archive)</button>
+        <button type="button" class="btn" id="mBtnExportKml">KML</button>
+        <label style="min-width: 200px; flex: 1;">Password for download (if protected)
           <input type="password" id="mExportKmlPw" autocomplete="off" placeholder="Optional" style="width: 100%; box-sizing: border-box;" />
         </label>
       </div>
@@ -205,11 +205,10 @@
   var missionModalTitle = document.getElementById("missionModalTitle");
   var missionModalMsg = document.getElementById("missionModalMsg");
   var mName = document.getElementById("mName");
-  var mTool = document.getElementById("mTool");
-  var mKeywords = document.getElementById("mKeywords");
+  var mDescription = document.getElementById("mDescription");
+  var mDefaultRole = document.getElementById("mDefaultRole");
   var mGroupsBox = document.getElementById("mGroupsBox");
   var groupFilter = document.getElementById("groupFilter");
-  var mInviteOnly = document.getElementById("mInviteOnly");
   var mNewPw = document.getElementById("mNewPw");
   var mBtnSetPw = document.getElementById("mBtnSetPw");
   var mBtnClearPw = document.getElementById("mBtnClearPw");
@@ -217,6 +216,7 @@
   var mContentsTbody = document.getElementById("mContentsTbody");
   var mBtnSave = document.getElementById("mBtnSave");
   var mSaveHint = document.getElementById("mSaveHint");
+  var mBtnExportHtml = document.getElementById("mBtnExportHtml");
   var mBtnExportKml = document.getElementById("mBtnExportKml");
   var mExportKmlPw = document.getElementById("mExportKmlPw");
 
@@ -265,9 +265,42 @@
 
   function unwrapMission(payload) {
     if (!payload) return null;
-    if (payload.data && typeof payload.data === "object" && !Array.isArray(payload.data)) return payload.data;
+    if (payload.data != null) {
+      if (Array.isArray(payload.data) && payload.data.length) return payload.data[0];
+      if (typeof payload.data === "object" && !Array.isArray(payload.data)) return payload.data;
+    }
     if (payload.Mission && typeof payload.Mission === "object") return payload.Mission;
     return payload;
+  }
+
+  function buildDefaultRoleObject(roleType) {
+    var t = roleType || "MISSION_SUBSCRIBER";
+    if (t === "MISSION_READONLY_SUBSCRIBER") {
+      return { type: t, permissions: ["MISSION_READ"] };
+    }
+    if (t === "MISSION_OWNER") {
+      return {
+        type: t,
+        permissions: [
+          "MISSION_MANAGE_FEEDS",
+          "MISSION_SET_PASSWORD",
+          "MISSION_WRITE",
+          "MISSION_MANAGE_LAYERS",
+          "MISSION_READ",
+          "MISSION_SET_ROLE",
+          "MISSION_DELETE",
+        ],
+      };
+    }
+    return { type: "MISSION_SUBSCRIBER", permissions: ["MISSION_WRITE", "MISSION_READ"] };
+  }
+
+  function syncDefaultRoleSelectFromMission(mission) {
+    if (!mDefaultRole) return;
+    var dr = mission && mission.defaultRole;
+    var t = dr && dr.type ? String(dr.type) : "MISSION_SUBSCRIBER";
+    var allowed = ["MISSION_SUBSCRIBER", "MISSION_OWNER", "MISSION_READONLY_SUBSCRIBER"];
+    mDefaultRole.value = allowed.indexOf(t) >= 0 ? t : "MISSION_SUBSCRIBER";
   }
 
   function normalizeGroupNames(payload) {
@@ -415,10 +448,12 @@
       var groups = Array.isArray(m.groups) ? m.groups : [];
       var pw = m.passwordProtected === true ? "Yes" : "No";
       var ct = m.createTime ? String(m.createTime) : "";
+      var desc = m.description != null ? String(m.description) : "";
+      if (desc.length > 48) desc = desc.slice(0, 45) + "…";
 
       tr.innerHTML =
         "<td><strong>" + esc(name) + "</strong></td>" +
-        "<td>" + esc(m.tool != null ? m.tool : "") + "</td>" +
+        "<td style=\"max-width:220px;font-size:13px;\">" + esc(desc) + "</td>" +
         "<td>" + groups.length + "</td>" +
         "<td>" + esc(pw) + "</td>" +
         "<td style=\"font-size:12px;white-space:nowrap;\">" + esc(ct) + "</td>" +
@@ -444,6 +479,25 @@
         return function () { openDeleteMission(nm); };
       }(name));
 
+      var bHtml = document.createElement("button");
+      bHtml.type = "button";
+      bHtml.className = "btn";
+      bHtml.textContent = "HTML";
+      bHtml.title = "Download mission archive (HTML)";
+      bHtml.addEventListener("click", function (nm) {
+        return function () {
+          setMissionsMsg("Downloading HTML archive…", undefined);
+          fetchMissionArchiveBlob(nm, "")
+            .then(function (blob) {
+              triggerBrowserHtmlDownload(blob, nm);
+              setMissionsMsg("HTML download started.", true);
+            })
+            .catch(function (e) {
+              setMissionsMsg(e.message || "HTML download failed", false);
+            });
+        };
+      }(name));
+
       var bKml = document.createElement("button");
       bKml.type = "button";
       bKml.className = "btn";
@@ -464,6 +518,7 @@
       }(name));
 
       wrap.appendChild(bEdit);
+      wrap.appendChild(bHtml);
       wrap.appendChild(bKml);
       wrap.appendChild(bDel);
       tdAct.appendChild(wrap);
@@ -503,6 +558,43 @@
       .trim()
       .slice(0, 120);
     return s || "mission";
+  }
+
+  async function fetchMissionArchiveBlob(missionName, password) {
+    var url = API + "/missions/" + encodeURIComponent(missionName) + "/export-archive";
+    var qs = [];
+    if (password) qs.push("password=" + encodeURIComponent(password));
+    if (qs.length) url += "?" + qs.join("&");
+    var res = await fetch(url);
+    if (!res.ok) {
+      var text = await res.text().catch(function () { return ""; });
+      var err = "Export failed (HTTP " + res.status + ")";
+      try {
+        var j = JSON.parse(text);
+        if (j && j.error) err = j.error;
+      } catch (_) {
+        var m = text.match(/<title>([^<]+)<\/title>/i);
+        if (m) err = m[1].trim();
+      }
+      throw new Error(err);
+    }
+    return res.blob();
+  }
+
+  function triggerBrowserHtmlDownload(blob, missionName) {
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = sanitizeKmlFilename(missionName) + ".html";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () {
+      try {
+        URL.revokeObjectURL(a.href);
+      } catch (_) {
+        /* ignore */
+      }
+    }, 2500);
   }
 
   async function fetchMissionKmlBlob(missionName, password) {
@@ -598,10 +690,8 @@
 
       editingOriginalName = String(missionDetail.name);
       mName.value = missionDetail.name;
-      mTool.value = missionDetail.tool != null ? missionDetail.tool : "public";
-      var kw = Array.isArray(missionDetail.keywords) ? missionDetail.keywords : [];
-      mKeywords.value = kw.join(", ");
-      mInviteOnly.checked = missionDetail.inviteOnly === true;
+      if (mDescription) mDescription.value = missionDetail.description != null ? String(missionDetail.description) : "";
+      syncDefaultRoleSelectFromMission(missionDetail);
 
       /* GET /missions/:name often returns groups as {name:"…"} objects; list endpoint uses strings. */
       var mg = Array.isArray(missionDetail.groups) ? missionDetail.groups : [];
@@ -651,12 +741,19 @@
     isCreateMode = true;
     missionModalTitle.textContent = "Create mission";
     mName.readOnly = false;
-    missionDetail = { name: "", tool: "public", keywords: [], groups: [], inviteOnly: false };
+    missionDetail = {
+      name: "",
+      tool: "public",
+      description: "",
+      keywords: [],
+      groups: [],
+      inviteOnly: false,
+      defaultRole: buildDefaultRoleObject("MISSION_SUBSCRIBER"),
+    };
     editingOriginalName = "";
     mName.value = "";
-    mTool.value = "public";
-    mKeywords.value = "";
-    mInviteOnly.checked = false;
+    if (mDescription) mDescription.value = "";
+    if (mDefaultRole) mDefaultRole.value = "MISSION_SUBSCRIBER";
     mNewPw.value = "";
     mContentsWrap.style.display = "none";
     mContentsTbody.innerHTML = "";
@@ -678,16 +775,14 @@
   function buildSavePayload() {
     var base = missionDetail && typeof missionDetail === "object" ? JSON.parse(JSON.stringify(missionDetail)) : {};
     var name = (mName.value || "").trim();
-    var kws = (mKeywords.value || "")
-      .split(",")
-      .map(function (s) { return s.trim(); })
-      .filter(Boolean);
 
     base.name = name;
-    base.tool = (mTool.value || "").trim() || "public";
-    base.keywords = kws;
+    base.tool = "public";
+    base.description = mDescription ? String(mDescription.value || "") : "";
+    base.defaultRole = buildDefaultRoleObject(mDefaultRole && mDefaultRole.value);
     base.groups = getSelectedGroupsFromBox();
-    base.inviteOnly = mInviteOnly.checked;
+    if (!Array.isArray(base.keywords)) base.keywords = [];
+    base.inviteOnly = false;
 
     delete base.contents;
     delete base.uids;
@@ -715,6 +810,26 @@
         j = { raw: text };
       }
       if (!res.ok) throw new Error((j && j.error) || text.slice(0, 500) || "Save failed");
+
+      var pwApply = (mNewPw && mNewPw.value) || "";
+      if (pwApply) {
+        var pr = await fetch(API + "/missions/" + encodeURIComponent(payload.name) + "/password", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: pwApply }),
+        });
+        var ptext = await pr.text();
+        var pj;
+        try {
+          pj = JSON.parse(ptext);
+        } catch (_) {
+          pj = {};
+        }
+        if (!pr.ok) {
+          throw new Error((pj && pj.error) || "Mission saved but password could not be set.");
+        }
+        mNewPw.value = "";
+      }
 
       setMissionModalMsg("Saved.", true);
       await loadMissions();
@@ -858,13 +973,30 @@
   if (qDefaultRole) qDefaultRole.addEventListener("change", loadMissions);
 
   if (btnKmlUpload) btnKmlUpload.addEventListener("click", doKmlUpload);
+  function modalExportPw() {
+    return (mExportKmlPw && mExportKmlPw.value) || "";
+  }
+  if (mBtnExportHtml && mName) {
+    mBtnExportHtml.addEventListener("click", function () {
+      var nm = (mName.value || "").trim();
+      if (!nm) return setMissionModalMsg("Mission name missing.", false);
+      setMissionModalMsg("Downloading HTML…", undefined);
+      fetchMissionArchiveBlob(nm, modalExportPw())
+        .then(function (blob) {
+          triggerBrowserHtmlDownload(blob, nm);
+          setMissionModalMsg("HTML download started.", true);
+        })
+        .catch(function (e) {
+          setMissionModalMsg(e.message || "Download failed", false);
+        });
+    });
+  }
   if (mBtnExportKml && mName) {
     mBtnExportKml.addEventListener("click", function () {
       var nm = (mName.value || "").trim();
       if (!nm) return setMissionModalMsg("Mission name missing.", false);
       setMissionModalMsg("Downloading KML…", undefined);
-      var pw = (mExportKmlPw && mExportKmlPw.value) || "";
-      fetchMissionKmlBlob(nm, pw)
+      fetchMissionKmlBlob(nm, modalExportPw())
         .then(function (blob) {
           triggerBrowserKmlDownload(blob, nm);
           setMissionModalMsg("KML download started.", true);
