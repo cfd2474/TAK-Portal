@@ -12,7 +12,7 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
-### v1.2.63 - 4/1/26
+### v1.2.64 - 4/1/26
 ✨ `Enhancement` - Rearranged sidebar admministration links to appear alphabetically<br>
 🐛 `Bug Fix` - Fixes issue with beta features being shown to non-global admin users in the sidebar
 
