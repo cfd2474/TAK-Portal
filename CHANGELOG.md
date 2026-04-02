@@ -12,6 +12,9 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
+### v1.2.63 - 4/1/26
+🎉 `New Feature` - Added new page for Data Sync Mission Management.  This feature is limited to servers with beta mode enabled in settings and global admins only.  More work to be released soon!
+
 ### v1.2.62 - 4/1/26
 ✨ `Enhancement` - Integrations page download certs now downloads the .p12 in the zip bundle.<br>
 ✨ `Enhancement` - Added User creation in progress status indicator on the user page.<br>
