@@ -13,7 +13,8 @@ Planned features can be accessed [here](docs/roadmap.md)
 ## Version History
 
 ### v1.2.63 - 4/1/26
-✨ `Enhancement` - Rearranged sidebar admministration links to appear alphabetically
+✨ `Enhancement` - Rearranged sidebar admministration links to appear alphabetically<br>
+🐛 `Bug Fix` - Fixes issue with beta features being shown to non-global admin users in the sidebar
 
 ### v1.2.63 - 4/1/26
 🎉 `New Feature` - Added new page for Data Sync Mission Management.  This feature is limited to servers with beta mode enabled in settings and global admins only.  More work to be released soon!
