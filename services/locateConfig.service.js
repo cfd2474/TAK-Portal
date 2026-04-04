@@ -88,7 +88,8 @@ function parseLocateFromXml(xml) {
   const en = /enabled\s*=\s*"([^"]*)"/i.exec(attrs);
   const gr = /group\s*=\s*"([^"]*)"/i.exec(attrs);
   const am = /addToMission\s*=\s*"([^"]*)"/i.exec(attrs);
-  const mi = /mission\s*=\s*"([^"]*)"/i.exec(attrs);
+  // Must not match the "Mission=" inside addToMission="…" (that wrongly captured "true").
+  const mi = /\smission\s*=\s*"([^"]*)"/i.exec(attrs);
   const enabled = String(en?.[1] || "").toLowerCase() === "true";
   const group = unescapeXmlAttr(gr?.[1] || "");
   const addToMission = String(am?.[1] || "").toLowerCase() === "true";
