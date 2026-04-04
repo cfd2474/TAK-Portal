@@ -326,14 +326,21 @@ function setSharingStoppedByUser(locatorId, stopped) {
 }
 
 /**
- * TAK Server locate API (takserver-api) passes name/remarks as query parameters. Some builds
- * return HTTP 500 when values contain ASCII apostrophe (') after decode — likely server-side
- * parsing/SQL. Portal history keeps the original strings; only the relay substitutes U+2019
- * (typographic apostrophe) so the map update succeeds. If '?' in remarks still breaks TAK,
- * extend this helper similarly.
+ * TAK locate API takes name/remarks as query parameters; some TAK builds error on punctuation/quotes.
+ * Portal history keeps the original text; relay-only normalization keeps the TAK forward reliable.
  */
 function sanitizeForTakLocateQueryParam(s) {
-  return String(s ?? "").replace(/\u0027/g, "\u2019");
+  let t = String(s ?? "");
+  t = t.replace(/[!?]+/g, ".").replace(/;/g, ".");
+  t = t.replace(
+    /[\u0027\u2018\u2019\u201A\u201B\u201C\u201D\u201E\u201F\u2032\u2033\u2035\u2036\u2037\u0060\u00AB\u00BB\u0022\uFF02\u00B4\u02BC\u02C8\u02CA\u02CB\u02F4\u02F9]/g,
+    ""
+  );
+  t = t.replace(/[^\p{L}\p{N}\s.,:\-]/gu, "");
+  return t
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/\.{2,}/g, ".");
 }
 
 /**

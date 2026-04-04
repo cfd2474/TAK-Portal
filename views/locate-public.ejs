@@ -89,33 +89,6 @@ function apiBase(){
 function pingUrl(){
   return apiBase()+"/locate/"+encodeURIComponent(slug)+"/ping";
 }
-/** Troubleshooting: filter DevTools Console by "locate-ping". Does not log full message text (privacy). */
-function locatePingDebug(tag, payload){
-  try{
-    if(typeof console!=="undefined"&&console.warn){
-      console.warn("[locate-ping] "+tag, payload||"");
-    }
-  }catch(e){}
-}
-function summarizeRemarksForDebug(remarks){
-  var s=remarks==null?"":String(remarks);
-  return{
-    length:s.length,
-    hasAsciiApostrophe:s.indexOf("'")>=0,
-    hasQuestionMark:s.indexOf("?")>=0
-  };
-}
-function responsePreviewForDebug(text,max){
-  var m=max==null?400:max;
-  var t=text==null?"":String(text);
-  var slice=t.length>m?t.slice(0,m)+"...":t;
-  var looksHtml=/^\s*</.test(slice);
-  return{length:t.length,looksLikeHtml:looksHtml,preview:slice};
-}
-function attachPingMeta(err, meta){
-  if(err&&typeof err==="object"&&meta)try{err.locatePing=meta;}catch(e){}
-  return err;
-}
 /** Parse JSON from API body; tolerate BOM/whitespace and optional pre-tag wrapper (iframe viewers). */
 function parseJsonResponseSafe(text){
   if(text==null)return null;
@@ -160,27 +133,13 @@ function parsePingResponse(res){
   return res.text().then(function(text){
     var d=parseJsonResponseSafe(text);
     if(!res.ok){
-      locatePingDebug("fetch-response-not-ok",{
-        transport:"fetch",
-        httpStatus:res.status,
-        parsed:d,
-        body:responsePreviewForDebug(text)
-      });
       var he=new Error((d&&d.error)||text||"Request failed");
       he.isHttpError=true;
-      attachPingMeta(he,{transport:"fetch",httpStatus:res.status,body:responsePreviewForDebug(text)});
       throw he;
     }
     if(!pingResponseLooksSuccessful(d)){
-      locatePingDebug("fetch-2xx-unexpected-body",{
-        transport:"fetch",
-        httpStatus:res.status,
-        parsed:d,
-        body:responsePreviewForDebug(text)
-      });
       var he2=new Error((d&&d.error)||"Unexpected response from server.");
       he2.isHttpError=false;
-      attachPingMeta(he2,{transport:"fetch",httpStatus:res.status,parsed:d,body:responsePreviewForDebug(text)});
       throw he2;
     }
     return d;
@@ -249,31 +208,22 @@ function postPingFormIframe(body){
         try{
           var doc=lpPingIframeEl.contentDocument||lpPingIframeEl.contentWindow.document;
           var text=(doc.body&&doc.body.textContent)?String(doc.body.textContent).trim():"";
-          var rp=responsePreviewForDebug(text);
           if(!text){
-            locatePingDebug("iframe-empty-body",{transport:"form-iframe",remarks:summarizeRemarksForDebug(body&&body.remarks)});
-            reject(attachPingMeta(new Error("Empty response"),{transport:"form-iframe",reason:"empty-body"}));
+            reject(new Error("Empty response"));
             return;
           }
           var d=parseJsonResponseSafe(text);
-          if(pingResponseLooksSuccessful(d)){
-            locatePingDebug("iframe-ok",{transport:"form-iframe",body:rp});
-            resolve(d);
-          }else if(d&&d.ok===false){
-            locatePingDebug("iframe-reject-ok-false",{transport:"form-iframe",parsed:d,body:rp});
+          if(pingResponseLooksSuccessful(d))resolve(d);
+          else if(d&&d.ok===false){
             var he0=new Error(d.error||"Request failed");
             he0.isHttpError=true;
-            attachPingMeta(he0,{transport:"form-iframe",reason:"ok-false",parsed:d,body:rp});
             reject(he0);
           }else{
-            locatePingDebug("iframe-reject-unexpected",{transport:"form-iframe",parsed:d,body:rp});
             var he=new Error((d&&d.error)||"Could not send location. Try again.");
             he.isHttpError=false;
-            attachPingMeta(he,{transport:"form-iframe",reason:"unexpected-body",parsed:d,body:rp});
             reject(he);
           }
         }catch(ex){
-          locatePingDebug("iframe-exception",{transport:"form-iframe",err:String(ex&&ex.message!=null?ex.message:ex)});
           reject(ex);
         }
       },0);
@@ -286,18 +236,8 @@ function postPingFormIframe(body){
 function postPingXHRJSON(body){
   var payload;
   try{payload=JSON.stringify(body);}catch(encErr){
-    locatePingDebug("json-stringify-failed",{
-      transport:"xhr-json",
-      remarks:summarizeRemarksForDebug(body&&body.remarks),
-      err:String(encErr&&encErr.message!=null?encErr.message:encErr)
-    });
-    return Promise.reject(attachPingMeta(new Error("Could not send this message. Remove unusual characters and try again."),{transport:"xhr-json",phase:"stringify"}));
+    return Promise.reject(new Error("Could not send this message. Remove unusual characters and try again."));
   }
-  locatePingDebug("xhr-json-send",{
-    transport:"xhr-json",
-    remarks:summarizeRemarksForDebug(body&&body.remarks),
-    payloadChars:payload.length
-  });
   return new Promise(function(resolve,reject){
     var xhr=new XMLHttpRequest();
     xhr.open("POST",pingUrl());
@@ -306,40 +246,25 @@ function postPingXHRJSON(body){
     xhr.timeout=90000;
     xhr.onload=function(){
       var text=xhr.responseText||"",d=parseJsonResponseSafe(text),st=xhr.status;
-      var rp=responsePreviewForDebug(text);
       if(st>=200&&st<300){
-        if(pingResponseLooksSuccessful(d)){
-          locatePingDebug("xhr-json-ok",{transport:"xhr-json",httpStatus:st});
-          resolve(d);
-        }else if(d&&d.ok===false){
-          locatePingDebug("xhr-json-reject-ok-false",{transport:"xhr-json",httpStatus:st,parsed:d,body:rp});
+        if(pingResponseLooksSuccessful(d))resolve(d);
+        else if(d&&d.ok===false){
           var he0=new Error(d.error||"Request failed");
           he0.isHttpError=true;
-          attachPingMeta(he0,{transport:"xhr-json",httpStatus:st,reason:"ok-false",parsed:d,body:rp});
           reject(he0);
         }else{
-          locatePingDebug("xhr-json-reject-unexpected-2xx",{transport:"xhr-json",httpStatus:st,parsed:d,body:rp});
           var he=new Error((d&&d.error)||"Unexpected response from server.");
           he.isHttpError=false;
-          attachPingMeta(he,{transport:"xhr-json",httpStatus:st,reason:"unexpected-2xx",parsed:d,body:rp});
           reject(he);
         }
       }else{
-        locatePingDebug("xhr-json-reject-http-error",{transport:"xhr-json",httpStatus:st,parsed:d,body:rp});
         var he2=new Error((d&&d.error)||text||"Request failed");
         he2.isHttpError=true;
-        attachPingMeta(he2,{transport:"xhr-json",httpStatus:st,reason:"http-"+st,parsed:d,body:rp});
         reject(he2);
       }
     };
-    xhr.onerror=function(){
-      locatePingDebug("xhr-json-network-error",{transport:"xhr-json"});
-      reject(attachPingMeta(new Error("Failed to fetch"),{transport:"xhr-json",reason:"network"}));
-    };
-    xhr.ontimeout=function(){
-      locatePingDebug("xhr-json-timeout",{transport:"xhr-json"});
-      reject(attachPingMeta(new Error("Request timed out"),{transport:"xhr-json",reason:"timeout"}));
-    };
+    xhr.onerror=function(){reject(new Error("Failed to fetch"));};
+    xhr.ontimeout=function(){reject(new Error("Request timed out"));};
     xhr.send(payload);
   });
 }
@@ -357,11 +282,6 @@ function postPingXHRUrlEncoded(body){
     params.set("accuracyMeters",String(body.accuracyMeters));
   }
   var enc=params.toString();
-  locatePingDebug("xhr-urlencoded-send",{
-    transport:"xhr-urlencoded",
-    remarks:summarizeRemarksForDebug(body&&body.remarks),
-    encodedBodyChars:enc.length
-  });
   return new Promise(function(resolve,reject){
     var xhr=new XMLHttpRequest();
     xhr.open("POST",pingUrl());
@@ -370,40 +290,25 @@ function postPingXHRUrlEncoded(body){
     xhr.timeout=90000;
     xhr.onload=function(){
       var text=xhr.responseText||"",d=parseJsonResponseSafe(text),st=xhr.status;
-      var rp=responsePreviewForDebug(text);
       if(st>=200&&st<300){
-        if(pingResponseLooksSuccessful(d)){
-          locatePingDebug("xhr-urlencoded-ok",{transport:"xhr-urlencoded",httpStatus:st});
-          resolve(d);
-        }else if(d&&d.ok===false){
-          locatePingDebug("xhr-urlencoded-reject-ok-false",{transport:"xhr-urlencoded",httpStatus:st,parsed:d,body:rp});
+        if(pingResponseLooksSuccessful(d))resolve(d);
+        else if(d&&d.ok===false){
           var he0=new Error(d.error||"Request failed");
           he0.isHttpError=true;
-          attachPingMeta(he0,{transport:"xhr-urlencoded",httpStatus:st,reason:"ok-false",parsed:d,body:rp});
           reject(he0);
         }else{
-          locatePingDebug("xhr-urlencoded-reject-unexpected-2xx",{transport:"xhr-urlencoded",httpStatus:st,parsed:d,body:rp});
           var he=new Error((d&&d.error)||"Unexpected response from server.");
           he.isHttpError=false;
-          attachPingMeta(he,{transport:"xhr-urlencoded",httpStatus:st,reason:"unexpected-2xx",parsed:d,body:rp});
           reject(he);
         }
       }else{
-        locatePingDebug("xhr-urlencoded-reject-http-error",{transport:"xhr-urlencoded",httpStatus:st,parsed:d,body:rp});
         var he2=new Error((d&&d.error)||text||"Request failed");
         he2.isHttpError=true;
-        attachPingMeta(he2,{transport:"xhr-urlencoded",httpStatus:st,reason:"http-"+st,parsed:d,body:rp});
         reject(he2);
       }
     };
-    xhr.onerror=function(){
-      locatePingDebug("xhr-urlencoded-network-error",{transport:"xhr-urlencoded"});
-      reject(attachPingMeta(new Error("Failed to fetch"),{transport:"xhr-urlencoded",reason:"network"}));
-    };
-    xhr.ontimeout=function(){
-      locatePingDebug("xhr-urlencoded-timeout",{transport:"xhr-urlencoded"});
-      reject(attachPingMeta(new Error("Request timed out"),{transport:"xhr-urlencoded",reason:"timeout"}));
-    };
+    xhr.onerror=function(){reject(new Error("Failed to fetch"));};
+    xhr.ontimeout=function(){reject(new Error("Request timed out"));};
     xhr.send(enc);
   });
 }
@@ -414,11 +319,7 @@ function setSharingUi(on){
 function postPingViaHttpApis(body){
   var payload;
   try{payload=JSON.stringify(body);}catch(encErr){
-    locatePingDebug("viahttp-stringify-failed",{
-      remarks:summarizeRemarksForDebug(body&&body.remarks),
-      err:String(encErr&&encErr.message!=null?encErr.message:encErr)
-    });
-    return Promise.reject(attachPingMeta(new Error("Could not send this message. Remove unusual characters and try again."),{phase:"viahttp-stringify"}));
+    return Promise.reject(new Error("Could not send this message. Remove unusual characters and try again."));
   }
   var fetchOpts={
     method:"POST",
@@ -470,7 +371,6 @@ function postPing(lat,lng,accuracy){
   if(isMobileDevice()){
     return postPingFormIframe(body).catch(function(err){
       if(err&&err.isHttpError)throw err;
-      locatePingDebug("iframe-fallback-to-http",{remarks:summarizeRemarksForDebug(body&&body.remarks),priorError:err&&err.message});
       return postPingViaHttpApis(body);
     });
   }
@@ -507,16 +407,7 @@ function tick(){
   getBestFix(function(pos){
     postPing(pos.coords.latitude,pos.coords.longitude,pos.coords.accuracy).then(function(){
       setMsg("",false);
-    }).catch(function(e){
-      locatePingDebug("tick-postPing-failed",{
-        message:e&&e.message,
-        locatePing:e&&e.locatePing,
-        remarks:summarizeRemarksForDebug(document.getElementById("lpRemarks")&&document.getElementById("lpRemarks").value)
-      });
-      var m=friendlyNetworkError(e);
-      if(e&&e.locatePing)m+=" Open DevTools (F12) → Console, filter: locate-ping";
-      setMsg(m,true);
-    }).then(function(){sending=false;});
+    }).catch(function(e){setMsg(friendlyNetworkError(e),true);}).then(function(){sending=false;});
   },function(err){sending=false;setMsg("Could not read GPS/location: "+(err&&err.message||"denied or unavailable"),true);});
 }
 function start(){
@@ -531,16 +422,7 @@ function start(){
       setSharingUi(true);
       if(timer){clearInterval(timer);timer=null;}
       if(intervalMs>0){timer=setInterval(tick,intervalMs);}
-    }).catch(function(e){
-      locatePingDebug("start-postPing-failed",{
-        message:e&&e.message,
-        locatePing:e&&e.locatePing,
-        remarks:summarizeRemarksForDebug(document.getElementById("lpRemarks")&&document.getElementById("lpRemarks").value)
-      });
-      var m=friendlyNetworkError(e);
-      if(e&&e.locatePing)m+=" Open DevTools (F12) → Console, filter: locate-ping";
-      setMsg(m,true);
-    }).then(function(){sending=false;});
+    }).catch(function(e){setMsg(friendlyNetworkError(e),true);}).then(function(){sending=false;});
   },function(err){sending=false;setMsg("Could not read GPS/location: "+(err&&err.message||"denied or unavailable"),true);});
 }
 function stop(byUser){
