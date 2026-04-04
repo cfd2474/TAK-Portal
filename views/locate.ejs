@@ -258,6 +258,10 @@
       .locate-page .locate-table .locate-col-last {
         display: none;
       }
+      /* Title + Actions only — avoids crushed status pills / broken button text at ~385px */
+      .locate-page .locate-table .locate-col-status {
+        display: none;
+      }
     }
     /* Narrow viewports: no forced table min-width; wrap long titles/URLs inside cells */
     @media (max-width: 640px) {
@@ -270,15 +274,11 @@
         overflow-wrap: anywhere;
         word-break: break-word;
       }
-    }
-    /* Smallest layouts (Title / Status / Actions only): keep action buttons from forcing width */
-    @media (max-width: 520px) {
-      .locate-page .locate-table .locate-col-status {
-        width: 26%;
-      }
-      .locate-page .locate-table .locate-col-actions {
-        width: 36%;
-        min-width: 0;
+      /* Keep action button labels on one line (word-break on td was splitting label glyphs vertically) */
+      .locate-page .locate-actions-cell,
+      .locate-page .locate-actions-cell .btn {
+        word-break: normal;
+        overflow-wrap: normal;
       }
     }
   </style>
