@@ -454,7 +454,7 @@ async function handlePublicLocatePing(req, res) {
         })
         .catch((err) => {
           console.error(
-            "[locate ping] TAK relay failed (position saved in portal):",
+            "[locate ping] TAK map relay failed — position and remarks are still saved in TAK Portal; only the TAK Server /locate/api forward failed:",
             err?.message || err
           );
         });

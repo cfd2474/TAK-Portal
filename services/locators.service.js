@@ -326,6 +326,17 @@ function setSharingStoppedByUser(locatorId, stopped) {
 }
 
 /**
+ * TAK Server locate API (takserver-api) passes name/remarks as query parameters. Some builds
+ * return HTTP 500 when values contain ASCII apostrophe (') after decode — likely server-side
+ * parsing/SQL. Portal history keeps the original strings; only the relay substitutes U+2019
+ * (typographic apostrophe) so the map update succeeds. If '?' in remarks still breaks TAK,
+ * extend this helper similarly.
+ */
+function sanitizeForTakLocateQueryParam(s) {
+  return String(s ?? "").replace(/\u0027/g, "\u2019");
+}
+
+/**
  * Relay a position ping to the TAK Server locate API (server-side; avoids browser CORS).
  */
 async function relayPingToTak({ latitude, longitude, name, remarks }) {
@@ -336,8 +347,8 @@ async function relayPingToTak({ latitude, longitude, name, remarks }) {
   const u = new URL(base);
   u.searchParams.set("latitude", String(latitude));
   u.searchParams.set("longitude", String(longitude));
-  u.searchParams.set("name", name);
-  u.searchParams.set("remarks", remarks || "");
+  u.searchParams.set("name", sanitizeForTakLocateQueryParam(name));
+  u.searchParams.set("remarks", sanitizeForTakLocateQueryParam(remarks || ""));
 
   let client;
   try {
