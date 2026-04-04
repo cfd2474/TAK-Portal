@@ -48,6 +48,53 @@ function unwrapPagedMissions(payload) {
   return [];
 }
 
+/** Short display names (strip tak_) from TAK mission GET payload — same idea as Data Sync UI. */
+function extractMissionGroupShortNamesSorted(takPayload) {
+  let m = takPayload;
+  if (m && Array.isArray(m.data) && m.data.length && typeof m.data[0] === "object") {
+    m = m.data[0];
+  } else if (m && typeof m.data === "object" && m.data != null && !Array.isArray(m.data)) {
+    m = m.data;
+  }
+  if (m && m.Mission && typeof m.Mission === "object") m = m.Mission;
+  const arr = m && Array.isArray(m.groups) ? m.groups : [];
+  const shorts = new Set();
+  for (const g of arr) {
+    const full = typeof g === "string" ? g : g && g.name != null ? String(g.name) : "";
+    const t = String(full || "").trim();
+    if (!t) continue;
+    const short = t.toLowerCase().startsWith("tak_") ? t.slice(4) : t;
+    if (short) shorts.add(short);
+  }
+  return Array.from(shorts).sort((a, b) => a.localeCompare(b));
+}
+
+function groupAllowedForMission(shortName, allowedShorts) {
+  const s = String(shortName || "").trim();
+  if (!s) return false;
+  const sl = s.toLowerCase();
+  return allowedShorts.some((x) => String(x || "").trim().toLowerCase() === sl);
+}
+
+/** Groups with access to a mission (short names, A–Z) — for locate Data Sync mode group dropdown. */
+router.get("/mission-groups/:missionName", async (req, res) => {
+  try {
+    const name = String(req.params.missionName || "").trim();
+    if (!name) {
+      return res.status(400).json({ ok: false, error: "Mission name is required." });
+    }
+    const raw = await dataSyncSvc.getMission(name);
+    const groups = extractMissionGroupShortNamesSorted(raw);
+    res.json({ ok: true, groups });
+  } catch (err) {
+    const code = err?.code;
+    if (code === "TAK_NOT_CONFIGURED" || code === "TAK_BYPASS") {
+      return res.json({ ok: true, groups: [], takUnavailable: true });
+    }
+    res.status(500).json({ ok: false, error: toSafeApiError(err) });
+  }
+});
+
 /** Data Sync missions with tool=public (for locate CoreConfig mission dropdown), A–Z by name. */
 router.get("/data-sync-missions", async (req, res) => {
   try {
@@ -78,6 +125,7 @@ router.get("/config", async (req, res) => {
       return res.json({
         ok: true,
         sshConfigured: false,
+        mode: "disabled",
         enabled: false,
         group: "",
         mission: "",
@@ -85,9 +133,18 @@ router.get("/config", async (req, res) => {
     }
     const xml = await locateConfig.readRemoteCoreConfigXml();
     const parsed = locateConfig.parseLocateFromXml(xml);
+    let mode = "disabled";
+    if (!parsed.enabled) {
+      mode = "disabled";
+    } else if (parsed.addToMission && String(parsed.mission || "").trim()) {
+      mode = "data_sync";
+    } else {
+      mode = "group_only";
+    }
     res.json({
       ok: true,
       sshConfigured: true,
+      mode,
       enabled: parsed.enabled,
       group: parsed.group || "",
       mission: parsed.mission || "",
@@ -100,41 +157,124 @@ router.get("/config", async (req, res) => {
 
 router.post("/apply", async (req, res) => {
   try {
-    const enabled = !!req.body?.enabled;
+    const mode = String(req.body?.mode ?? "").trim();
     const group = String(req.body?.group ?? "").trim();
     const mission = String(req.body?.mission ?? "").trim();
-    if (enabled && !group && !mission) {
-      return res.status(400).json({
-        ok: false,
-        error:
-          "When locate is enabled, set at least a notification group or a Data Sync mission. Both cannot be None.",
+
+    if (mode === "disabled" || !mode) {
+      const out = await locateConfig.applyLocateConfiguration({
+        enabled: false,
+        groupDisplayName: "",
+        missionName: "",
       });
+      const authUser = req.authentikUser || null;
+      auditSvc.logEvent({
+        actor: authUser,
+        request: auditRequest(req),
+        action: "LOCATE_TAK_CORE_CONFIG_APPLIED",
+        targetType: "locate_config",
+        targetId: "tak-coreconfig-locate",
+        details: {
+          locateMode: "disabled",
+          locateEnabled: false,
+          takServerRestartInitiated: true,
+          summary:
+            "Locate was disabled on the TAK Server: the locate block was removed from CoreConfig.xml over SSH and a TAK Server restart was started.",
+        },
+      });
+      return res.json({ ok: true, ...out });
     }
-    const out = await locateConfig.applyLocateConfiguration({
-      enabled,
-      groupDisplayName: group,
-      missionName: mission,
-    });
-    const authUser = req.authentikUser || null;
-    const groupLabel = group || "(none)";
-    const missionLabel = mission || "(none)";
-    auditSvc.logEvent({
-      actor: authUser,
-      request: auditRequest(req),
-      action: "LOCATE_TAK_CORE_CONFIG_APPLIED",
-      targetType: "locate_config",
-      targetId: "tak-coreconfig-locate",
-      details: {
-        locateEnabled: enabled,
-        takNotifyGroup: enabled ? group || null : null,
-        takNotifyDataSyncMission: enabled && mission ? mission : null,
-        takServerRestartInitiated: true,
-        summary: enabled
-          ? `Locate was enabled on the TAK Server (notification group: ${groupLabel}; data sync mission: ${missionLabel}). CoreConfig.xml was updated over SSH and a TAK Server restart was started.`
-          : `Locate was disabled on the TAK Server: the locate block was removed from CoreConfig.xml over SSH and a TAK Server restart was started.`,
-      },
-    });
-    res.json({ ok: true, ...out });
+
+    if (mode === "group_only") {
+      if (!group) {
+        return res.status(400).json({
+          ok: false,
+          error: "Select a notification group for Enabled — Group only.",
+        });
+      }
+      const out = await locateConfig.applyLocateConfiguration({
+        enabled: true,
+        groupDisplayName: group,
+        missionName: "",
+      });
+      const authUser = req.authentikUser || null;
+      auditSvc.logEvent({
+        actor: authUser,
+        request: auditRequest(req),
+        action: "LOCATE_TAK_CORE_CONFIG_APPLIED",
+        targetType: "locate_config",
+        targetId: "tak-coreconfig-locate",
+        details: {
+          locateMode: "group_only",
+          locateEnabled: true,
+          takNotifyGroup: group,
+          takServerRestartInitiated: true,
+          summary: `Locate enabled (group only) for notifications to group "${group}". CoreConfig.xml was updated over SSH and a TAK Server restart was started.`,
+        },
+      });
+      return res.json({ ok: true, ...out });
+    }
+
+    if (mode === "data_sync") {
+      if (!mission) {
+        return res.status(400).json({
+          ok: false,
+          error: "Select a Data Sync mission.",
+        });
+      }
+      if (!group) {
+        return res.status(400).json({
+          ok: false,
+          error: "Select a notification group for that mission.",
+        });
+      }
+      let allowed;
+      try {
+        const raw = await dataSyncSvc.getMission(mission);
+        allowed = extractMissionGroupShortNamesSorted(raw);
+      } catch (err) {
+        return res.status(400).json({
+          ok: false,
+          error: `Could not load mission from TAK: ${toSafeApiError(err)}`,
+        });
+      }
+      if (!allowed.length) {
+        return res.status(400).json({
+          ok: false,
+          error: "That mission has no groups assigned in TAK; add groups to the mission on Data Sync first.",
+        });
+      }
+      if (!groupAllowedForMission(group, allowed)) {
+        return res.status(400).json({
+          ok: false,
+          error: "Selected group does not have access to that Data Sync mission.",
+        });
+      }
+      const out = await locateConfig.applyLocateConfiguration({
+        enabled: true,
+        groupDisplayName: group,
+        missionName: mission,
+      });
+      const authUser = req.authentikUser || null;
+      auditSvc.logEvent({
+        actor: authUser,
+        request: auditRequest(req),
+        action: "LOCATE_TAK_CORE_CONFIG_APPLIED",
+        targetType: "locate_config",
+        targetId: "tak-coreconfig-locate",
+        details: {
+          locateMode: "data_sync",
+          locateEnabled: true,
+          takNotifyGroup: group,
+          takNotifyDataSyncMission: mission,
+          takServerRestartInitiated: true,
+          summary: `Locate enabled with Data Sync mission "${mission}" and notifications to group "${group}". CoreConfig.xml was updated over SSH and a TAK Server restart was started.`,
+        },
+      });
+      return res.json({ ok: true, ...out });
+    }
+
+    return res.status(400).json({ ok: false, error: "Invalid locate mode." });
   } catch (err) {
     res.status(500).json({ ok: false, error: toSafeApiError(err) });
   }

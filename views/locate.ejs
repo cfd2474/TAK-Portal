@@ -15,26 +15,25 @@
     ></div>
 
     <div class="row" style="flex-wrap: wrap; align-items: flex-end; gap: 12px;">
-      <label style="min-width: 200px;">
+      <label style="min-width: 220px;">
         Locate Status
-        <select id="locateEnabledSelect" aria-label="Locate enabled">
-          <option value="false">Disabled</option>
-          <option value="true">Enabled</option>
-        </select>
-      </label>
-
-      <label id="locateGroupWrap" style="min-width: 280px; display: none;">
-        Notification Group
-        <select id="locateGroupSelect" style="min-width: 260px;">
-          <option value="">None</option>
+        <select id="locateEnabledSelect" aria-label="Locate mode">
+          <option value="disabled">Disabled</option>
+          <option value="group_only">Enabled — Group only</option>
+          <option value="data_sync">Enabled — Data Sync</option>
         </select>
       </label>
 
       <label id="locateMissionWrap" style="min-width: 280px; display: none;">
-        Notification Data Sync Mission
+        Data Sync mission
         <select id="locateMissionSelect" style="min-width: 260px;">
-          <option value="">None</option>
+          <option value="">Select a mission…</option>
         </select>
+      </label>
+
+      <label id="locateGroupWrap" style="min-width: 280px; display: none;">
+        Notification group
+        <select id="locateGroupSelect" style="min-width: 260px;"></select>
       </label>
 
       <label>
@@ -212,10 +211,38 @@
     }
   }
 
-  function syncGroupVisibility() {
-    var on = enabledSelect.value === "true";
-    groupWrap.style.display = on ? "" : "none";
-    missionWrap.style.display = on ? "" : "none";
+  /** Sorted short names (no tak_) for Enabled — Group only. */
+  var cachedAllTakShorts = [];
+
+  function getLocateMode() {
+    return enabledSelect.value || "disabled";
+  }
+
+  function syncLocateModeUi() {
+    var mode = getLocateMode();
+    if (mode === "disabled") {
+      missionWrap.style.display = "none";
+      groupWrap.style.display = "none";
+      return;
+    }
+    if (mode === "group_only") {
+      missionWrap.style.display = "none";
+      groupWrap.style.display = "";
+      groupSelect.disabled = false;
+      fillGroupSelectAllTakNoNone(groupSelect.value);
+      return;
+    }
+    if (mode === "data_sync") {
+      missionWrap.style.display = "";
+      groupWrap.style.display = "";
+      var ms = String(missionSelect.value || "").trim();
+      if (!ms) {
+        groupSelect.innerHTML = "";
+        groupSelect.disabled = true;
+      } else {
+        groupSelect.disabled = false;
+      }
+    }
   }
 
   /** If CoreConfig names a mission that TAK did not return as tool=public, add it so the select can match the server. */
@@ -232,44 +259,74 @@
     missionSelect.appendChild(opt);
   }
 
-  enabledSelect.addEventListener("change", function () {
-    syncGroupVisibility();
-    if (enabledSelect.value === "true" && !sshConfigured) {
-      setMsg(
-        "Locate cannot be applied until SSH is configured under Server Settings. Connected TAK changes require a working SSH session to the TAK Server.",
-        "error"
-      );
+  function fillGroupSelectAllTakNoNone(preferred) {
+    var prev = String(preferred || "").trim();
+    groupSelect.innerHTML = "";
+    cachedAllTakShorts.forEach(function (shortName) {
+      var opt = document.createElement("option");
+      opt.value = shortName;
+      opt.textContent = shortName;
+      groupSelect.appendChild(opt);
+    });
+    if (prev && cachedAllTakShorts.indexOf(prev) >= 0) {
+      groupSelect.value = prev;
+    } else if (cachedAllTakShorts.length) {
+      groupSelect.value = cachedAllTakShorts[0];
     }
-  });
+  }
 
-  async function loadGroups() {
+  async function fillGroupSelectForMission(missionName, preferredShort) {
+    var name = String(missionName || "").trim();
+    var pref = String(preferredShort || "").trim();
+    if (!name) {
+      groupSelect.innerHTML = "";
+      groupSelect.disabled = true;
+      return;
+    }
+    groupSelect.disabled = false;
+    var res = await fetch("/api/locate/mission-groups/" + encodeURIComponent(name));
+    var text = await res.text();
+    var data;
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch (e) {
+      throw new Error("Invalid response from mission-groups.");
+    }
+    if (!res.ok || !data.ok) {
+      throw new Error((data && data.error) || "Failed to load groups for mission.");
+    }
+    var groups = Array.isArray(data.groups) ? data.groups : [];
+    groupSelect.innerHTML = "";
+    groups.forEach(function (shortName) {
+      var opt = document.createElement("option");
+      opt.value = shortName;
+      opt.textContent = shortName;
+      groupSelect.appendChild(opt);
+    });
+    if (pref && groups.indexOf(pref) >= 0) {
+      groupSelect.value = pref;
+    } else if (groups.length) {
+      groupSelect.value = groups[0];
+    }
+  }
+
+  async function refreshAllTakShortNames() {
     var res = await fetch("/api/groups");
     if (!res.ok) {
       throw new Error(await readApiError(res));
     }
     var data = await res.json();
     if (!Array.isArray(data)) throw new Error("Invalid groups response from server.");
-
     var takGroups = data.filter(function (g) {
       return String(g.name || "").toLowerCase().indexOf("tak_") === 0;
     });
     takGroups.sort(function (a, b) {
       return stripTakPrefix(a.name).localeCompare(stripTakPrefix(b.name));
     });
-
-    var prev = groupSelect.value;
-    groupSelect.innerHTML = '<option value="">None</option>';
-    takGroups.forEach(function (g) {
-      var opt = document.createElement("option");
-      var shortName = stripTakPrefix(g.name);
-      opt.value = shortName;
-      opt.textContent = shortName;
-      groupSelect.appendChild(opt);
+    cachedAllTakShorts = takGroups.map(function (g) {
+      return stripTakPrefix(g.name);
     });
-    if (prev && Array.prototype.some.call(groupSelect.options, function (o) { return o.value === prev; })) {
-      groupSelect.value = prev;
-    }
-    return takGroups;
+    return cachedAllTakShorts;
   }
 
   async function loadPublicDataSyncMissions() {
@@ -289,7 +346,7 @@
     }
     var missions = Array.isArray(data.missions) ? data.missions : [];
     var prev = missionSelect.value;
-    missionSelect.innerHTML = '<option value="">None</option>';
+    missionSelect.innerHTML = '<option value="">Select a mission…</option>';
     missions.forEach(function (item) {
       var name = item && item.name != null ? String(item.name).trim() : "";
       if (!name) return;
@@ -333,21 +390,69 @@
       setSshWarning(false);
       applyBtn.disabled = false;
     }
-    enabledSelect.value = data.enabled ? "true" : "false";
-    if (data.group) {
-      groupSelect.value = data.group;
-    } else {
-      groupSelect.value = "";
+    var mode = data.mode;
+    if (!mode) {
+      if (!data.enabled) mode = "disabled";
+      else if (data.mission && data.addToMission) mode = "data_sync";
+      else mode = "group_only";
     }
-    var savedMission = String(data.mission || "").trim();
-    if (savedMission) {
-      ensureMissionInDropdown(savedMission);
-      missionSelect.value = savedMission;
+    enabledSelect.value = mode;
+
+    if (mode === "group_only") {
+      fillGroupSelectAllTakNoNone(data.group || "");
+    } else if (mode === "data_sync") {
+      var savedMission = String(data.mission || "").trim();
+      if (savedMission) {
+        ensureMissionInDropdown(savedMission);
+        missionSelect.value = savedMission;
+        await fillGroupSelectForMission(savedMission, data.group || "");
+      } else {
+        missionSelect.value = "";
+        groupSelect.innerHTML = "";
+        groupSelect.disabled = true;
+      }
     } else {
       missionSelect.value = "";
+      groupSelect.innerHTML = "";
     }
-    syncGroupVisibility();
+    syncLocateModeUi();
   }
+
+  enabledSelect.addEventListener("change", function () {
+    syncLocateModeUi();
+    var mode = getLocateMode();
+    if (mode !== "disabled" && !sshConfigured) {
+      setMsg(
+        "Locate cannot be applied until SSH is configured under Server Settings. Connected TAK changes require a working SSH session to the TAK Server.",
+        "error"
+      );
+      return;
+    }
+    if (mode === "data_sync") {
+      var ms = String(missionSelect.value || "").trim();
+      if (ms) {
+        fillGroupSelectForMission(ms, "").catch(function (e) {
+          setMsg(e.message || String(e), "error");
+        });
+      } else {
+        groupSelect.innerHTML = "";
+        groupSelect.disabled = true;
+      }
+    }
+  });
+
+  missionSelect.addEventListener("change", function () {
+    if (getLocateMode() !== "data_sync") return;
+    var ms = String(missionSelect.value || "").trim();
+    if (!ms) {
+      groupSelect.innerHTML = "";
+      groupSelect.disabled = true;
+      return;
+    }
+    fillGroupSelectForMission(ms, "").catch(function (e) {
+      setMsg(e.message || String(e), "error");
+    });
+  });
 
   applyBtn.addEventListener("click", async function () {
     setMsg("");
@@ -355,15 +460,22 @@
       setMsg("SSH is not configured. Configure SSH under Server Settings first.", "error");
       return;
     }
-    var enabled = enabledSelect.value === "true";
+    var mode = getLocateMode();
     var group = String(groupSelect.value || "").trim();
     var mission = String(missionSelect.value || "").trim();
-    if (enabled && !group && !mission) {
-      setMsg(
-        "When Locate is enabled, choose a notification group and/or a Data Sync mission. Both cannot be None.",
-        "error"
-      );
+    if (mode === "group_only" && !group) {
+      setMsg("Select a notification group.", "error");
       return;
+    }
+    if (mode === "data_sync") {
+      if (!mission) {
+        setMsg("Select a Data Sync mission.", "error");
+        return;
+      }
+      if (!group || groupSelect.disabled) {
+        setMsg("Select a notification group for that mission (or fix mission groups on Data Sync).", "error");
+        return;
+      }
     }
 
     var confirmText =
@@ -385,9 +497,9 @@
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          enabled: enabled,
-          group: enabled ? group : "",
-          mission: enabled ? mission : "",
+          mode: mode,
+          group: mode === "disabled" ? "" : group,
+          mission: mode === "data_sync" ? mission : "",
         }),
       });
       var text = await res.text();
@@ -424,15 +536,15 @@
 
   (async function init() {
     try {
-      await loadGroups();
+      await refreshAllTakShortNames();
       try {
         await loadPublicDataSyncMissions();
       } catch (e2) {
-        missionSelect.innerHTML = '<option value="">None</option>';
+        missionSelect.innerHTML = '<option value="">Select a mission…</option>';
         console.warn("Locate: could not load public Data Sync missions", e2);
       }
       await loadConfig();
-      syncGroupVisibility();
+      syncLocateModeUi();
     } catch (e) {
       var errText = e && e.message ? e.message : String(e);
       setMsg("Could not load this page: " + errText, "error");
