@@ -106,12 +106,23 @@ function getById(id) {
 }
 
 /**
+ * 0 = one-time location send (no repeating pings; manual / remote wake still work).
+ * Otherwise clamp to 10–86400 seconds.
+ */
+function normalizePingIntervalSeconds(raw) {
+  const n = Number(raw);
+  if (n === 0) return 0;
+  if (!Number.isFinite(n)) return 60;
+  return Math.max(10, Math.min(86400, n));
+}
+
+/**
  * Public poll payload so share pages can pick up interval edits and admin "manual ping" wake-ups without reload.
  */
 function getClientConfigForPublicSlug(slug) {
   const l = getBySlug(slug);
   if (!l || l.archived) return null;
-  const ping = Math.max(10, Math.min(86400, Number(l.pingIntervalSeconds) || 60));
+  const ping = normalizePingIntervalSeconds(l.pingIntervalSeconds);
   return {
     ok: true,
     pingIntervalSeconds: ping,
@@ -166,7 +177,7 @@ function listLocatorsForAdmin() {
 function create({ title, pingIntervalSeconds }) {
   let titleStr = String(title || "").trim();
   if (!titleStr) titleStr = "Missing Person";
-  const ping = Math.max(10, Math.min(86400, Number(pingIntervalSeconds) || 60));
+  const ping = normalizePingIntervalSeconds(pingIntervalSeconds);
 
   let slug = titleToSlug(titleStr);
   const data = load();
@@ -205,7 +216,7 @@ function update(id, patch) {
     if (t) l.title = t;
   }
   if (patch.pingIntervalSeconds !== undefined) {
-    const next = Math.max(10, Math.min(86400, Number(patch.pingIntervalSeconds) || 60));
+    const next = normalizePingIntervalSeconds(patch.pingIntervalSeconds);
     if (next !== l.pingIntervalSeconds) {
       l.pingIntervalSeconds = next;
       l.intervalEpoch = (Number(l.intervalEpoch) || 0) + 1;
@@ -393,6 +404,7 @@ module.exports = {
   titleToSlug,
   formatLocatePingNameForTak,
   getTakLocateApiBase,
+  normalizePingIntervalSeconds,
   getClientConfigForPublicSlug,
   getBySlug,
   getById,

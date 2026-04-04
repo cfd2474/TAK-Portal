@@ -306,7 +306,10 @@ router.post("/locators", async (req, res) => {
         title: loc.title,
         slug: loc.slug,
         pingIntervalSeconds: loc.pingIntervalSeconds,
-        summary: `Created missing-person locator "${loc.title}" (public slug "${loc.slug}", ping every ${loc.pingIntervalSeconds}s).`,
+        summary:
+          loc.pingIntervalSeconds === 0
+            ? `Created missing-person locator "${loc.title}" (public slug "${loc.slug}", one-time ping).`
+            : `Created missing-person locator "${loc.title}" (public slug "${loc.slug}", ping every ${loc.pingIntervalSeconds}s).`,
       },
     });
     res.json({ ok: true, locator: loc });

@@ -519,7 +519,7 @@ app.get("/locate/:slug", (req, res) => {
   }
   return res.render("locate-public", {
     slug: loc.slug,
-    pingIntervalSeconds: loc.pingIntervalSeconds,
+    pingIntervalSeconds: locatorsSvc.normalizePingIntervalSeconds(loc.pingIntervalSeconds),
     locatorActive: loc.active,
     intervalEpoch: Number(loc.intervalEpoch) || 1,
     remotePingEpoch: Number(loc.remotePingEpoch) || 1,

@@ -56,8 +56,8 @@
       <label class="locate-field-grow locate-title-field">Title (optional)
         <input id="newLocTitle" type="text" placeholder="e.g. Missing Person — or leave blank" />
       </label>
-      <label class="locate-field-grow locate-ping-field">Ping interval (seconds)
-        <input id="newLocPing" type="number" min="10" max="86400" value="60" />
+      <label class="locate-field-grow locate-ping-field">Ping interval (seconds; 0 = once)
+        <input id="newLocPing" type="number" min="0" max="86400" value="60" />
       </label>
       <label class="locate-create-btn-wrap">
         <span class="locate-apply-spacer" aria-hidden="true">&nbsp;</span>
@@ -756,6 +756,13 @@
     return formatTime(iso);
   }
 
+  function formatPingInterval(seconds) {
+    if (seconds == null) return "—";
+    var n = Number(seconds);
+    if (n === 0) return "Once";
+    return String(n);
+  }
+
   function publicUrl(slug) {
     return window.location.origin + "/locate/" + encodeURIComponent(slug);
   }
@@ -1049,7 +1056,7 @@
 
       var tdPing = document.createElement("td");
       tdPing.className = "locate-col-ping";
-      tdPing.textContent = String(loc.pingIntervalSeconds != null ? loc.pingIntervalSeconds : "—");
+      tdPing.textContent = formatPingInterval(loc.pingIntervalSeconds);
 
       var tdStatus = document.createElement("td");
       tdStatus.className = "locate-col-status";
@@ -1106,11 +1113,18 @@
       }, "qr");
 
       addBtn("Edit Interval", function () {
-        var p = window.prompt("Ping interval (seconds, 10–86400)", String(loc.pingIntervalSeconds));
+        var p = window.prompt(
+          "Ping interval (seconds; 0 = once, or 10–86400)",
+          String(loc.pingIntervalSeconds)
+        );
         if (p === null) return;
         var ping = parseInt(String(p), 10);
-        if (!Number.isFinite(ping)) {
+        if (!Number.isFinite(ping) || ping < 0 || ping > 86400) {
           setListMsg("Invalid ping interval.", true);
+          return;
+        }
+        if (ping > 0 && ping < 10) {
+          setListMsg("Ping interval must be 0 (one-time) or at least 10 seconds.", true);
           return;
         }
         patchLoc(loc.id, { pingIntervalSeconds: ping });
@@ -1180,7 +1194,7 @@
       var tdTitle = titleCellPlain(loc);
       var tdPing = document.createElement("td");
       tdPing.className = "locate-col-ping";
-      tdPing.textContent = String(loc.pingIntervalSeconds != null ? loc.pingIntervalSeconds : "—");
+      tdPing.textContent = formatPingInterval(loc.pingIntervalSeconds);
       var tdStatus = document.createElement("td");
       tdStatus.className = "locate-col-status";
       var pill = document.createElement("span");
@@ -1366,8 +1380,12 @@
     setNewMsg("");
     var title = String(titleIn.value || "").trim();
     var ping = parseInt(String(pingIn.value || "60"), 10);
-    if (!Number.isFinite(ping) || ping < 10 || ping > 86400) {
-      setNewMsg("Enter a valid ping interval (10–86400 seconds).", true);
+    if (!Number.isFinite(ping) || ping < 0 || ping > 86400) {
+      setNewMsg("Enter a valid ping interval (0 = once, or 10–86400 seconds).", true);
+      return;
+    }
+    if (ping > 0 && ping < 10) {
+      setNewMsg("Ping interval must be 0 (one-time) or at least 10 seconds.", true);
       return;
     }
     fetch("/api/locate/locators", {

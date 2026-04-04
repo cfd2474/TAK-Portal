@@ -58,7 +58,9 @@
 <script>
 (function(){
 var slug=<%- JSON.stringify(slug) %>;
-var intervalMs=<%= Math.max(10, Number(pingIntervalSeconds)||60) %>*1000;
+var pingSecRaw=Number(<%- JSON.stringify(pingIntervalSeconds != null ? pingIntervalSeconds : 60) %>);
+if(!Number.isFinite(pingSecRaw))pingSecRaw=60;
+var intervalMs=pingSecRaw===0?0:Math.max(10,pingSecRaw)*1000;
 var active=<%= locatorActive?"true":"false" %>;
 var lastIntervalEpoch=<%= Number(intervalEpoch)||1 %>;
 var lastRemoteEpoch=<%= Number(remotePingEpoch)||1 %>;
@@ -328,7 +330,13 @@ function getBestFix(onOk,onErr){
     onOk(p1);
   },onErr,opt);
 }
-function restartSharingTimer(){if(!timer)return;clearInterval(timer);timer=setInterval(tick,intervalMs);}
+function sharingUiActive(){return stopBtn&&stopBtn.style.display!=="none";}
+function restartSharingTimer(){
+  if(timer){clearInterval(timer);timer=null;}
+  if(intervalMs<=0)return;
+  if(!sharingUiActive())return;
+  timer=setInterval(tick,intervalMs);
+}
 function tick(){
   if(!navigator.geolocation){setMsg("Location is not available in this browser.",true);stop();return;}
   if(sending)return;
@@ -349,7 +357,8 @@ function start(){
       setMsg("",false);
       sendBtn.style.display="none";stopBtn.style.display="";
       setSharingUi(true);
-      if(timer)clearInterval(timer);timer=setInterval(tick,intervalMs);
+      if(timer){clearInterval(timer);timer=null;}
+      if(intervalMs>0){timer=setInterval(tick,intervalMs);}
     }).catch(function(e){setMsg(friendlyNetworkError(e),true);}).then(function(){sending=false;});
   },function(err){sending=false;setMsg("Could not read GPS/location: "+(err&&err.message||"denied or unavailable"),true);});
 }
@@ -367,13 +376,14 @@ function stop(byUser){
 function pollConfig(){
   fetch(clientConfigUrl(),{credentials:"omit",cache:"no-store",headers:{Accept:"application/json"}}).then(function(r){return r.json().then(function(d){return{ok:r.ok,data:d};});}).then(function(out){
     var data=out.data;if(!data||!data.ok)return;
-    if(data.active===false&&timer){stop();setMsg("This locator was disabled.",true);return;}
+    if(data.active===false&&(timer||sharingUiActive())){stop();setMsg("This locator was disabled.",true);return;}
     if(data.intervalEpoch!==lastIntervalEpoch){
       lastIntervalEpoch=data.intervalEpoch;
-      intervalMs=Math.max(10,Number(data.pingIntervalSeconds)||60)*1000;
+      var ps=Number(data.pingIntervalSeconds);
+      intervalMs=(ps===0)?0:Math.max(10,Number.isFinite(ps)?ps:60)*1000;
       restartSharingTimer();
     }
-    if(data.remotePingEpoch>lastRemoteEpoch){var wake=timer!=null;lastRemoteEpoch=data.remotePingEpoch;if(wake)tick();}
+    if(data.remotePingEpoch>lastRemoteEpoch){lastRemoteEpoch=data.remotePingEpoch;if(sharingUiActive())tick();}
   }).catch(function(){});
 }
 if(active){
