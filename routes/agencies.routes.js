@@ -213,6 +213,61 @@ router.post("/", async (req, res) => {
   res.json({ success: true });
 });
 
+/** Must match the create-agency color dropdown in views/agencies.ejs */
+const ALLOWED_AGENCY_COLORS = new Set([
+  "Blue",
+  "Dark Blue",
+  "Brown",
+  "Cyan",
+  "Green",
+  "Dark Green",
+  "Magenta",
+  "Maroon",
+  "Orange",
+  "Purple",
+  "Red",
+  "Teal",
+  "White",
+  "Yellow",
+]);
+
+router.patch("/:index/color", (req, res) => {
+  const idx = Number(req.params.index);
+  const agencies = store.load();
+  if (!Number.isInteger(idx) || !agencies[idx]) {
+    return res.status(404).json({ error: "Not found" });
+  }
+
+  const agency = agencies[idx];
+  if (!accessSvc.isSuffixAllowed(req.authentikUser, agency.suffix)) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+
+  const raw = String(req.body?.color ?? "").trim();
+  if (!raw || !ALLOWED_AGENCY_COLORS.has(raw)) {
+    return res.status(400).json({ error: "Invalid color" });
+  }
+
+  const before = String(agency.color || "").trim();
+  if (before === raw) {
+    return res.json({ success: true, color: raw });
+  }
+
+  agencies[idx] = { ...agency, color: raw };
+  store.save(agencies);
+
+  auditSvc.logEvent({
+    actor: req.authentikUser || null,
+    request: { method: req.method, path: req.originalUrl || req.path, ip: req.ip },
+    action: "UPDATE_AGENCY_COLOR",
+    targetType: "agency",
+    targetId: String(agency.suffix || ""),
+    details: { before, after: raw },
+  });
+
+  res.json({ success: true, color: raw });
+});
+
 router.put("/:index", async (req, res) => {
   const idx = Number(req.params.index);
   const agencies = store.load();

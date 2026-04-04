@@ -324,6 +324,82 @@ function esc(s){
     .replaceAll(">","&gt;");
 }
 
+/** Same list as create-agency form and PATCH /api/agencies/:index/color */
+const AGENCY_COLOR_OPTIONS = [
+  "Blue", "Dark Blue", "Brown", "Cyan", "Green", "Dark Green", "Magenta", "Maroon",
+  "Orange", "Purple", "Red", "Teal", "White", "Yellow",
+];
+
+const AGENCY_COLOR_HEX = {
+  "Blue": "#2563eb",
+  "Dark Blue": "#1e3a8a",
+  "Brown": "#92400e",
+  "Cyan": "#06b6d4",
+  "Green": "#22c55e",
+  "Dark Green": "#14532d",
+  "Magenta": "#d946ef",
+  "Maroon": "#881337",
+  "Orange": "#f97316",
+  "Purple": "#a855f7",
+  "Red": "#ef4444",
+  "Teal": "#14b8a6",
+  "White": "#e2e8f0",
+  "Yellow": "#eab308",
+};
+
+function agencyColorHex(name) {
+  const n = String(name || "").trim();
+  return AGENCY_COLOR_HEX[n] || "#64748b";
+}
+
+function buildAgencyColorCellHtml(a) {
+  const idx = a._id ?? a.id;
+  const current = String(a.color || "").trim();
+  const border = agencyColorHex(current);
+  let opts = "";
+  if (!current) {
+    opts += `<option value="" disabled selected>Choose color…</option>`;
+  }
+  opts += AGENCY_COLOR_OPTIONS.map((c) => {
+    const sel = c === current ? " selected" : "";
+    return `<option value="${esc(c)}"${sel}>${esc(c)}</option>`;
+  }).join("");
+  const legacyExtra =
+    current && !AGENCY_COLOR_OPTIONS.includes(current)
+      ? `<option value="${esc(current)}" selected>${esc(current)} (current)</option>`
+      : "";
+  const aria = esc(a.name || "Agency");
+  return `<div class="agency-color-cell">
+    <span class="agency-color-swatch" style="background:${border}" title="Color swatch" aria-hidden="true"></span>
+    <select
+      class="agency-color-select"
+      aria-label="Color for ${aria}"
+      style="border-left:4px solid ${border}"
+      onchange="updateAgencyColor(${Number(idx)}, this.value)"
+    >${legacyExtra}${opts}</select>
+  </div>`;
+}
+
+async function updateAgencyColor(agencyIndex, newColor) {
+  if (!String(newColor || "").trim()) return;
+  try {
+    const res = await fetch(`/api/agencies/${encodeURIComponent(agencyIndex)}/color`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ color: newColor }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Failed to update color");
+    setMsg("Color saved.", true);
+    const row = agencies.find((x) => String(x._id ?? x.id) === String(agencyIndex));
+    if (row) row.color = newColor;
+    renderAgencies();
+  } catch (e) {
+    setMsg(e.message || String(e), false);
+    await loadAgenciesWithCounts();
+  }
+}
+
 function normalizeVal(v){
   if (v === null || v === undefined) return "";
   return String(v).toLowerCase().trim();
@@ -457,7 +533,7 @@ function renderAgencies(){
       }</td>
       <td>${esc(a.state || "")}</td>
       <td>${esc(a.type)}</td>
-      <td>${esc(a.color || "")}</td>
+      <td>${buildAgencyColorCellHtml(a)}</td>
       <td>
         <div class="row agencyActionsCell" style="gap: 10px; flex-wrap: wrap;">
           <button class="btn" type="button"
@@ -1230,6 +1306,29 @@ if (addForm) {
   position: absolute;
   right: 0.5rem;
   opacity: 0.7;
+}
+
+.agency-color-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.agency-color-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-sizing: border-box;
+}
+.agency-color-select {
+  min-width: 7.5rem;
+  max-width: 100%;
+  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 8px;
 }
 
 /* Grey button for Disable Lookup */
