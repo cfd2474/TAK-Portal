@@ -218,6 +218,20 @@
     missionWrap.style.display = on ? "" : "none";
   }
 
+  /** If CoreConfig names a mission that TAK did not return as tool=public, add it so the select can match the server. */
+  function ensureMissionInDropdown(name) {
+    var n = String(name || "").trim();
+    if (!n) return;
+    var found = Array.prototype.some.call(missionSelect.options, function (o) {
+      return o.value === n;
+    });
+    if (found) return;
+    var opt = document.createElement("option");
+    opt.value = n;
+    opt.textContent = n;
+    missionSelect.appendChild(opt);
+  }
+
   enabledSelect.addEventListener("change", function () {
     syncGroupVisibility();
     if (enabledSelect.value === "true" && !sshConfigured) {
@@ -326,12 +340,8 @@
       groupSelect.value = "";
     }
     var savedMission = String(data.mission || "").trim();
-    if (
-      savedMission &&
-      Array.prototype.some.call(missionSelect.options, function (o) {
-        return o.value === savedMission;
-      })
-    ) {
+    if (savedMission) {
+      ensureMissionInDropdown(savedMission);
       missionSelect.value = savedMission;
     } else {
       missionSelect.value = "";
