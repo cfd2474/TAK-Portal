@@ -325,6 +325,13 @@ function handlePublicLocateClientConfig(req, res) {
   }
 }
 
+function formStringField(v) {
+  if (v == null || v === "") return "";
+  if (typeof v === "string") return v.trim();
+  if (Array.isArray(v)) return formStringField(v[0]);
+  return String(v).trim();
+}
+
 async function handlePublicLocatePing(req, res) {
   try {
     const slug = String(req.params.slug || "").trim().toLowerCase();
@@ -346,10 +353,10 @@ async function handlePublicLocatePing(req, res) {
       Number.isFinite(accuracyMeters) && accuracyMeters >= 0 && accuracyMeters < 1e7
         ? accuracyMeters
         : null;
-    const last = String(body.lastName || "").trim();
-    const first = String(body.firstName || "").trim();
+    const last = formStringField(body.lastName);
+    const first = formStringField(body.firstName);
     const name = locatorsSvc.formatLocatePingNameForTak(first, last);
-    const remarks = String(body.remarks || "").trim();
+    const remarks = formStringField(body.remarks);
 
     locatorsSvc.addHistoryEntry({
       locatorId: loc.id,
