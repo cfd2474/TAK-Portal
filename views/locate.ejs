@@ -1012,7 +1012,7 @@
   function loadLocators() {
     setListMsg("");
     setArchivedMsg("");
-    fetch("/api/locate/locators")
+    return fetch("/api/locate/locators")
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data.ok) throw new Error(data.error || "Failed to load locators");
@@ -1025,6 +1025,7 @@
         });
         renderRows(active);
         renderArchivedRows(archived);
+        tickRecentLiveCells();
       })
       .catch(function (e) {
         setListMsg(e.message || String(e), true);
@@ -1050,10 +1051,12 @@
         titleIn.value = "";
         pingIn.value = "60";
         setNewMsg("Created.", false);
-        loadLocators();
-        if (data.locator && data.locator.slug) {
-          openSendLinkModal(data.locator);
-        }
+        var created = data.locator;
+        return loadLocators().then(function () {
+          if (created && created.slug) {
+            openSendLinkModal(created);
+          }
+        });
       })
       .catch(function (e) {
         setNewMsg(e.message || String(e), true);
@@ -1090,9 +1093,14 @@
   }
 
   loadLocators();
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") {
+      loadLocators();
+    }
+  });
   setInterval(function () {
     if (document.visibilityState === "visible") loadLocators();
-  }, 15000);
+  }, 8000);
   setInterval(function () {
     if (document.visibilityState === "visible") tickRecentLiveCells();
   }, 1000);
