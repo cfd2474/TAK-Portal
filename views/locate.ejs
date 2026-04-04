@@ -1,7 +1,7 @@
 <%- include("partials/header") %>
 <%- include("partials/sidebar") %>
 
-<main class="main">
+<main class="main locate-page">
   <h1>Locate Missing Persons</h1>
 
   <div class="card">
@@ -14,8 +14,8 @@
       style="display:none; margin-left:0; margin-bottom:1rem; padding:10px 12px; border-radius:6px; background:rgba(255,80,80,.12); border:1px solid rgba(255,120,120,.35);"
     ></div>
 
-    <div class="row" style="flex-wrap: wrap; align-items: flex-end; gap: 12px;">
-      <label style="min-width: 220px;">
+    <div class="row locate-config-row">
+      <label class="locate-field-grow">
         Locate Status
         <select id="locateEnabledSelect" aria-label="Locate mode">
           <option value="disabled">Disabled</option>
@@ -24,21 +24,21 @@
         </select>
       </label>
 
-      <label id="locateMissionWrap" style="min-width: 280px; display: none;">
+      <label id="locateMissionWrap" class="locate-field-grow" style="display: none;">
         Data Sync Mission
-        <select id="locateMissionSelect" style="min-width: 260px;">
+        <select id="locateMissionSelect">
           <option value="">Select a mission…</option>
         </select>
       </label>
 
-      <label id="locateGroupWrap" style="min-width: 280px; display: none;">
+      <label id="locateGroupWrap" class="locate-field-grow" style="display: none;">
         Notification Group
-        <select id="locateGroupSelect" style="min-width: 260px;"></select>
+        <select id="locateGroupSelect"></select>
       </label>
 
-      <label>
-        &nbsp;
-        <button class="btn" type="button" id="locateApplyBtn">Apply Changes &amp; Restart TAK Server</button>
+      <label class="locate-apply-wrap">
+        <span class="locate-apply-spacer" aria-hidden="true">&nbsp;</span>
+        <button class="btn locate-apply-btn" type="button" id="locateApplyBtn">Apply Changes &amp; Restart TAK Server</button>
       </label>
     </div>
 
@@ -52,16 +52,16 @@
 
   <div class="card" style="margin-top:1.25rem;">
     <h2 style="margin-top:0;">Create Locator</h2>
-    <div class="row" style="flex-wrap: wrap; align-items: flex-end; gap: 12px;">
-      <label style="flex:1; min-width:200px;">Title (optional)
-        <input id="newLocTitle" type="text" placeholder="e.g. Missing Person — or leave blank" style="width:100%; box-sizing:border-box;" />
+    <div class="row locate-create-row">
+      <label class="locate-field-grow locate-title-field">Title (optional)
+        <input id="newLocTitle" type="text" placeholder="e.g. Missing Person — or leave blank" />
       </label>
-      <label style="min-width: 160px;">Ping interval (seconds)
-        <input id="newLocPing" type="number" min="10" max="86400" value="60" style="width:100%; box-sizing:border-box;" />
+      <label class="locate-field-grow locate-ping-field">Ping interval (seconds)
+        <input id="newLocPing" type="number" min="10" max="86400" value="60" />
       </label>
-      <label>
-        &nbsp;
-        <button type="button" class="btn" id="newLocCreateBtn">Create locator</button>
+      <label class="locate-create-btn-wrap">
+        <span class="locate-apply-spacer" aria-hidden="true">&nbsp;</span>
+        <button type="button" class="btn locate-create-btn" id="newLocCreateBtn">Create locator</button>
       </label>
     </div>
     <div id="newLocMsg" class="msg" style="margin-top:10px; margin-left:0;"></div>
@@ -70,18 +70,20 @@
   <div class="card" style="margin-top:1.25rem;">
     <h2 style="margin-top:0;">Existing Locators</h2>
     <div id="locListMsg" class="msg" style="margin-left:0;"></div>
-    <table class="table" style="margin-top:10px;">
-      <thead>
-        <tr>
-          <th>Title</th>
-          <th style="width:100px;">Ping Interval</th>
-          <th style="width:120px;">Status</th>
-          <th style="width:220px;">Last Update</th>
-          <th style="min-width:260px;">Actions</th>
-        </tr>
-      </thead>
-      <tbody id="locatorsTbody"></tbody>
-    </table>
+    <div class="locate-table-scroll">
+      <table class="table locate-table locate-table-active">
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th class="locate-col-ping">Ping Interval</th>
+            <th class="locate-col-status">Status</th>
+            <th class="locate-col-last">Last Update</th>
+            <th class="locate-col-actions">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="locatorsTbody"></tbody>
+      </table>
+    </div>
   </div>
 
   <details class="card" style="margin-top:1.25rem;">
@@ -90,18 +92,20 @@
     </summary>
     <div style="margin-top:12px;">
       <div id="archivedListMsg" class="msg" style="margin-left:0;"></div>
-      <table class="table" style="margin-top:10px;">
-        <thead>
-          <tr>
-            <th>Title</th>
-            <th style="width:100px;">Ping Interval</th>
-            <th style="width:120px;">Status</th>
-            <th style="width:220px;">Last Update</th>
-            <th style="min-width:220px;">Actions</th>
-          </tr>
-        </thead>
-        <tbody id="archivedLocatorsTbody"></tbody>
-      </table>
+      <div class="locate-table-scroll">
+        <table class="table locate-table locate-table-archived">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th class="locate-col-ping">Ping Interval</th>
+              <th class="locate-col-status">Status</th>
+              <th class="locate-col-last">Last Update</th>
+              <th class="locate-col-actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="archivedLocatorsTbody"></tbody>
+        </table>
+      </div>
     </div>
   </details>
 
@@ -150,6 +154,97 @@
       </div>
     </div>
   </div>
+
+  <style>
+    /* Mobile-friendly layout (aligned with agencies / groups patterns) */
+    .locate-page .locate-config-row,
+    .locate-page .locate-create-row {
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 12px;
+    }
+    .locate-page .locate-field-grow {
+      min-width: 0;
+      flex: 1 1 220px;
+    }
+    .locate-page .locate-field-grow select,
+    .locate-page .locate-field-grow input {
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+    .locate-page .locate-title-field {
+      flex: 2 1 260px;
+    }
+    .locate-page .locate-ping-field {
+      flex: 1 1 140px;
+      max-width: 100%;
+    }
+    .locate-page .locate-apply-wrap,
+    .locate-page .locate-create-btn-wrap {
+      flex: 1 1 100%;
+      min-width: 0;
+    }
+    .locate-page .locate-apply-spacer {
+      display: none;
+    }
+    .locate-page .locate-apply-btn,
+    .locate-page .locate-create-btn {
+      width: 100%;
+      box-sizing: border-box;
+    }
+    @media (min-width: 640px) {
+      .locate-page .locate-apply-wrap,
+      .locate-page .locate-create-btn-wrap {
+        flex: 0 0 auto;
+        width: auto;
+      }
+      .locate-page .locate-apply-spacer {
+        display: inline;
+      }
+      .locate-page .locate-apply-btn,
+      .locate-page .locate-create-btn {
+        width: auto;
+      }
+    }
+    .locate-page .locate-table-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      margin-top: 10px;
+      width: 100%;
+    }
+    .locate-page .locate-table {
+      min-width: 520px;
+    }
+    .locate-page .locate-actions-cell {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .locate-page .locate-actions-cell .btn {
+      margin: 0 !important;
+    }
+    @media (max-width: 900px) {
+      .locate-page.main {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+    }
+    @media (max-width: 720px) {
+      .locate-page .locate-table .locate-col-ping {
+        display: none;
+      }
+    }
+    @media (max-width: 520px) {
+      .locate-page .locate-table .locate-col-last {
+        display: none;
+      }
+      .locate-page .locate-table {
+        min-width: 320px;
+      }
+    }
+  </style>
 </main>
 
 <script>
@@ -908,9 +1003,11 @@
       var tdTitle = titleCellPlain(loc);
 
       var tdPing = document.createElement("td");
+      tdPing.className = "locate-col-ping";
       tdPing.textContent = String(loc.pingIntervalSeconds != null ? loc.pingIntervalSeconds : "—");
 
       var tdStatus = document.createElement("td");
+      tdStatus.className = "locate-col-status";
       var pill = document.createElement("span");
       var statusLabel;
       var statusTone = "muted";
@@ -943,17 +1040,16 @@
       tdStatus.appendChild(pill);
 
       var tdRecent = document.createElement("td");
+      tdRecent.className = "locate-col-last";
       appendRecentCell(tdRecent, loc);
 
       var tdAct = document.createElement("td");
-      tdAct.style.whiteSpace = "normal";
+      tdAct.className = "locate-col-actions locate-actions-cell";
 
       function addBtn(label, onClick) {
         var b = document.createElement("button");
         b.type = "button";
         b.className = "btn";
-        b.style.marginRight = "6px";
-        b.style.marginBottom = "4px";
         b.textContent = label;
         b.addEventListener("click", onClick);
         tdAct.appendChild(b);
@@ -1033,8 +1129,10 @@
       var tr = document.createElement("tr");
       var tdTitle = titleCellPlain(loc);
       var tdPing = document.createElement("td");
+      tdPing.className = "locate-col-ping";
       tdPing.textContent = String(loc.pingIntervalSeconds != null ? loc.pingIntervalSeconds : "—");
       var tdStatus = document.createElement("td");
+      tdStatus.className = "locate-col-status";
       var pill = document.createElement("span");
       pill.textContent = "Archived";
       pill.style.display = "inline-block";
@@ -1045,15 +1143,14 @@
       pill.style.color = "#eee8a8";
       tdStatus.appendChild(pill);
       var tdRecent = document.createElement("td");
+      tdRecent.className = "locate-col-last";
       appendRecentCell(tdRecent, loc);
       var tdAct = document.createElement("td");
-      tdAct.style.whiteSpace = "normal";
+      tdAct.className = "locate-col-actions locate-actions-cell";
       function addBtn(label, onClick, danger) {
         var b = document.createElement("button");
         b.type = "button";
         b.className = danger ? "btn danger" : "btn";
-        b.style.marginRight = "6px";
-        b.style.marginBottom = "4px";
         b.textContent = label;
         b.addEventListener("click", onClick);
         tdAct.appendChild(b);
