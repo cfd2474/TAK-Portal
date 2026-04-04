@@ -418,9 +418,27 @@ async function handlePublicLocatePing(req, res) {
   }
 }
 
+function handlePublicLocateStopSharing(req, res) {
+  try {
+    const slug = String(req.params.slug || "").trim().toLowerCase();
+    const loc = locatorsSvc.getBySlug(slug);
+    if (!loc || loc.archived) {
+      return res.status(404).json({ ok: false, error: "Locator not found." });
+    }
+    if (!loc.active) {
+      return res.status(403).json({ ok: false, error: "This locator is inactive." });
+    }
+    locatorsSvc.setSharingStoppedByUser(loc.id, true);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: toSafeApiError(err) });
+  }
+}
+
 app.use("/api/public/locate", publicLocateApiCors);
 app.get("/api/public/locate/:slug/client-config", handlePublicLocateClientConfig);
 app.post("/api/public/locate/:slug/ping", handlePublicLocatePing);
+app.post("/api/public/locate/:slug/stop-sharing", handlePublicLocateStopSharing);
 
 // Same handlers under /locate/:slug/... so reverse proxies can expose only /locate/* as
 // public (bypassing forward_auth) without listing /api/public/locate/* — e.g. Caddy @public path /locate/*
@@ -431,6 +449,8 @@ app.get(
   handlePublicLocateClientConfig
 );
 app.post("/locate/:slug/ping", publicLocateApiCors, handlePublicLocatePing);
+app.options("/locate/:slug/stop-sharing", publicLocateApiCors);
+app.post("/locate/:slug/stop-sharing", publicLocateApiCors, handlePublicLocateStopSharing);
 app.use("/api/email", (req, res, next) => {
   const user = req.authentikUser;
   if (!user || (!user.isGlobalAdmin && !user.isAgencyAdmin)) {

@@ -275,6 +275,9 @@ function addHistoryEntry({ locatorId, latitude, longitude, name, remarks, kind, 
   const li = data.locators.findIndex((l) => l.id === locatorId);
   if (li >= 0) {
     data.locators[li].updatedAt = entry.at;
+    if (kind !== "manual") {
+      data.locators[li].sharingStoppedByUser = false;
+    }
   }
 
   const forLoc = data.history.filter((h) => h.locatorId === locatorId);
@@ -298,6 +301,17 @@ function listHistory(locatorId, { limit = 200 } = {}) {
 /** Wake devices only; no history row (admin dashboard "Manual ping"). */
 function addManualOperatorPing(locatorId) {
   bumpRemotePingEpoch(locatorId);
+}
+
+/** Public page "Stop sharing" — admin status pill shows until the next position ping. */
+function setSharingStoppedByUser(locatorId, stopped) {
+  const data = load();
+  const idx = data.locators.findIndex((l) => l.id === locatorId);
+  if (idx < 0) throw new Error("Locator not found.");
+  data.locators[idx].sharingStoppedByUser = !!stopped;
+  data.locators[idx].updatedAt = new Date().toISOString();
+  save(data);
+  return data.locators[idx];
 }
 
 /**
@@ -391,5 +405,6 @@ module.exports = {
   addHistoryEntry,
   listHistory,
   addManualOperatorPing,
+  setSharingStoppedByUser,
   relayPingToTak,
 };
