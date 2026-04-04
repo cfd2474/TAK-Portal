@@ -45,7 +45,7 @@
     <label>Message (optional)<textarea id="lpRemarks" rows="3" <%= locatorActive ? "" : "disabled" %>></textarea></label>
   </div>
 
-  <p id="lpKeepOpen" class="keep" role="status">Location is being shared.<strong>PLEASE KEEP THIS PAGE OPEN UNTIL INSTRUCTED TO CLOSE BY RESPONDER.</strong></p>
+  <p id="lpKeepOpen" class="keep" role="status">Location is being shared.<strong>PLEASE KEEP THIS PAGE OPEN UNTIL INSTRUCTED TO CLOSE BY A RESPONDER.</strong></p>
 
   <div class="btns">
     <button type="button" id="lpSendBtn" <%= locatorActive ? "" : "disabled" %>>Send location</button>
@@ -341,7 +341,7 @@ function stop(byUser){
 function pollConfig(){
   fetch(clientConfigUrl(),{credentials:"omit",cache:"no-store",headers:{Accept:"application/json"}}).then(function(r){return r.json().then(function(d){return{ok:r.ok,data:d};});}).then(function(out){
     var data=out.data;if(!data||!data.ok)return;
-    if(data.active===false&&timer){stop();setMsg("This locator was disabled by your agency.",true);return;}
+    if(data.active===false&&timer){stop();setMsg("This locator was disabled.",true);return;}
     if(data.intervalEpoch!==lastIntervalEpoch){
       lastIntervalEpoch=data.intervalEpoch;
       intervalMs=Math.max(10,Number(data.pingIntervalSeconds)||60)*1000;
