@@ -335,17 +335,54 @@ function formStringField(v) {
 async function handlePublicLocatePing(req, res) {
   try {
     const slug = String(req.params.slug || "").trim().toLowerCase();
+    const ct = String(req.get("content-type") || "").slice(0, 120);
     const loc = locatorsSvc.getBySlug(slug);
     if (!loc || loc.archived) {
+      console.warn("[locate-ping] response 404 not-found", { slug, contentType: ct });
       return res.status(404).json({ ok: false, error: "Locator not found." });
     }
     if (!loc.active) {
+      console.warn("[locate-ping] response 403 inactive", { slug, contentType: ct });
       return res.status(403).json({ ok: false, error: "This locator is inactive." });
     }
     const body = req.body || {};
+    const bodyKeys =
+      body && typeof body === "object" && !Array.isArray(body)
+        ? Object.keys(body)
+        : [];
+    const remarksRaw = body.remarks;
+    const remarksLen =
+      typeof remarksRaw === "string"
+        ? remarksRaw.length
+        : Array.isArray(remarksRaw)
+          ? "array"
+          : remarksRaw == null
+            ? 0
+            : String(typeof remarksRaw);
+    console.log("[locate-ping] request", {
+      slug,
+      contentType: ct,
+      bodyKeys,
+      latitudeType: typeof body.latitude,
+      longitudeType: typeof body.longitude,
+      remarksLen,
+      hasApostrophe:
+        typeof remarksRaw === "string" &&
+        (remarksRaw.includes("'") || remarksRaw.includes("\u2019")),
+      hasQuestionMark: typeof remarksRaw === "string" && remarksRaw.includes("?"),
+    });
     const lat = Number(body.latitude);
     const lng = Number(body.longitude);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      console.warn("[locate-ping] response 400 invalid-lat-lng", {
+        slug,
+        contentType: ct,
+        latitude: body.latitude,
+        longitude: body.longitude,
+        latParsed: lat,
+        lngParsed: lng,
+        bodyKeys,
+      });
       return res.status(400).json({ ok: false, error: "Valid latitude and longitude are required." });
     }
     const accuracyMeters = Number(body.accuracyMeters);
@@ -401,6 +438,11 @@ async function handlePublicLocatePing(req, res) {
     });
 
     res.json({ ok: true });
+    console.log("[locate-ping] response 200 saved", {
+      slug,
+      locatorId: loc.id,
+      remarksStoredLen: remarks.length,
+    });
 
     setImmediate(() => {
       locatorsSvc
@@ -418,6 +460,7 @@ async function handlePublicLocatePing(req, res) {
         });
     });
   } catch (err) {
+    console.error("[locate-ping] response 500 handler-exception", err);
     res.status(500).json({ ok: false, error: toSafeApiError(err) });
   }
 }
