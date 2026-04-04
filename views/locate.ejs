@@ -218,21 +218,6 @@
     missionWrap.style.display = on ? "" : "none";
   }
 
-  function ensureMissionOption(name) {
-    var n = String(name || "").trim();
-    if (!n) return;
-    var found = Array.prototype.some.call(missionSelect.options, function (o) {
-      return o.value === n;
-    });
-    if (!found) {
-      var opt = document.createElement("option");
-      opt.value = n;
-      opt.textContent = n + " (not in public list)";
-      missionSelect.appendChild(opt);
-    }
-    missionSelect.value = n;
-  }
-
   enabledSelect.addEventListener("change", function () {
     syncGroupVisibility();
     if (enabledSelect.value === "true" && !sshConfigured) {
@@ -340,8 +325,14 @@
     } else {
       groupSelect.value = "";
     }
-    if (data.mission) {
-      ensureMissionOption(data.mission);
+    var savedMission = String(data.mission || "").trim();
+    if (
+      savedMission &&
+      Array.prototype.some.call(missionSelect.options, function (o) {
+        return o.value === savedMission;
+      })
+    ) {
+      missionSelect.value = savedMission;
     } else {
       missionSelect.value = "";
     }
