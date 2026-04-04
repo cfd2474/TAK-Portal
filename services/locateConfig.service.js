@@ -34,9 +34,14 @@ function removeLocateElements(xml) {
   return s;
 }
 
-function buildLocateTag(groupDisplayName) {
-  const g = escapeXmlAttr(groupDisplayName);
-  return `<locate enabled="true" requireLogin="false" cot-type="a-h-G" group="${g}" addToMission="false" mission=""/>`;
+function buildLocateTag({ groupDisplayName, missionTitle, addToMission }) {
+  const g = escapeXmlAttr(groupDisplayName ?? "");
+  const add = addToMission === true ? "true" : "false";
+  const mis =
+    addToMission === true && missionTitle != null && String(missionTitle).trim()
+      ? escapeXmlAttr(String(missionTitle).trim())
+      : "";
+  return `<locate enabled="true" requireLogin="false" cot-type="a-h-G" group="${g}" addToMission="${add}" mission="${mis}"/>`;
 }
 
 /**
@@ -78,13 +83,17 @@ function insertLocateInConfig(xml, locateLine) {
 
 function parseLocateFromXml(xml) {
   const m = String(xml || "").match(/<locate\b([^>]*)\/>/i);
-  if (!m) return { enabled: false, group: "" };
+  if (!m) return { enabled: false, group: "", addToMission: false, mission: "" };
   const attrs = m[1] || "";
   const en = /enabled\s*=\s*"([^"]*)"/i.exec(attrs);
   const gr = /group\s*=\s*"([^"]*)"/i.exec(attrs);
+  const am = /addToMission\s*=\s*"([^"]*)"/i.exec(attrs);
+  const mi = /mission\s*=\s*"([^"]*)"/i.exec(attrs);
   const enabled = String(en?.[1] || "").toLowerCase() === "true";
   const group = unescapeXmlAttr(gr?.[1] || "");
-  return { enabled, group };
+  const addToMission = String(am?.[1] || "").toLowerCase() === "true";
+  const mission = unescapeXmlAttr(mi?.[1] || "");
+  return { enabled, group, addToMission, mission };
 }
 
 function isSshConfigured() {
@@ -100,7 +109,7 @@ async function readRemoteCoreConfigXml() {
   return result.stdout || "";
 }
 
-async function applyLocateConfiguration({ enabled, groupDisplayName }) {
+async function applyLocateConfiguration({ enabled, groupDisplayName, missionName }) {
   const ssh = isSshConfigured();
   if (!ssh.configured) {
     throw new Error("SSH is not configured. Complete the SSH handshake in Settings first.");
@@ -109,11 +118,14 @@ async function applyLocateConfiguration({ enabled, groupDisplayName }) {
   const xml = await readRemoteCoreConfigXml();
   let next;
   if (enabled) {
-    const g = String(groupDisplayName || "").trim();
-    if (!g) {
-      throw new Error("Group name is required when locate is enabled.");
-    }
-    const locateLine = buildLocateTag(g);
+    const g = String(groupDisplayName ?? "").trim();
+    const m = String(missionName ?? "").trim();
+    const addToMission = !!m;
+    const locateLine = buildLocateTag({
+      groupDisplayName: g,
+      addToMission,
+      missionTitle: m,
+    });
     next = insertLocateInConfig(xml, locateLine);
   } else {
     next = removeLocateElements(xml);

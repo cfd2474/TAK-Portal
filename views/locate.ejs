@@ -26,13 +26,20 @@
       <label id="locateGroupWrap" style="min-width: 280px; display: none;">
         Notification Group
         <select id="locateGroupSelect" style="min-width: 260px;">
-          <option value="">Select a group</option>
+          <option value="">None</option>
+        </select>
+      </label>
+
+      <label id="locateMissionWrap" style="min-width: 280px; display: none;">
+        Notification Data Sync
+        <select id="locateMissionSelect" style="min-width: 260px;">
+          <option value="">None</option>
         </select>
       </label>
 
       <label>
         &nbsp;
-        <button class="btn" type="button" id="locateApplyBtn">Apply changes &amp; restart TAK Server</button>
+        <button class="btn" type="button" id="locateApplyBtn">Apply Changes &amp; Restart TAK Server</button>
       </label>
     </div>
 
@@ -177,6 +184,8 @@
   var enabledSelect = document.getElementById("locateEnabledSelect");
   var groupWrap = document.getElementById("locateGroupWrap");
   var groupSelect = document.getElementById("locateGroupSelect");
+  var missionWrap = document.getElementById("locateMissionWrap");
+  var missionSelect = document.getElementById("locateMissionSelect");
   var applyBtn = document.getElementById("locateApplyBtn");
   var msg = document.getElementById("locateMsg");
   var sshWarn = document.getElementById("locateSshWarn");
@@ -206,6 +215,22 @@
   function syncGroupVisibility() {
     var on = enabledSelect.value === "true";
     groupWrap.style.display = on ? "" : "none";
+    missionWrap.style.display = on ? "" : "none";
+  }
+
+  function ensureMissionOption(name) {
+    var n = String(name || "").trim();
+    if (!n) return;
+    var found = Array.prototype.some.call(missionSelect.options, function (o) {
+      return o.value === n;
+    });
+    if (!found) {
+      var opt = document.createElement("option");
+      opt.value = n;
+      opt.textContent = n + " (not in public list)";
+      missionSelect.appendChild(opt);
+    }
+    missionSelect.value = n;
   }
 
   enabledSelect.addEventListener("change", function () {
@@ -234,7 +259,7 @@
     });
 
     var prev = groupSelect.value;
-    groupSelect.innerHTML = '<option value="">Select a group</option>';
+    groupSelect.innerHTML = '<option value="">None</option>';
     takGroups.forEach(function (g) {
       var opt = document.createElement("option");
       var shortName = stripTakPrefix(g.name);
@@ -246,6 +271,43 @@
       groupSelect.value = prev;
     }
     return takGroups;
+  }
+
+  async function loadPublicDataSyncMissions() {
+    var res = await fetch("/api/locate/data-sync-missions");
+    if (!res.ok) {
+      throw new Error(await readApiError(res));
+    }
+    var text = await res.text();
+    var data;
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch (e) {
+      throw new Error("Invalid response from /api/locate/data-sync-missions.");
+    }
+    if (!data.ok) {
+      throw new Error((data && data.error) || "Failed to load data sync missions.");
+    }
+    var missions = Array.isArray(data.missions) ? data.missions : [];
+    var prev = missionSelect.value;
+    missionSelect.innerHTML = '<option value="">None</option>';
+    missions.forEach(function (item) {
+      var name = item && item.name != null ? String(item.name).trim() : "";
+      if (!name) return;
+      var opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      missionSelect.appendChild(opt);
+    });
+    if (
+      prev &&
+      Array.prototype.some.call(missionSelect.options, function (o) {
+        return o.value === prev;
+      })
+    ) {
+      missionSelect.value = prev;
+    }
+    return missions;
   }
 
   async function loadConfig() {
@@ -275,6 +337,13 @@
     enabledSelect.value = data.enabled ? "true" : "false";
     if (data.group) {
       groupSelect.value = data.group;
+    } else {
+      groupSelect.value = "";
+    }
+    if (data.mission) {
+      ensureMissionOption(data.mission);
+    } else {
+      missionSelect.value = "";
     }
     syncGroupVisibility();
   }
@@ -287,8 +356,12 @@
     }
     var enabled = enabledSelect.value === "true";
     var group = String(groupSelect.value || "").trim();
-    if (enabled && !group) {
-      setMsg("Select a TAK group for locate notifications, or set Locate to Disabled.", "error");
+    var mission = String(missionSelect.value || "").trim();
+    if (enabled && !group && !mission) {
+      setMsg(
+        "When Locate is enabled, choose a notification group and/or a Data Sync mission. Both cannot be None.",
+        "error"
+      );
       return;
     }
 
@@ -313,6 +386,7 @@
         body: JSON.stringify({
           enabled: enabled,
           group: enabled ? group : "",
+          mission: enabled ? mission : "",
         }),
       });
       var text = await res.text();
@@ -350,10 +424,14 @@
   (async function init() {
     try {
       await loadGroups();
-      await loadConfig();
-      if (groupSelect.value) {
-        syncGroupVisibility();
+      try {
+        await loadPublicDataSyncMissions();
+      } catch (e2) {
+        missionSelect.innerHTML = '<option value="">None</option>';
+        console.warn("Locate: could not load public Data Sync missions", e2);
       }
+      await loadConfig();
+      syncGroupVisibility();
     } catch (e) {
       var errText = e && e.message ? e.message : String(e);
       setMsg("Could not load this page: " + errText, "error");

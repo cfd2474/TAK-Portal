@@ -1,6 +1,7 @@
 const router = require("express").Router();
 const locateConfig = require("../services/locateConfig.service");
 const locatorsSvc = require("../services/locators.service");
+const dataSyncSvc = require("../services/dataSync.service");
 const emailSvc = require("../services/email.service");
 const auditSvc = require("../services/auditLog.service");
 const { renderTemplate, htmlToText } = require("../services/emailTemplates.service");
@@ -40,6 +41,36 @@ function parseRecipientEmails(raw) {
   return { emails };
 }
 
+function unwrapPagedMissions(payload) {
+  if (!payload) return [];
+  if (Array.isArray(payload.data)) return payload.data;
+  if (Array.isArray(payload)) return payload;
+  return [];
+}
+
+/** Data Sync missions with tool=public (for locate CoreConfig mission dropdown), A–Z by name. */
+router.get("/data-sync-missions", async (req, res) => {
+  try {
+    const data = await dataSyncSvc.listPagedMissions({});
+    const list = unwrapPagedMissions(data);
+    const publicOnes = list.filter((m) => {
+      const t = m && m.tool != null ? String(m.tool).toLowerCase().trim() : "";
+      return t === "public";
+    });
+    publicOnes.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+    const missions = publicOnes
+      .map((m) => ({ name: String(m.name || "").trim() }))
+      .filter((x) => x.name);
+    res.json({ ok: true, missions });
+  } catch (err) {
+    const code = err?.code;
+    if (code === "TAK_NOT_CONFIGURED" || code === "TAK_BYPASS") {
+      return res.json({ ok: true, missions: [], takUnavailable: true });
+    }
+    res.status(500).json({ ok: false, error: toSafeApiError(err) });
+  }
+});
+
 router.get("/config", async (req, res) => {
   try {
     const ssh = locateConfig.isSshConfigured();
@@ -49,6 +80,7 @@ router.get("/config", async (req, res) => {
         sshConfigured: false,
         enabled: false,
         group: "",
+        mission: "",
       });
     }
     const xml = await locateConfig.readRemoteCoreConfigXml();
@@ -58,6 +90,8 @@ router.get("/config", async (req, res) => {
       sshConfigured: true,
       enabled: parsed.enabled,
       group: parsed.group || "",
+      mission: parsed.mission || "",
+      addToMission: !!parsed.addToMission,
     });
   } catch (err) {
     res.status(500).json({ ok: false, error: toSafeApiError(err) });
@@ -67,18 +101,23 @@ router.get("/config", async (req, res) => {
 router.post("/apply", async (req, res) => {
   try {
     const enabled = !!req.body?.enabled;
-    const group = String(req.body?.group || "").trim();
-    if (enabled && !group) {
+    const group = String(req.body?.group ?? "").trim();
+    const mission = String(req.body?.mission ?? "").trim();
+    if (enabled && !group && !mission) {
       return res.status(400).json({
         ok: false,
-        error: "Select a TAK group when locate is enabled.",
+        error:
+          "When locate is enabled, set at least a notification group or a Data Sync mission. Both cannot be None.",
       });
     }
     const out = await locateConfig.applyLocateConfiguration({
       enabled,
       groupDisplayName: group,
+      missionName: mission,
     });
     const authUser = req.authentikUser || null;
+    const groupLabel = group || "(none)";
+    const missionLabel = mission || "(none)";
     auditSvc.logEvent({
       actor: authUser,
       request: auditRequest(req),
@@ -87,10 +126,11 @@ router.post("/apply", async (req, res) => {
       targetId: "tak-coreconfig-locate",
       details: {
         locateEnabled: enabled,
-        takNotifyGroup: enabled ? group : null,
+        takNotifyGroup: enabled ? group || null : null,
+        takNotifyDataSyncMission: enabled && mission ? mission : null,
         takServerRestartInitiated: true,
         summary: enabled
-          ? `Locate was enabled on the TAK Server for notifications to group "${group}". CoreConfig.xml was updated over SSH and a TAK Server restart was started.`
+          ? `Locate was enabled on the TAK Server (notification group: ${groupLabel}; data sync mission: ${missionLabel}). CoreConfig.xml was updated over SSH and a TAK Server restart was started.`
           : `Locate was disabled on the TAK Server: the locate block was removed from CoreConfig.xml over SSH and a TAK Server restart was started.`,
       },
     });
