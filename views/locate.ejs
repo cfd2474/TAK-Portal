@@ -157,6 +157,18 @@
 
   <style>
     /* Mobile-friendly layout (aligned with agencies / groups patterns) */
+    /* Flex child (.main) must be allowed to shrink or wide tables/URLs force body horizontal scroll */
+    .locate-page.main {
+      min-width: 0;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+    .locate-page .card,
+    .locate-page .locate-table-scroll {
+      min-width: 0;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
     .locate-page .locate-config-row,
     .locate-page .locate-create-row {
       flex-wrap: wrap;
@@ -213,8 +225,14 @@
       margin-top: 10px;
       width: 100%;
     }
+    /* Wide viewports: allow inner horizontal scroll when many columns need space */
     .locate-page .locate-table {
-      min-width: 520px;
+      width: 100%;
+    }
+    @media (min-width: 641px) {
+      .locate-page .locate-table {
+        min-width: 520px;
+      }
     }
     .locate-page .locate-actions-cell {
       display: flex;
@@ -240,8 +258,27 @@
       .locate-page .locate-table .locate-col-last {
         display: none;
       }
+    }
+    /* Narrow viewports: no forced table min-width; wrap long titles/URLs inside cells */
+    @media (max-width: 640px) {
       .locate-page .locate-table {
-        min-width: 320px;
+        min-width: 0;
+        table-layout: fixed;
+      }
+      .locate-page .locate-table th,
+      .locate-page .locate-table td {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+    }
+    /* Smallest layouts (Title / Status / Actions only): keep action buttons from forcing width */
+    @media (max-width: 520px) {
+      .locate-page .locate-table .locate-col-status {
+        width: 26%;
+      }
+      .locate-page .locate-table .locate-col-actions {
+        width: 36%;
+        min-width: 0;
       }
     }
   </style>
