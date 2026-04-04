@@ -12,6 +12,10 @@ Planned features can be accessed [here](docs/roadmap.md)
 
 ## Version History
 
+### v1.2.65 - 4/3/26
+🎉 `New Feature` - Locate Persons page is out of beta and now available to any global admin and includes options for group/channel only, as well as data sync.  More updates to come soon with a form editor.<br>
+✨ `Enhancement` - Agencies page now adds a dropdown for color in the existing agencies table, allowing you to modify the assigned colors to existing agencies.
+
 ### v1.2.64 - 4/1/26
 ✨ `Enhancement` - Rearranged sidebar admministration links to appear alphabetically<br>
 🐛 `Bug Fix` - Fixes issue with beta features being shown to non-global admin users in the sidebar
