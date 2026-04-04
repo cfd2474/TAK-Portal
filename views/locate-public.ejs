@@ -89,17 +89,20 @@ function apiBase(){
 function pingUrl(){
   return apiBase()+"/locate/"+encodeURIComponent(slug)+"/ping";
 }
-/** Parse JSON from API body; tolerate BOM, whitespace, or HTML wrappers (e.g. iframe navigation). */
+/** Parse JSON from API body; tolerate BOM/whitespace and optional pre-tag wrapper (iframe viewers). */
 function parseJsonResponseSafe(text){
   if(text==null)return null;
   var s=String(text).replace(/^\uFEFF/,"").trim();
   if(!s)return null;
   try{return JSON.parse(s);}catch(e1){}
-  var i=s.indexOf("{"),j=s.lastIndexOf("}");
-  if(i>=0&&j>i){
-    try{return JSON.parse(s.slice(i,j+1));}catch(e2){}
+  var pre=s.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
+  if(pre&&pre[1]){
+    try{return JSON.parse(pre[1].trim());}catch(e2){}
   }
   return null;
+}
+function pingResponseLooksSuccessful(d){
+  return d&&(d.ok===true||d.ok==="true");
 }
 function stopSharingUrl(){
   return apiBase()+"/locate/"+encodeURIComponent(slug)+"/stop-sharing";
@@ -134,9 +137,9 @@ function parsePingResponse(res){
       he.isHttpError=true;
       throw he;
     }
-    if(!d||d.ok!==true){
+    if(!pingResponseLooksSuccessful(d)){
       var he2=new Error((d&&d.error)||"Request failed");
-      he2.isHttpError=true;
+      he2.isHttpError=false;
       throw he2;
     }
     return d;
@@ -210,10 +213,14 @@ function postPingFormIframe(body){
             return;
           }
           var d=parseJsonResponseSafe(text);
-          if(d&&d.ok===true)resolve(d);
-          else{
-            var he=new Error((d&&d.error)||"Could not send location. Try again or shorten the message.");
-            if(d&&d.error)he.isHttpError=true;
+          if(pingResponseLooksSuccessful(d))resolve(d);
+          else if(d&&d.ok===false){
+            var he0=new Error(d.error||"Request failed");
+            he0.isHttpError=true;
+            reject(he0);
+          }else{
+            var he=new Error((d&&d.error)||"Could not send location. Try again.");
+            he.isHttpError=false;
             reject(he);
           }
         }catch(ex){
@@ -238,11 +245,23 @@ function postPingXHRJSON(body){
     xhr.setRequestHeader("Accept","application/json");
     xhr.timeout=90000;
     xhr.onload=function(){
-      var text=xhr.responseText||"",d=parseJsonResponseSafe(text);
-      if(xhr.status>=200&&xhr.status<300){
-        if(d&&d.ok===true)resolve(d);
-        else{var he=new Error((d&&d.error)||text||"Request failed");he.isHttpError=true;reject(he);}
-      }else{var he2=new Error((d&&d.error)||text||"Request failed");he2.isHttpError=true;reject(he2);}
+      var text=xhr.responseText||"",d=parseJsonResponseSafe(text),st=xhr.status;
+      if(st>=200&&st<300){
+        if(pingResponseLooksSuccessful(d))resolve(d);
+        else if(d&&d.ok===false){
+          var he0=new Error(d.error||"Request failed");
+          he0.isHttpError=true;
+          reject(he0);
+        }else{
+          var he=new Error((d&&d.error)||"Unexpected response from server.");
+          he.isHttpError=false;
+          reject(he);
+        }
+      }else{
+        var he2=new Error((d&&d.error)||text||"Request failed");
+        he2.isHttpError=true;
+        reject(he2);
+      }
     };
     xhr.onerror=function(){reject(new Error("Failed to fetch"));};
     xhr.ontimeout=function(){reject(new Error("Request timed out"));};
@@ -270,11 +289,23 @@ function postPingXHRUrlEncoded(body){
     xhr.setRequestHeader("Accept","application/json");
     xhr.timeout=90000;
     xhr.onload=function(){
-      var text=xhr.responseText||"",d=parseJsonResponseSafe(text);
-      if(xhr.status>=200&&xhr.status<300){
-        if(d&&d.ok===true)resolve(d);
-        else{var he=new Error((d&&d.error)||text||"Request failed");he.isHttpError=true;reject(he);}
-      }else{var he2=new Error((d&&d.error)||text||"Request failed");he2.isHttpError=true;reject(he2);}
+      var text=xhr.responseText||"",d=parseJsonResponseSafe(text),st=xhr.status;
+      if(st>=200&&st<300){
+        if(pingResponseLooksSuccessful(d))resolve(d);
+        else if(d&&d.ok===false){
+          var he0=new Error(d.error||"Request failed");
+          he0.isHttpError=true;
+          reject(he0);
+        }else{
+          var he=new Error((d&&d.error)||"Unexpected response from server.");
+          he.isHttpError=false;
+          reject(he);
+        }
+      }else{
+        var he2=new Error((d&&d.error)||text||"Request failed");
+        he2.isHttpError=true;
+        reject(he2);
+      }
     };
     xhr.onerror=function(){reject(new Error("Failed to fetch"));};
     xhr.ontimeout=function(){reject(new Error("Request timed out"));};
@@ -300,27 +331,34 @@ function postPingViaHttpApis(body){
   function tryFetch(){
     return fetch(pingUrl(),fetchOpts).then(parsePingResponse);
   }
-  return postPingXHRUrlEncoded(body)
-    .catch(function(err){
-      if(err&&err.isHttpError)throw err;
-      return postPingXHRJSON(body);
-    })
-    .catch(function(err){
-      if(err&&err.isHttpError)throw err;
-      return tryFetch();
-    })
-    .catch(function(err){
-      if(!shouldRetryPing(err))throw err;
-      return new Promise(function(r){setTimeout(r,400);}).then(tryFetch);
-    })
-    .catch(function(err){
-      if(!shouldRetryPing(err))throw err;
-      return new Promise(function(r){setTimeout(r,1200);}).then(tryFetch);
-    })
-    .catch(function(err){
-      if(!shouldRetryPing(err))throw err;
-      return postPingXHRJSON(body);
-    });
+  /** Mobile: urlencoded first (cellular). Desktop: JSON first so qs/urlencoded never mangles text. */
+  function runPingChain(primary,secondary){
+    return primary(body)
+      .catch(function(err){
+        if(err&&err.isHttpError)throw err;
+        return secondary(body);
+      })
+      .catch(function(err){
+        if(err&&err.isHttpError)throw err;
+        return tryFetch();
+      })
+      .catch(function(err){
+        if(!shouldRetryPing(err))throw err;
+        return new Promise(function(r){setTimeout(r,400);}).then(tryFetch);
+      })
+      .catch(function(err){
+        if(!shouldRetryPing(err))throw err;
+        return new Promise(function(r){setTimeout(r,1200);}).then(tryFetch);
+      })
+      .catch(function(err){
+        if(!shouldRetryPing(err))throw err;
+        return postPingXHRJSON(body);
+      });
+  }
+  if(isMobileDevice()){
+    return runPingChain(postPingXHRUrlEncoded,postPingXHRJSON);
+  }
+  return runPingChain(postPingXHRJSON,postPingXHRUrlEncoded);
 }
 function postPing(lat,lng,accuracy){
   var body={
