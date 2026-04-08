@@ -133,7 +133,11 @@ router.post("/", async (req, res) => {
            console.warn("Failed to securely hook data feed name into Authentik attributes:", attrsErr);
         }
       } catch (feedErr) {
-        dataFeedError = feedErr?.response?.data?.message || feedErr?.message || String(feedErr);
+        let det = null;
+        if (feedErr.response && feedErr.response.data) {
+           det = typeof feedErr.response.data === 'object' ? JSON.stringify(feedErr.response.data) : String(feedErr.response.data);
+        }
+        dataFeedError = (feedErr.message || "TAK API failed") + (det ? " | " + det : "");
       }
     }
 
@@ -329,7 +333,12 @@ router.get("/:username/datafeed", async (req, res) => {
     
     res.json({ dataFeed: dataFeedPayload });
   } catch (err) {
-    res.status(500).json({ error: toErrorPayload(err) });
+    console.error("Error pulling retroactive Data Feed properties:", err);
+    let msg = err.message || "Failed reading from upstream Data Feed API";
+    if (err.response && err.response.data) {
+       msg += " | " + (typeof err.response.data === 'object' ? JSON.stringify(err.response.data) : String(err.response.data));
+    }
+    return res.status(500).json({ error: msg });
   }
 });
 
