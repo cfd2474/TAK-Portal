@@ -2227,7 +2227,7 @@ async function updateUserAttributes(userId, changes) {
   await assertUserNotActionLocked(userId, { ignoreLocks: true });
   const user = await getUserById(userId);
   const newAttrs = { ...(user.attributes || {}), ...changes };
-  await api.patch(`/core/users/${userId}/`, { attributes: JSON.stringify(newAttrs) });
+  await api.patch(`/core/users/${userId}/`, { attributes: newAttrs });
   invalidateUsersCache();
   return newAttrs;
 }
