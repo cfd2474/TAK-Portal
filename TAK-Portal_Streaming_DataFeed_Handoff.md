@@ -18,11 +18,11 @@ When an administrator creates a new Integration user, they frequently need a str
 - The `createForm` logic intercepts the payload instead of immediately dispatching. 
 - A designated "Make Streaming Data Feed? [Yes/No]" dropdown governs the initial context. If `No`, the Integration pushes cleanly with a `skipDataFeed: true` boolean payload.
 - If `Yes`, a secondary modal (`dataFeedModalOverlay`) sliders over mimicking TAK Server's configuration options:
-  - `*Name` (auto-populated with the Integration's `Title`)
+  - `Data Feed Name` (Disabled; strictly bound to the auto-generated Integration User Name e.g. `nodered-[type]-[name]` to prevent naming collisions)
   - `Tags` (Newline-separated block)
   - `Protocol` (Dropdown)
   - `Authentication Type` (Dropdown)
-  - `Port` (Integer)
+  - `Port` (Integer) - includes a reminder note to open firewall rules.
   - `Core Messaging Version` & Checkboxes for discrete mapping of `TLSv1, TLSv1.1, TLSv1.2, TLSv1.3`.
   - `Multicast Group`, `Interface`, `Sync Cache Retention`, `Archive`, `Anonymous Group`, `Archive Only`, `Sync`, `Federated`.
 
@@ -39,16 +39,16 @@ When an administrator creates a new Integration user, they frequently need a str
 ## 4. Backend Implementation Details (`routes/integrations.routes.js` & `services/users.service.js`)
 
 ### Storage Hooks & Authentik API Patching
-- `services/users.service.js` includes an exported `updateUserAttributes()` utility designed to `api.patch()` into `attributes: JSON.stringify({...})`. 
+- `services/users.service.js` includes an exported `updateUserAttributes()` utility designed to `api.patch()` into `attributes: {...}` (utilizing strictly raw JSON to prevent mapping rejection by Authentik). 
 - When an administrator provisions a Data Feed initially, the UI successfully constructs the object on TAK Server and then immediately saves the `tak_data_feed_name` onto the Authentik object metadata. This guarantees safe binding and prevents messy proxy queries based strictly on Titles.
 
 ### Payload Deconstruction
-- `POST /api/integrations`: The body now parses `skipDataFeed` parsing logic to bypass cleanly, along with the `dataFeedName` logic on success.
+- `POST /api/integrations`: The body now parses `skipDataFeed` logic to bypass cleanly. The API dynamically infers `dataFeedName` directly from the generated user payload output instead of trusting frontend nomenclature, providing strict 1:1 binding parity.
 - `GET /api/integrations`: Correctly parses out `.attributes.tak_data_feed_name` distributing the UI boolean to power the Red/Green table.
 
 ### Retroactive API Endpoints
 - **`GET /api/integrations/:username/datafeed`**: Proxies requests securely to `takClient.get("/api/datafeeds/{dataFeedName}")` resolving the TAK XML/JAXB model precisely.
-- **`POST /api/integrations/:username/datafeed`**: Decoupled initialization hook resolving the `takSvc.post` to reconstruct a newly generated feed out-of-band and bind it via `updateUserAttributes`.
+- **`POST /api/integrations/:username/datafeed`**: Decoupled initialization hook resolving the `takSvc.post` to reconstruct a newly generated feed out-of-band using the path `username`.
 
 ### Non-Fatal Data Feed Handling
 - Currently, the initial API flow implements a "Graceful Decay" error model.
