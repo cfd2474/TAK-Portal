@@ -2459,6 +2459,7 @@ module.exports = {
   updateEmail,
   updateName,
   setUserGroups,
+  updateUserAttributes,
   toggleUserActive,
   deleteUser,
   addUserGroups,
