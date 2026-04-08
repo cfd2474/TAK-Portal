@@ -97,7 +97,10 @@ router.post("/", async (req, res) => {
 
     let dataFeedError = "";
     const isSkipDataFeed = String(skipDataFeed) === "true";
-    const finalDataFeedName = (result && result.user && result.user.username) || dataFeedName;
+    let finalDataFeedName = (result && result.user && result.user.username) || dataFeedName;
+    if (finalDataFeedName) {
+        finalDataFeedName = finalDataFeedName.replace(/-/g, "_");
+    }
 
     if (!isSkipDataFeed && finalDataFeedName && takSvc.isTakConfigured()) {
       try {
@@ -362,7 +365,7 @@ router.post("/:username/datafeed", async (req, res) => {
 
     const { protocol, authType, port, coreVersion, coreVersion2TlsVersions, multicastGroup, iface, syncCacheRetention, archive, anongroup, archiveOnly, sync, federated, tags, filterGroups } = req.body || {};
 
-    const dataFeedName = user.username;
+    const dataFeedName = user.username ? user.username.replace(/-/g, "_") : undefined;
 
     if (!takSvc.isTakConfigured()) {
       return res.status(503).json({ error: "TAK Server connection is not configured." });
