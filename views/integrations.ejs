@@ -518,6 +518,7 @@
             }).join("");
             
             dataFeedForm.reset();
+            document.getElementById("dataFeedTitle").innerText = "Create Streaming Data Feed";
             Array.from(dataFeedForm.elements).forEach(el => {
                 if (el.name !== "dataFeedName") el.disabled = false;
             });
@@ -535,6 +536,7 @@
                  const f = feed.dataFeed;
                  
                  dataFeedForm.reset();
+                 document.getElementById("dataFeedTitle").innerText = "Data Feed Details";
                  document.getElementById("dataFeedSubmitBtn").style.display = "none";
                  
                  dataFeedForm.dataFeedName.value = f.name || "";
@@ -709,6 +711,7 @@
     }).join("");
 
     dataFeedForm.reset();
+    document.getElementById("dataFeedTitle").innerText = "Create Streaming Data Feed";
     Array.from(dataFeedForm.elements).forEach(el => {
         if (el.name !== "dataFeedName") el.disabled = false;
     });
