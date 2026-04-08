@@ -32,7 +32,8 @@ When an administrator creates a new Integration user, they frequently need a str
 - **Table Visual Indicators**:
    - The Integration Table renders `dataFeedName` via Red `<button>` bindings if unmapped (`No DF`) or Green bindings if active (`DF Enabled`).
    - The Red button enables a retroactive "create" flow sending users to configuring a feed after the fact.
-   - The Green button implements a `GET` proxy proxy query rendering the data in purely read-only to show how it's structurally formatted on TAK Server explicitly.
+   - The Green button implements a `GET` proxy query rendering the data in purely read-only to show how it's structurally formatted on TAK Server explicitly.
+   - The Modal header is context-aware via Javascript hooks and smoothly transitions between `Create Streaming Data Feed` and `Data Feed Details` reflecting active provision vs inspection states.
 
 ---
 
